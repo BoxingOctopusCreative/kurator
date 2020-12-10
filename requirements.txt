@@ -2,3 +2,4 @@ pandas
 xlrd
 flask
 jinja2
+contributing

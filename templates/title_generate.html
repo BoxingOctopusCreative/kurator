@@ -1,0 +1,11 @@
+{% block title %}
+{% if list_type == 'collection' %}
+<title>KURAT[OR] - My Collection</title>
+{% elif list_type == 'wishlist' %}
+<title>KURAT[OR] - My Wishlist</title>
+{% elif list_type == 'ordered' %}
+<title>KURAT[OR] - My Backorders</title>
+{% else %}
+<title></title>
+{% endif %}
+{% endblock %}

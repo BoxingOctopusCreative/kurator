@@ -1,5 +1,6 @@
 import sqlite3
 from flask import Flask, g, render_template
+from werkzeug.http import dump_cookie
 from contrib.configparser import ConfigParser
 
 # Read in config from file
@@ -37,6 +38,20 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+# That's a workaround for explicitly setting SameSite to None
+# Until the following fix is released: 
+# https://github.com/pallets/werkzeug/issues/1549
+def set_cookie(response, *args, **kwargs):
+    cookie = dump_cookie(*args, **kwargs)
+
+    if 'samesite' in kwargs and kwargs['samesite'] is None:
+        cookie = "{}; {}".format(cookie, b'SameSite=None'.decode('latin1'))
+
+    response.headers.add(
+        'Set-Cookie',
+        cookie
+    )
 
 @app.route('/')
 def hello():
