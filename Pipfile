@@ -9,6 +9,9 @@ verify_ssl = true
 pandas = "*"
 xlrd = "*"
 openpyxl = "*"
+toml = "*"
+flask = "*"
+jinja2 = "*"
 
 [requires]
 python_version = "3.8"
