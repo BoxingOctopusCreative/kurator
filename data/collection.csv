@@ -1,0 +1,688 @@
+﻿ID,TITLE,PLATFORM,STATUS
+0,Adventures in the Magic Kingdom,NES,in_collection
+1,Adventures of Lolo,NES,in_collection
+2,Astyanax,NES,in_collection
+3,Battletoads,NES,in_collection
+4,Blades of Steel,NES,in_collection
+5,Blaster Master,NES,in_collection
+6,Blaster Master,NES,in_collection
+7,Captain Skyhawk,NES,in_collection
+8,Castlevania 2: Simon's Quest,NES,in_collection
+9,Chip & Dale Rescue Rangers,NES,in_collection
+10,Clash at Demonhead,NES,in_collection
+11,Donkey Kong Classics,NES,in_collection
+12,Double Dragon,NES,in_collection
+13,Double Dragon 2,NES,in_collection
+14,Dr. Mario,NES,in_collection
+15,DuckTales,NES,in_collection
+16,Elevator Action,NES,in_collection
+17,Excitebike,NES,in_collection
+18,Final Fantasy,NES,in_collection
+19,Gauntlet,NES,in_collection
+20,Ghostbusters,NES,in_collection
+21,Hydlide,NES,in_collection
+22,Joust,NES,in_collection
+23,Kirby's Adventure,NES,in_collection
+24,Klax,NES,in_collection
+25,Kung Fu,NES,in_collection
+26,Legend of Zelda,NES,in_collection
+27,Loopz,NES,in_collection
+28,Mappy-Land,NES,in_collection
+29,Marble Madness,NES,in_collection
+30,Mega Man,NES,in_collection
+31,Mega Man 2,NES,in_collection
+32,Mega Man 3,NES,in_collection
+33,Mega Man 4,NES,in_collection
+34,Mega Man 5,NES,in_collection
+35,Mega Man 6,NES,in_collection
+36,Metroid,NES,in_collection
+37,Mickey Mousecapade,NES,in_collection
+38,Mike Tyson's Punch Out,NES,in_collection
+39,Ninja Gaiden,NES,in_collection
+40,Paperboy,NES,in_collection
+41,Q-Bert,NES,in_collection
+42,Rad Racer,NES,in_collection
+43,Rad Racer 2,NES,in_collection
+44,RC Pro-Am,NES,in_collection
+45,Rygar,NES,in_collection
+46,Shadowgate,NES,in_collection
+47,Skate or Die,NES,in_collection
+48,Spy Hunter,NES,in_collection
+49,Star Tropics,NES,in_collection
+50,Super Mario 2,NES,in_collection
+51,Super Mario 3,NES,in_collection
+52,Super Mario/Duck Hunt,NES,in_collection
+53,Teenage Mutant Ninja Turtles,NES,in_collection
+54,Tetris,NES,in_collection
+55,The Little Mermaid,NES,in_collection
+56,TMNT: The Arcade Game,NES,in_collection
+57,Top Gun,NES,in_collection
+58,Top Gun 2,NES,in_collection
+59,Yoshi's Cookie,NES,in_collection
+60,Zelda 2: Adventures of Link,NES,in_collection
+61,F-15 Strike Eagle,NES,in_collection
+62,Donkey Kong Country,SNES,in_collection
+63,F-Zero,SNES,in_collection
+64,Illusion of Gaia,SNES,in_collection
+65,Legend of Zelda: A Link to the Past,SNES,in_collection
+66,Mega Man X,SNES,in_collection
+67,Mortal Kombat,SNES,in_collection
+68,Ranma 1/2: Hard Battle,SNES,in_collection
+69,Star Fox,SNES,in_collection
+70,Street Fighter 2,SNES,in_collection
+71,Super Mario All-Stars,SNES,in_collection
+72,Super Mario Kart,SNES,in_collection
+73,Super Mario World,SNES,in_collection
+74,Super R-Type,SNES,in_collection
+75,Pilotwings,SNES,in_collection
+76,Zoop,SNES,in_collection
+77,Spider-Man & Venom: Maximum Carnage,SNES,in_collection
+78,Super Metroid,SNES,in_collection
+79,Killer Instinct,SNES,in_collection
+80,Secret of Evermore,SNES,in_collection
+81,Body Harvest,N64,in_collection
+82,Donkey Kong 64,N64,in_collection
+83,Goldeneye 007,N64,in_collection
+84,Legend of Zelda: Majora's Mask,N64,in_collection
+85,Legend of Zelda: The Ocarina of Time,N64,in_collection
+86,Mario Kart 64,N64,in_collection
+87,Mortal Kombat 4,N64,in_collection
+88,Perfect Dark,N64,in_collection
+89,Pokemon Stadium,N64,in_collection
+90,Star Wars Rogue Squadron,N64,in_collection
+91,Star Wars: Episode 1 Racer,N64,in_collection
+92,Star Wars: Shadows of the Empire,N64,in_collection
+93,Super Mario 64,N64,in_collection
+94,Automobili Lamborghini,N64,in_collection
+95,Jet Force Gemini,N64,in_collection
+96,Mischief Makers,N64,in_collection
+97,Metroid Prime,GameCube,in_collection
+98,Star Fox Adventures,GameCube,in_collection
+99,Geist,GameCube,in_collection
+100,Resident Evil,GameCube,in_collection
+101,Animal Crossing,GameCube,in_collection
+102,NBA Street,GameCube,in_collection
+103,Luigi's Mansion,GameCube,in_collection
+104,Star Wars: Rebel Squadron,GameCube,in_collection
+105,Tony Hawk Pro Skater 3,GameCube,in_collection
+106,X-Men Legends,GameCube,in_collection
+107,SoulCaliber 2,GameCube,in_collection
+108,Super Mario Land,Game Boy,in_collection
+109,Skate or Die: Bad 'n' Rad,Game Boy,in_collection
+110,Balloon Kid,Game Boy,in_collection
+111,Tetris,Game Boy,in_collection
+112,Pokemon Red,Game Boy,in_collection
+113,Teenage Mutant Ninja Turtles Fall of the Foot Clan,Game Boy,in_collection
+114,Solar Striker,Game Boy,in_collection
+115,Metroid 2: Return of Samus,Game Boy,in_collection
+116,Zelda Link's Awakening,Game Boy,in_collection
+117,Kirby Nightmare in Dreamland,Game Boy Advance,in_collection
+118,Legend of Zelda: Link to the Past/Four Swords,Game Boy Advance,in_collection
+119,Mario Kart Super Circuit,Game Boy Advance,in_collection
+120,Mario vs. Donkey Kong,Game Boy Advance,in_collection
+121,Mega Man Zero,Game Boy Advance,in_collection
+122,Mega Man Zero 2,Game Boy Advance,in_collection
+123,Mega Man Zero 3,Game Boy Advance,in_collection
+124,Mega Man Zero 4,Game Boy Advance,in_collection
+125,Metroid Fusion,Game Boy Advance,in_collection
+126,Pac-Man Collection,Game Boy Advance,in_collection
+127,Pokémon Sapphire,Game Boy Advance,in_collection
+128,Super Mario Advance,Game Boy Advance,in_collection
+129,Super Mario Advance 2: Super Mario World,Game Boy Advance,in_collection
+130,Super Mario Advance 3: Yoshi's Island,Game Boy Advance,in_collection
+131,Super Mario Advance 4: Super Mario Bros. 3,Game Boy Advance,in_collection
+132,Metroid Zero Mission,Game Boy Advance,in_collection
+133,Final Fantasy III,Nintendo DS,in_collection
+134,Bubble Bobble Revolution,Nintendo DS,in_collection
+135,Prince of Persia: The Forgotten Sands,Nintendo DS,in_collection
+136,Super Mario 64 DS,Nintendo DS,in_collection
+137,Star Wars: The Force Unleashed,Nintendo DS,in_collection
+138,Castlevania: Portrait of Ruin,Nintendo DS,in_collection
+139,New Super Mario Bros.,Nintendo DS,in_collection
+140,Kirby Super Star Ultra,Nintendo DS,in_collection
+141,Civilization: Revolution,Nintendo DS,in_collection
+142,Mario Kart DS,Nintendo DS,in_collection
+143,Meteos,Nintendo DS,in_collection
+144,Cooking Mama,Nintendo DS,in_collection
+145,Mega Man ZX Advent,Nintendo DS,in_collection
+146,Mega Man ZX,Nintendo DS,in_collection
+147,After Burner,Sega Master System,in_collection
+148,Alex Kidd in Miracle World,Sega Master System,in_collection
+149,Alien Syndrome,Sega Master System,in_collection
+150,Altered Beast,Sega Master System,in_collection
+151,Choplifter,Sega Master System,in_collection
+152,Enduro Racer,Sega Master System,in_collection
+153,Global Defense,Sega Master System,in_collection
+154,Hang-On,Sega Master System,in_collection
+155,Miracle Warriors,Sega Master System,in_collection
+156,Space Harrier,Sega Master System,in_collection
+157,Ecco: The Tides of Time,Sega Genesis,in_collection
+158,Flashback,Sega Genesis,in_collection
+159,Revenge of Shinobi,Sega Genesis,in_collection
+160,Sonic Spinball,Sega Genesis,in_collection
+161,Sonic the Hedgehog,Sega Genesis,in_collection
+162,Spider-Man,Sega Genesis,in_collection
+163,X-Men,Sega Genesis,in_collection
+164,Sonic the Hedgehog 2,Sega Genesis,in_collection
+165,Ecco The Dolphin,Sega Genesis,in_collection
+166,Vectorman,Sega Genesis,in_collection
+167,Shining Force,Sega Genesis,in_collection
+168,Mortal Kombat,Sega Genesis,in_collection
+169,Mortal Kombat 2,Sega Genesis,in_collection
+170,Mortal Kombat 3,Sega Genesis,in_collection
+171,Silpheed,Sega CD,in_collection
+172,Star Wars: Rebel Assault,Sega CD,in_collection
+173,Jurassic Park,Sega CD,in_collection
+174,Bram Stoker's Dracula,Sega CD,in_collection
+175,Tomcat Alley,Sega CD,in_collection
+176,Sonic CD,Sega CD,in_collection
+177,Castle of Illusion,Game Gear,in_collection
+178,Columns,Game Gear,in_collection
+179,Dragon Crystal,Game Gear,in_collection
+180,Ecco the Dolphin,Game Gear,in_collection
+181,G-Loc,Game Gear,in_collection
+182,Mortal Kombat,Game Gear,in_collection
+183,Psychic World,Game Gear,in_collection
+184,Revenge of Drancon,Game Gear,in_collection
+185,Sonic,Game Gear,in_collection
+186,Sonic 2,Game Gear,in_collection
+187,X-Men,Game Gear,in_collection
+188,Streets of Rage,Game Gear,in_collection
+189,Battle Arena Toshinden Remix,Sega Saturn,in_collection
+190,Iron Man/X-O Manowar in Heavy Metal,Sega Saturn,in_collection
+191,Myst,Sega Saturn,in_collection
+192,Nights: Into Dreams,Sega Saturn,in_collection
+193,Robotica,Sega Saturn,in_collection
+194,Scud The Disposable Assassin,Sega Saturn,in_collection
+195,Tomb Raider,Sega Saturn,in_collection
+196,Virtua Fighter,Sega Saturn,in_collection
+197,Virtual On,Sega Saturn,in_collection
+198,Daytona USA,Sega Saturn,in_collection
+199,Command and Conquer,Sega Saturn,in_collection
+200,Virtua Fighter 2,Sega Saturn,in_collection
+201,MechWarrior 2,Sega Saturn,in_collection
+202,Fighting Vipers,Sega Saturn,in_collection
+203,Hang-On GP,Sega Saturn,in_collection
+204,Final Fantasy VII,PSX,in_collection
+205,Final Fantasy VIII,PSX,in_collection
+206,Final Fantasy IX,PSX,in_collection
+207,N2O: Nitrous Oxide,PSX,in_collection
+208,Jet Moto 2,PSX,in_collection
+209,Metal Gear Solid,PSX,in_collection
+210,CoolBoarders 2,PSX,in_collection
+211,Wipeout 3,PSX,in_collection
+212,Wipeout,PSX,in_collection
+213,Spyro the Dragon,PSX,in_collection
+214,Crash Bandicoot Warped,PSX,in_collection
+215,Ballblazer Champions,PSX,in_collection
+216,Mega Man 8,PSX,in_collection
+217,Mega Man X4,PSX,in_collection
+218,Mega Man X5,PSX,in_collection
+219,Grand Theft Auto,PSX,in_collection
+220,Grand Theft Auto 2,PSX,in_collection
+221,Tekken 3,PSX,in_collection
+222,Mega Man X6,PSX,in_collection
+223,ATV Offroad Fury 4,PS2,in_collection
+224,Baldur's Gate: Dark Alliance,PS2,in_collection
+225,Bully,PS2,in_collection
+226,Final Fantasy X,PS2,in_collection
+227,God of War,PS2,in_collection
+228,God of War II,PS2,in_collection
+229,Grand Theft Auto III,PS2,in_collection
+230,Grand Theft Auto: San Andreas,PS2,in_collection
+231,Grand Theft Auto: Vice City,PS2,in_collection
+232,Katamari Damacy,PS2,in_collection
+233,Metal Gear Solid 2,PS2,in_collection
+234,SoulCaliber 2,PS2,in_collection
+235,Burnout 3: Takedown,PS2,in_collection
+236,Beyond Good & Evil,PS2,in_collection
+237,Shadow of the Colossus,PS2,in_collection
+238,Giants: Citizen Kabuto,PS2,in_collection
+239,Twisted Metal Black,PS2,in_collection
+240,Mega Man X7,PS2,in_collection
+241,Mega Man X8,PS2,in_collection
+242,Alien Syndrome,PSP,in_collection
+243,ATV Offroad Fury Pro,PSP,in_collection
+244,Bomberman,PSP,in_collection
+245,Bomberman Land,PSP,in_collection
+246,Burnout Legends,PSP,in_collection
+247,Every Extend Extra,PSP,in_collection
+248,Final Fantasy II,PSP,in_collection
+249,Ghostbusters: The Video Game,PSP,in_collection
+250,Gran Turismo PSP,PSP,in_collection
+251,Gunpey,PSP,in_collection
+252,Half Minute Hero,PSP,in_collection
+253,Justice League Heroes,PSP,in_collection
+254,Killzone: Liberation,PSP,in_collection
+255,Lumines,PSP,in_collection
+256,Lumines II,PSP,in_collection
+257,Secret Agent Clank,PSP,in_collection
+258,SOCOM Fireteam Bravo 3,PSP,in_collection
+259,Blood Omen 2,XBOX,in_collection
+260,Halo,XBOX,in_collection
+261,Halo 2,XBOX,in_collection
+262,Ninja Gaiden,XBOX,in_collection
+263,The Elder Scrolls V: Morrowind,XBOX,in_collection
+264,Crimson Skies,XBOX,in_collection
+265,Fable,XBOX,in_collection
+266,Sega GT/Jet Set Radio Future,XBOX,in_collection
+267,Pariah,XBOX,in_collection
+268,SoulCaliber 2,XBOX,in_collection
+269,Hydro Thunder,Sega Dreamcast,in_collection
+270,Silent Scope,Sega Dreamcast,in_collection
+271,Chu Chu Rocket,Sega Dreamcast,in_collection
+272,Slave Zero,Sega Dreamcast,in_collection
+273,Sonic Adventure,Sega Dreamcast,in_collection
+274,Crazy Taxi,Sega Dreamcast,in_collection
+275,Worms World Party,Sega Dreamcast,in_collection
+276,Unreal Tournament,Sega Dreamcast,in_collection
+277,Rippin' Riders,Sega Dreamcast,in_collection
+278,SoulCaliber,Sega Dreamcast,in_collection
+279,Super Magnetic Neo,Sega Dreamcast,in_collection
+280,Tony Hawk Pro Skater 2,Sega Dreamcast,in_collection
+281,Soul Reaver: Legacy of Kain,Sega Dreamcast,in_collection
+282,Bonk's Adventure,TurboGrafx-16,in_collection
+283,Klax,TurboGrafx-16,in_collection
+284,Keith Courage,TurboGrafx-16,in_collection
+285,Dragon Spirit,TurboGrafx-16,in_collection
+286,Victory Run,TurboGrafx-16,in_collection
+287,Legendary Axe,TurboGrafx-16,in_collection
+288,Legendary Axe II,TurboGrafx-16,in_collection
+289,Double Dungeons,TurboGrafx-16,in_collection
+290,Blazing Lazers,TurboGrafx-16,in_collection
+291,Ninja Spirit,TurboGrafx-16,in_collection
+292,Galaga '90,TurboGrafx-16,in_collection
+293,Military Madness,TurboGrafx-16,in_collection
+294,Beamrider,Intellivision,in_collection
+295,Burgertime,Intellivision,in_collection
+296,Bomb Squad,Intellivision,in_collection
+297,Tron Deadly Discs,Intellivision,in_collection
+298,Sea Battle,Intellivision,in_collection
+299,Las Vegas Poker & Blackjack,Intellivision,in_collection
+300,Ladybug,Coleco Vision,in_collection
+301,Donkey Kong,Coleco Vision,in_collection
+302,Rocky,Coleco Vision,in_collection
+303,Pepper II,Coleco Vision,in_collection
+304,Venture,Coleco Vision,in_collection
+305,Cosmic Avenger,Coleco Vision,in_collection
+306,Q-Bert,Coleco Vision,in_collection
+307,Adventures of Tron,Atari 2600,in_collection
+308,Asteroids,Atari 2600,in_collection
+309,Breakout,Atari 2600,in_collection
+310,Centipede,Atari 2600,in_collection
+311,RealSports Tennis,Atari 2600,in_collection
+312,Defender,Atari 2600,in_collection
+313,Donkey Kong,Atari 2600,in_collection
+314,E.T.: The Extra-Terrestrial,Atari 2600,in_collection
+315,Football,Atari 2600,in_collection
+316,Home Run,Atari 2600,in_collection
+317,Indy 500,Atari 2600,in_collection
+318,Keystone Kapers,Atari 2600,in_collection
+319,Missile Command,Atari 2600,in_collection
+320,Galaxian,Atari 2600,in_collection
+321,Outlaw,Atari 2600,in_collection
+322,Pac-Man,Atari 2600,in_collection
+323,Pitfall!,Atari 2600,in_collection
+324,Seaquest,Atari 2600,in_collection
+325,Space Invaders,Atari 2600,in_collection
+326,Phoenix,Atari 2600,in_collection
+327,Vanguard,Atari 2600,in_collection
+328,Jungle Hunt,Atari 2600,in_collection
+329,RealSports Soccer,Atari 2600,in_collection
+330,Mario Bros.,Atari 2600,in_collection
+331,Dig Dug,Atari 2600,in_collection
+332,Pole Position,Atari 2600,in_collection
+333,Snoopy vs. The Red Baron,Atari 2600,in_collection
+334,Donkey Kong Junior,Atari 2600,in_collection
+335,Desert Falcon,Atari 2600,in_collection
+336,Ms. Pac-Man,Atari 2600,in_collection
+337,Centipede,Atari 7800,in_collection
+338,Robotron 2084,Atari 7800,in_collection
+339,Pole Position II,Atari 7800,in_collection
+340,Jinks,Atari 7800,in_collection
+341,Dig Dug,Atari 7800,in_collection
+342,Choplifter,Atari 7800,in_collection
+343,Joust,Atari 7800,in_collection
+344,Asteroids,Atari 7800,in_collection
+345,Ms. Pac-Man,Atari 7800,in_collection
+346,Xevious,Atari 7800,in_collection
+347,Galaga,Atari 7800,in_collection
+348,Karateka,Atari 7800,in_collection
+349,Ballblazer,Atari 7800,in_collection
+350,Donkey Kong,Atari 7800,in_collection
+351,Meltdown,Atari 7800,in_collection
+352,Chip's Challenge,Atari Lynx,in_collection
+353,Qix,Atari Lynx,in_collection
+354,Xybots,Atari Lynx,in_collection
+355,STUN Runner,Atari Lynx,in_collection
+356,Robotron 2084,Atari Lynx,in_collection
+357,Electrocop,Atari Lynx,in_collection
+358,Chip's Challenge,Atari Lynx,in_collection
+359,Qix,Atari Lynx,in_collection
+360,Xybots,Atari Lynx,in_collection
+361,STUN Runner,Atari Lynx,in_collection
+362,Robotron 2084,Atari Lynx,in_collection
+363,Electrocop,Atari Lynx,in_collection
+364,Ninja Gaiden,Atari Lynx,in_collection
+365,Gunpey,Bandai WonderSwan,in_collection
+366,F-117A Stealth Fighter,NES,in_wishlist
+367,Ice Climber,NES,in_wishlist
+368,Metal Gear,NES,in_wishlist
+369,Tiny Toon Adventures,NES,in_wishlist
+370,Wolverine,NES,in_wishlist
+371,Bionic Commando,NES,in_wishlist
+372,Castlevania,NES,in_wishlist
+373,Kickle Cubicle,NES,in_wishlist
+374,Bubble Bobble,NES,in_wishlist
+375,Contra,NES,in_wishlist
+376,Qix,NES,in_wishlist
+377,Power Blade,NES,in_wishlist
+378,Fire & Ice,NES,in_wishlist
+379,Chip & Dale Rescue Rangers 2,NES,in_wishlist
+380,Power Blade 2,NES,in_wishlist
+381,Earthworm Jim,SNES,in_wishlist
+382,Flashback,SNES,in_wishlist
+383,Final Fantasy: Mystic Quest,SNES,in_wishlist
+384,Donkey Kong Country 2,SNES,in_wishlist
+385,Earthworm Jim 2,SNES,in_wishlist
+386,ActRaiser 2,SNES,in_wishlist
+387,Donkey Kong Country 3,SNES,in_wishlist
+388,The Lost Vikings,SNES,in_wishlist
+389,ActRaiser,SNES,in_wishlist
+390,Final Fantasy 2,SNES,in_wishlist
+391,Secret of Mana,SNES,in_wishlist
+392,Super Castlevania IV,SNES,in_wishlist
+393,Kirby Super Star,SNES,in_wishlist
+394,Breath of Fire,SNES,in_wishlist
+395,Final Fantasy 3,SNES,in_wishlist
+396,Street Fighter Alpha 2,SNES,in_wishlist
+397,Super Mario RPG,SNES,in_wishlist
+398,Breath of Fire II,SNES,in_wishlist
+399,Mega Man X2,SNES,in_wishlist
+400,Chrono Trigger,SNES,in_wishlist
+401,Mega Man 7,SNES,in_wishlist
+402,Earthbound,SNES,in_wishlist
+403,Mega Man X3,SNES,in_wishlist
+404,Castlevania: Dracula X,SNES,in_wishlist
+405,Harvest Moon,SNES,in_wishlist
+406,Perfect Dark,N64,in_wishlist
+407,Hexen,N64,in_wishlist
+408,Nightmare Creatures,N64,in_wishlist
+409,Turok: Dinosaur Hunter,N64,in_wishlist
+410,Blast Corps,N64,in_wishlist
+411,Bomberman 64,N64,in_wishlist
+412,Clay Fighter 63 1/3,N64,in_wishlist
+413,Starfox 64,N64,in_wishlist
+414,Killer Instinct Gold,N64,in_wishlist
+415,Super Smash Bros.,N64,in_wishlist
+416,Mystical Ninja Goemon,N64,in_wishlist
+417,Goemon's Great Adventure,N64,in_wishlist
+418,Pilotwings 64,N64,in_wishlist
+419,Chibi-Robo,GameCube,in_wishlist
+420,Super Smash Bros. Melee,GameCube,in_wishlist
+421,Pikmin,GameCube,in_wishlist
+422,Super Monkey Ball,GameCube,in_wishlist
+423,Super Mario Sunshine,GameCube,in_wishlist
+424,Zelda Wind Waker,GameCube,in_wishlist
+425,Batman: The Video Game,Game Boy,in_wishlist
+426,Adventure Island,Game Boy,in_wishlist
+427,Adventure Island II,Game Boy,in_wishlist
+428,Mega Man 2,Game Boy,in_wishlist
+429,Mega Man 3,Game Boy,in_wishlist
+430,Mega Man 4,Game Boy,in_wishlist
+431,Mega Man 5,Game Boy,in_wishlist
+432,Tony Hawk Pro Skater 2,Game Boy Advance,in_wishlist
+433,Legend of Zelda: The Minish Cap,Game Boy Advance,in_wishlist
+434,Astro Boy: The Omega Factor,Game Boy Advance,in_wishlist
+435,Drill Dozer,Game Boy Advance,in_wishlist
+436,Final Fantasy I & II Dawn of Souls,Game Boy Advance,in_wishlist
+437,Final Fantasy IV Advance,Game Boy Advance,in_wishlist
+438,Final Fantasy Tactics Advance,Game Boy Advance,in_wishlist
+439,Final Fantasy V Advance,Game Boy Advance,in_wishlist
+440,Final Fantasy VI Advance,Game Boy Advance,in_wishlist
+441,F-Zero GP Legend,Game Boy Advance,in_wishlist
+442,F-Zero Maximum Velocity,Game Boy Advance,in_wishlist
+443,Earthworm Jim,Game Boy Advance,in_wishlist
+444,Earthworm Jim 2,Game Boy Advance,in_wishlist
+445,Donkey Kong Country,Game Boy Advance,in_wishlist
+446,Donkey Kong Country 2,Game Boy Advance,in_wishlist
+447,Donkey Kong Country 3,Game Boy Advance,in_wishlist
+448,Castlevania Aria of Sorrow,Game Boy Advance,in_wishlist
+449,Castlevania Circle of the Moon,Game Boy Advance,in_wishlist
+450,Castlevania Harmony of Dissonance,Game Boy Advance,in_wishlist
+451,Chu Chu Rocket,Game Boy Advance,in_wishlist
+452,Breath of Fire,Game Boy Advance,in_wishlist
+453,Breath of Fire II,Game Boy Advance,in_wishlist
+454,Baldur's Gate Dark Alliance,Game Boy Advance,in_wishlist
+455,Advance Guardian Heroes,Game Boy Advance,in_wishlist
+456,Advance Wars,Game Boy Advance,in_wishlist
+457,Advance Wars 2,Game Boy Advance,in_wishlist
+458,007 Everything or Nothing,Game Boy Advance,in_wishlist
+459,007 Nightfire,Game Boy Advance,in_wishlist
+460,Mega Man and Bass,Game Boy Advance,in_wishlist
+461,Metal Slug Advance,Game Boy Advance,in_wishlist
+462,Legend of Zelda: Spirit Tracks,Nintendo DS,in_wishlist
+463,Legend of Zelda: Phantom Hourglass,Nintendo DS,in_wishlist
+464,Castlevania: Dawn of Sorrow,Nintendo DS,in_wishlist
+465,Metroid Prime: Hunters,Nintendo DS,in_wishlist
+466,Animal Crossing: Wild World,Nintendo DS,in_wishlist
+467,Advance Wars: Dual Strike,Nintendo DS,in_wishlist
+468,Kirby: Canvas Curse,Nintendo DS,in_wishlist
+469,Advance Wars: Days of Ruin,Nintendo DS,in_wishlist
+470,Castlevania: Order of Ecclesia,Nintendo DS,in_wishlist
+471,Final Fantasy IV,Nintendo DS,in_wishlist
+472,N+,Nintendo DS,in_wishlist
+473,Metal Slug 7,Nintendo DS,in_wishlist
+474,Chrono Trigger,Nintendo DS,in_wishlist
+475,Mario & Luigi: Bowser's Inside Story,Nintendo DS,in_wishlist
+476,Mario Party DS,Nintendo DS,in_wishlist
+477,Wario: Master of Disguise,Nintendo DS,in_wishlist
+478,Diddy Kong Racing,Nintendo DS,in_wishlist
+479,Bomberman Land Touch,Nintendo DS,in_wishlist
+480,Yoshi's Island DS,Nintendo DS,in_wishlist
+481,Mario vs. Donkey Kong 2,Nintendo DS,in_wishlist
+482,Harvest Moon DS,Nintendo DS,in_wishlist
+483,Bust-a-Move DS,Nintendo DS,in_wishlist
+484,Burnout Legends,Nintendo DS,in_wishlist
+485,Mario & Luigi: Partners in Time,Nintendo DS,in_wishlist
+486,Viewtiful Joe,Nintendo DS,in_wishlist
+487,Dig Dug: Digging Strike,Nintendo DS,in_wishlist
+488,Bomberman Land Touch,Nintendo DS,in_wishlist
+489,WarioWare: Touched!,Nintendo DS,in_wishlist
+490,Yoshi: Touch & Go,Nintendo DS,in_wishlist
+491,Columns,Sega Master System,in_wishlist
+492,Penguin Land,Sega Master System,in_wishlist
+493,Fantasy Zone: The Maze,Sega Master System,in_wishlist
+494,Wonder Boy,Sega Master System,in_wishlist
+495,Fantasy Zone,Sega Master System,in_wishlist
+496,Fantasy Zone II,Sega Master System,in_wishlist
+497,Alex Kidd in Shinobi World,Sega Master System,in_wishlist
+498,Phantasy Star,Sega Master System,in_wishlist
+499,Alien 3,Sega Master System,in_wishlist
+500,Vectorman 2,Sega Genesis,in_wishlist
+501,Golden Axe,Sega Genesis,in_wishlist
+502,Sonic & Knuckles,Sega Genesis,in_wishlist
+503,Outrun,Sega Genesis,in_wishlist
+504,Comix Zone,Sega Genesis,in_wishlist
+505,Shining Force 2,Sega Genesis,in_wishlist
+506,Ristar,Sega Genesis,in_wishlist
+507,Streets of Rage,Sega Genesis,in_wishlist
+508,Streets of Rage 2,Sega Genesis,in_wishlist
+509,Streets of Rage 3,Sega Genesis,in_wishlist
+510,Sewer Shark,Sega CD,in_wishlist
+511,Dark Wizard,Sega CD,in_wishlist
+512,Final Fight CD,Sega CD,in_wishlist
+513,Road Rash,Sega CD,in_wishlist
+514,Lunar Eternal Blue,Sega CD,in_wishlist
+515,Shining Force CD,Sega CD,in_wishlist
+516,Snatcher,Sega CD,in_wishlist
+517,Bust-a-Move,Game Gear,in_wishlist
+518,Legend of Illusion Starring Mickey Mouse,Game Gear,in_wishlist
+519,Shinobi,Game Gear,in_wishlist
+520,Ax Battler,Game Gear,in_wishlist
+521,Fantasy Zone,Game Gear,in_wishlist
+522,Devilish,Game Gear,in_wishlist
+523,Ristar,Game Gear,in_wishlist
+524,Ninja Gaiden,Game Gear,in_wishlist
+525,OutRun,Game Gear,in_wishlist
+526,Earthworm Jim,Game Gear,in_wishlist
+527,Bubble Bobble,Game Gear,in_wishlist
+528,Shining Force: Sword of Hayja,Game Gear,in_wishlist
+529,Cyberia,Sega Saturn,in_wishlist
+530,Need for Speed,Sega Saturn,in_wishlist
+531,SimCity 2000,Sega Saturn,in_wishlist
+532,Blast Chamber,Sega Saturn,in_wishlist
+533,Bust-a-Move 2 Arcade Edition,Sega Saturn,in_wishlist
+534,Scorcher,Sega Saturn,in_wishlist
+535,Space Hulk Vengeance of the Blood Angels,Sega Saturn,in_wishlist
+536,Area 51,Sega Saturn,in_wishlist
+537,Blazing Dragons,Sega Saturn,in_wishlist
+538,Braindead-13,Sega Saturn,in_wishlist
+539,Hexen,Sega Saturn,in_wishlist
+540,Sonic 3D Blast,Sega Saturn,in_wishlist
+541,Alien Trilogy,Sega Saturn,in_wishlist
+542,Virtual Hydlide,Sega Saturn,in_wishlist
+543,Gex,Sega Saturn,in_wishlist
+544,Bubble Bobble Featuring Rainbow Islands,Sega Saturn,in_wishlist
+545,Clockwork Knight,Sega Saturn,in_wishlist
+546,Skeleton Warriors,Sega Saturn,in_wishlist
+547,Warcraft II The Dark Saga,Sega Saturn,in_wishlist
+548,Street Fighter Alpha 2,Sega Saturn,in_wishlist
+549,Clockwork Knight 2,Sega Saturn,in_wishlist
+550,Doom,Sega Saturn,in_wishlist
+551,Duke Nukem 3D,Sega Saturn,in_wishlist
+552,Blazing Heroes,Sega Saturn,in_wishlist
+553,X-Men vs. Street Fighter,Sega Saturn,in_wishlist
+554,Quake,Sega Saturn,in_wishlist
+555,Norse By Norsewest The Return of the Lost Vikings,Sega Saturn,in_wishlist
+556,Astal,Sega Saturn,in_wishlist
+557,Golden Axe The Duel,Sega Saturn,in_wishlist
+558,X-Men Children of the Atom,Sega Saturn,in_wishlist
+559,Sonic R,Sega Saturn,in_wishlist
+560,Bust A Move 3,Sega Saturn,in_wishlist
+561,D,Sega Saturn,in_wishlist
+562,Shinobi Legions,Sega Saturn,in_wishlist
+563,Metal Slug,Sega Saturn,in_wishlist
+564,Panzer Dragoon II Zwei,Sega Saturn,in_wishlist
+565,Marvel Super Heroes,Sega Saturn,in_wishlist
+566,Shining Wisdom,Sega Saturn,in_wishlist
+567,Guardian Heroes,Sega Saturn,in_wishlist
+568,Shining Force 3,Sega Saturn,in_wishlist
+569,Mega Man X4,Sega Saturn,in_wishlist
+570,Magic Knight Rayearth,Sega Saturn,in_wishlist
+571,Saturn Bomberman,Sega Saturn,in_wishlist
+572,Panzer Dragoon Saga,Sega Saturn,in_wishlist
+573,Chrono Cross,PSX,in_wishlist
+574,Driver,PSX,in_wishlist
+575,Driver 2,PSX,in_wishlist
+576,Einhander,PSX,in_wishlist
+577,Final Fantasy Tactics,PSX,in_wishlist
+578,Gran Turismo,PSX,in_wishlist
+579,Gran Turismo 2,PSX,in_wishlist
+580,Jersey Devil,PSX,in_wishlist
+581,Legend of Dragoon,PSX,in_wishlist
+582,MDK,PSX,in_wishlist
+583,MediEvil,PSX,in_wishlist
+584,Parasite Eve,PSX,in_wishlist
+585,Resident Evil,PSX,in_wishlist
+586,Resident Evil 2,PSX,in_wishlist
+587,Silent Hill,PSX,in_wishlist
+588,Spyro: Year of the Dragon,PSX,in_wishlist
+589,Street Fighter Alpha 2,PSX,in_wishlist
+590,Street Fighter Alpha 3,PSX,in_wishlist
+591,Tekken,PSX,in_wishlist
+592,Tekken 2,PSX,in_wishlist
+593,Tomb Raider 2,PSX,in_wishlist
+594,Tomba,PSX,in_wishlist
+595,Tony Hawk's Pro Skater,PSX,in_wishlist
+596,Vigilante 8,PSX,in_wishlist
+597,Warhammer: Dark Omen,PSX,in_wishlist
+598,Xenogears,PSX,in_wishlist
+599,Okami,PS2,in_wishlist
+600,Metal Gear Solid 3: Snake Eater,PS2,in_wishlist
+601,Tony Hawk's Pro Skater 4,PS2,in_wishlist
+602,Psychonauts,PS2,in_wishlist
+603,Devil May Cry,PS2,in_wishlist
+604,Gran Turismo 4,PS2,in_wishlist
+605,Devil May Cry 2,PS2,in_wishlist
+606,Devil May Cry 3,PS2,in_wishlist
+607,Xenosaga,PS2,in_wishlist
+608,Grand Theft Auto: Vice City Stories,PSP,in_wishlist
+609,Ys Seven,PSP,in_wishlist
+610,LocoRoco 2,PSP,in_wishlist
+611,Castlevania: The Dracula X Chronicles,PSP,in_wishlist
+612,Power Stone Collection,PSP,in_wishlist
+613,God of War: Ghost of Sparta,PSP,in_wishlist
+614,Grand Theft Auto: Chinatown Wars,PSP,in_wishlist
+615,Tekken: Dark Resurrection,PSP,in_wishlist
+616,PixelJunk Monsters Deluxe,PSP,in_wishlist
+617,Ratchet & Clank: Size Matters,PSP,in_wishlist
+618,X-Men Legends 2: Rise of Apocalypse,PSP,in_wishlist
+619,LocoRoco,PSP,in_wishlist
+620,WipeOut Pulse,PSP,in_wishlist
+621,Tekken 6,PSP,in_wishlist
+622,Sid Meier's Pirates,PSP,in_wishlist
+623,Outrun 2006: Coast to Coast,PSP,in_wishlist
+624,Marvel Ultimate Alliance,PSP,in_wishlist
+625,Shadow Man,Sega Dreamcast,in_wishlist
+626,Ready 2 Rumble Boxing,Sega Dreamcast,in_wishlist
+627,Crazy Taxi 2,Sega Dreamcast,in_wishlist
+628,Shenmue,Sega Dreamcast,in_wishlist
+629,Worms Armageddon,Sega Dreamcast,in_wishlist
+630,Expendable,Sega Dreamcast,in_wishlist
+631,Star Wars Episode 1 Racer,Sega Dreamcast,in_wishlist
+632,Evil Dead: Hail to the King,Sega Dreamcast,in_wishlist
+633,Skies of Arcadia,Sega Dreamcast,in_wishlist
+634,Jet Grind Radio,Sega Dreamcast,in_wishlist
+635,Jojo's Bizarre Adventure,Sega Dreamcast,in_wishlist
+636,Street Fighter III: 3rd Strike,Sega Dreamcast,in_wishlist
+637,Power Stone 2,Sega Dreamcast,in_wishlist
+638,Sonic Adventure 2,Sega Dreamcast,in_wishlist
+639,Power Stone,Sega Dreamcast,in_wishlist
+640,Quake III Arena,Sega Dreamcast,in_wishlist
+641,Marvel vs. Capcom 2,Sega Dreamcast,in_wishlist
+642,Cratermaze,TurboGrafx-16,in_wishlist
+643,Bonk's Revenge,TurboGrafx-16,in_wishlist
+644,R-Type,TurboGrafx-16,in_wishlist
+645,Aero Blasters,TurboGrafx-16,in_wishlist
+646,Bomberman,TurboGrafx-16,in_wishlist
+647,Neutopia,TurboGrafx-16,in_wishlist
+648,Cadash,TurboGrafx-16,in_wishlist
+649,Bomberman '93,TurboGrafx-16,in_wishlist
+650,Neutopia II,TurboGrafx-16,in_wishlist
+651,Bonk's Adventure III,TurboGrafx-16,in_wishlist
+652,Magical Chase,TurboGrafx-16,in_wishlist
+653,Air Zonk,TurboGrafx-16,in_wishlist
+654,Turrican,TurboGrafx-16,in_wishlist
+655,Sidearms,TurboGrafx-16,in_wishlist
+656,Chase HQ,TurboGrafx-16,in_wishlist
+657,Silent Debuggers,TurboGrafx-16,in_wishlist
+658,Moto Roader,TurboGrafx-16,in_wishlist
+659,Bump 'n' Jump,Intellivision,in_wishlist
+660,Astrosmash,Intellivision,in_wishlist
+661,Star Strike,Intellivision,in_wishlist
+662,Donkey Kong,Intellivision,in_wishlist
+663,Advanced Dungeons and Dragons,Intellivision,in_wishlist
+664,Atlantis,Intellivision,in_wishlist
+665,Shark Shark,Intellivision,in_wishlist
+666,Pac-Man,Intellivision,in_wishlist
+667,Frogger,Intellivision,in_wishlist
+668,Donkey Kong Jr.,Intellivision,in_wishlist
+669,Q-Bert,Intellivision,in_wishlist
+670,Masters of the Universe: The Power of He-Man,Intellivision,in_wishlist
+671,Dig Dug,Intellivision,in_wishlist
+672,Tower of Doom,Intellivision,in_wishlist
+673,Diner,Intellivision,in_wishlist
+674,Dracula,Intellivision,in_wishlist
+675,Defender,Intellivision,in_wishlist
+676,Demon Attack,Intellivision,in_wishlist
+677,Motor Psycho,Atari 7800,in_wishlist
+678,Rygar,Atari Lynx,in_wishlist
+679,Xenophobe,Atari Lynx,in_wishlist
+680,Joust,Atari Lynx,in_wishlist
+681,Ninja Gaiden II,Atari Lynx,in_wishlist
+682,Ninja Gaiden III,Atari Lynx,in_wishlist
+683,Ishido: Way of the Stones,Atari Lynx,in_wishlist
+684,Final Lap 2000,Bandai WonderSwan,in_wishlist
+685,Klax,Atari Lynx,in_ordered
+686,Turntablist DJ Battle,Bandai WonderSwan,in_ordered

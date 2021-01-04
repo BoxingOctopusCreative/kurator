@@ -1,5 +1,5 @@
-pandas
-xlrd
 flask
 jinja2
-contributing
+pymongo
+toml
+pysolr
