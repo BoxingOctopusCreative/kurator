@@ -1,0 +1,9 @@
+{
+  "name": "Kurator",
+  "short_name": "Kurator",
+  "description": "Collection tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0f14",
+  "theme_color": "#0c0f14"
+}

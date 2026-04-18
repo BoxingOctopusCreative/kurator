@@ -1,0 +1,3 @@
+bin/
+# Local secrets (use kurator.example.toml as a template)
+kurator.toml

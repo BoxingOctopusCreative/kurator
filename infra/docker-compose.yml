@@ -1,0 +1,28 @@
+# Infrastructure-only stack (e.g. Postgres for local dev).
+# Apply schema via the web /setup page (SETUP_ENABLED) or api/internal/migrate against DATABASE_URL.
+# Run from repo root: docker compose -f infra/docker-compose.yml up -d
+# Stop the root docker-compose postgres first if both map host port 5432.
+
+name: kurator-infra
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: kurator-infra-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kurator}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kurator}
+      POSTGRES_DB: ${POSTGRES_DB:-kurator}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - kurator_infra_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kurator} -d ${POSTGRES_DB:-kurator}"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  kurator_infra_pg_data:

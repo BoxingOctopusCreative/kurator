@@ -1,0 +1,610 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Kurator API",
+    "version": "1.0",
+    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, setup/migrations, and optional S3-backed image uploads."
+  },
+  "host": "localhost:8080",
+  "basePath": "/",
+  "schemes": ["http"],
+  "securityDefinitions": {
+    "SessionCookie": {
+      "type": "apiKey",
+      "name": "kurator_session",
+      "in": "cookie"
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Health check",
+        "produces": ["application/json"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/setup": {
+      "get": {
+        "tags": ["setup"],
+        "summary": "Setup availability",
+        "produces": ["application/json"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "setup_enabled": {"type": "boolean"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/setup/status": {
+      "get": {
+        "tags": ["setup"],
+        "summary": "Migration status",
+        "produces": ["application/json"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {"type": "object"}
+          }
+        }
+      }
+    },
+    "/api/v1/setup/migrate": {
+      "post": {
+        "tags": ["setup"],
+        "summary": "Run migrations",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {"$ref": "#/definitions/SetupMigrateBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}},
+          "400": {"description": "Bad Request"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Server Error"}
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Register",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/RegisterBody"}
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {"$ref": "#/definitions/User"}
+          },
+          "400": {"description": "Bad Request"},
+          "409": {"description": "Conflict"}
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Login",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/LoginBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}},
+          "401": {"description": "Unauthorized"},
+          "500": {"description": "Server Error"}
+        }
+      }
+    },
+    "/api/v1/auth/login/2fa": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Login (2FA)",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/Login2FABody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK"},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Logout",
+        "responses": {
+          "204": {"description": "No Content"}
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Current user",
+        "security": [{"SessionCookie": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
+          "401": {"description": "Unauthorized"},
+          "404": {"description": "Not Found"}
+        }
+      },
+      "patch": {
+        "tags": ["auth"],
+        "summary": "Update profile",
+        "security": [{"SessionCookie": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/PatchMeBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/me/2fa/setup": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Start 2FA setup",
+        "security": [{"SessionCookie": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {"$ref": "#/definitions/TwoFASetupResult"}
+          },
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/me/2fa/enable": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Enable 2FA",
+        "security": [{"SessionCookie": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/TwoFAEnableBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/me/2fa/disable": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Disable 2FA",
+        "security": [{"SessionCookie": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/TwoFADisableBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/images": {
+      "post": {
+        "tags": ["images"],
+        "summary": "Upload image",
+        "security": [{"SessionCookie": []}],
+        "consumes": ["multipart/form-data", "application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "file",
+            "in": "formData",
+            "type": "file",
+            "description": "Image file"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {"$ref": "#/definitions/ImageFromURLBody"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {"url": {"type": "string"}}
+            }
+          },
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"},
+          "413": {"description": "Payload Too Large"},
+          "503": {"description": "Service Unavailable"}
+        }
+      }
+    },
+    "/api/v1/collections": {
+      "get": {
+        "tags": ["collections"],
+        "summary": "List collections",
+        "produces": ["application/json"],
+        "parameters": [
+          {"name": "q", "in": "query", "type": "string"},
+          {"name": "sort", "in": "query", "type": "string"},
+          {"name": "has_description", "in": "query", "type": "string"},
+          {"name": "page", "in": "query", "type": "integer"},
+          {"name": "limit", "in": "query", "type": "integer"}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {"$ref": "#/definitions/CollectionListResult"}
+          },
+          "500": {"description": "Server Error"}
+        }
+      }
+    },
+    "/api/v1/collections/{id}": {
+      "get": {
+        "tags": ["collections"],
+        "summary": "Get collection",
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/Collection"}},
+          "400": {"description": "Bad Request"},
+          "404": {"description": "Not Found"},
+          "500": {"description": "Server Error"}
+        }
+      }
+    },
+    "/api/v1/items": {
+      "get": {
+        "tags": ["items"],
+        "summary": "List items",
+        "produces": ["application/json"],
+        "parameters": [
+          {"name": "limit", "in": "query", "type": "integer"},
+          {"name": "collection_id", "in": "query", "type": "integer", "format": "int64"}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/Item"}
+            }
+          },
+          "400": {"description": "Bad Request"},
+          "404": {"description": "Not Found"},
+          "500": {"description": "Server Error"}
+        }
+      },
+      "post": {
+        "tags": ["items"],
+        "summary": "Create item",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/ItemBody"}
+          }
+        ],
+        "responses": {
+          "201": {"description": "Created", "schema": {"$ref": "#/definitions/Item"}},
+          "400": {"description": "Bad Request"}
+        }
+      }
+    },
+    "/api/v1/items/{id}": {
+      "get": {
+        "tags": ["items"],
+        "summary": "Get item",
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/Item"}},
+          "400": {"description": "Bad Request"},
+          "404": {"description": "Not Found"},
+          "500": {"description": "Server Error"}
+        }
+      },
+      "put": {
+        "tags": ["items"],
+        "summary": "Update item",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/ItemBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/Item"}},
+          "400": {"description": "Bad Request"},
+          "404": {"description": "Not Found"}
+        }
+      },
+      "delete": {
+        "tags": ["items"],
+        "summary": "Delete item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "204": {"description": "No Content"},
+          "400": {"description": "Bad Request"},
+          "404": {"description": "Not Found"},
+          "500": {"description": "Server Error"}
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": ["search"],
+        "summary": "Search items",
+        "produces": ["application/json"],
+        "parameters": [
+          {"name": "q", "in": "query", "type": "string"},
+          {"name": "limit", "in": "query", "type": "integer"}
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}},
+          "502": {"description": "Bad Gateway"}
+        }
+      }
+    },
+    "/api/v1/metadata/lookup": {
+      "get": {
+        "tags": ["metadata"],
+        "summary": "Metadata lookup",
+        "produces": ["application/json"],
+        "parameters": [
+          {"name": "q", "in": "query", "type": "string"},
+          {"name": "query", "in": "query", "type": "string"},
+          {"name": "category", "in": "query", "type": "string"},
+          {"name": "provider", "in": "query", "type": "string"}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {"$ref": "#/definitions/MetadataLookupResult"}
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer", "format": "int64"},
+        "email": {"type": "string"},
+        "display_name": {"type": "string"},
+        "bio": {"type": "string"},
+        "avatar_url": {"type": "string"},
+        "two_factor_enabled": {"type": "boolean"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "RegisterBody": {
+      "type": "object",
+      "required": ["email", "password"],
+      "properties": {
+        "email": {"type": "string"},
+        "password": {"type": "string"},
+        "display_name": {"type": "string"}
+      }
+    },
+    "LoginBody": {
+      "type": "object",
+      "required": ["email", "password"],
+      "properties": {
+        "email": {"type": "string"},
+        "password": {"type": "string"}
+      }
+    },
+    "Login2FABody": {
+      "type": "object",
+      "properties": {
+        "pending_token": {"type": "string"},
+        "code": {"type": "string"}
+      }
+    },
+    "PatchMeBody": {
+      "type": "object",
+      "properties": {
+        "display_name": {"type": "string"},
+        "bio": {"type": "string"},
+        "avatar_url": {"type": "string"}
+      }
+    },
+    "TwoFASetupResult": {
+      "type": "object",
+      "properties": {
+        "secret": {"type": "string"},
+        "otpauth_url": {"type": "string"}
+      }
+    },
+    "TwoFAEnableBody": {
+      "type": "object",
+      "properties": {"code": {"type": "string"}}
+    },
+    "TwoFADisableBody": {
+      "type": "object",
+      "properties": {"password": {"type": "string"}}
+    },
+    "ImageFromURLBody": {
+      "type": "object",
+      "properties": {"url": {"type": "string"}}
+    },
+    "SetupMigrateBody": {
+      "type": "object",
+      "properties": {
+        "database_url": {"type": "string"},
+        "host": {"type": "string"},
+        "port": {"type": "integer"},
+        "user": {"type": "string"},
+        "password": {"type": "string"},
+        "database": {"type": "string"},
+        "sslmode": {"type": "string"}
+      }
+    },
+    "Item": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer", "format": "int64"},
+        "collection_id": {"type": "integer", "format": "int64"},
+        "title": {"type": "string"},
+        "category": {"type": "string"},
+        "metadata": {"type": "object"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "ItemBody": {
+      "type": "object",
+      "properties": {
+        "collection_id": {"type": "integer", "format": "int64"},
+        "title": {"type": "string"},
+        "category": {"type": "string"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "Collection": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer", "format": "int64"},
+        "user_id": {"type": "integer", "format": "int64"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "item_count": {"type": "integer", "format": "int64"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "CollectionListResult": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/Collection"}
+        },
+        "total": {"type": "integer", "format": "int64"},
+        "page": {"type": "integer"},
+        "page_size": {"type": "integer"}
+      }
+    },
+    "MetadataLookupResult": {
+      "type": "object",
+      "properties": {
+        "source": {"type": "string"},
+        "query": {"type": "string"},
+        "stub": {"type": "boolean"},
+        "message": {"type": "string"},
+        "results": {"type": "array", "items": {"type": "object"}},
+        "preview": {"type": "object"}
+      }
+    }
+  }
+}

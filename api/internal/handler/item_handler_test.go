@@ -1,0 +1,250 @@
+package handler
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/boxingoctopus/kurator/api/internal/models"
+	"github.com/boxingoctopus/kurator/api/internal/repository"
+	"github.com/boxingoctopus/kurator/api/internal/service"
+	"github.com/gofiber/fiber/v2"
+)
+
+func newItemTestApp(t *testing.T, repo *handlerStubItemRepo) *fiber.App {
+	t.Helper()
+	svc := service.NewItemService(repo, nil)
+	h := NewItemHandler(svc, nil, nil)
+	app := fiber.New()
+	app.Get("/items", h.List)
+	app.Get("/items/:id", h.Get)
+	app.Post("/items", h.Create)
+	app.Put("/items/:id", h.Update)
+	app.Delete("/items/:id", h.Delete)
+	return app
+}
+
+type handlerStubItemRepo struct {
+	list    []models.Item
+	getItem *models.Item
+	getErr  error
+
+	lastCreateColl int64
+	createItem     *models.Item
+	createErr      error
+
+	updateItem *models.Item
+	updateErr  error
+
+	deleteErr error
+}
+
+func (s *handlerStubItemRepo) ListLatest(ctx context.Context, limit int) ([]models.Item, error) {
+	return s.list, nil
+}
+
+func (s *handlerStubItemRepo) ListByCollection(ctx context.Context, collectionID int64, limit int) ([]models.Item, error) {
+	return s.list, nil
+}
+
+func (s *handlerStubItemRepo) ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error) {
+	return s.list, nil
+}
+
+func (s *handlerStubItemRepo) ListRecentFromFollowedUsers(ctx context.Context, followerUserID int64, limit int) ([]models.Item, error) {
+	return s.list, nil
+}
+
+func (s *handlerStubItemRepo) GetByID(ctx context.Context, id int64) (*models.Item, error) {
+	if s.getErr != nil {
+		return nil, s.getErr
+	}
+	return s.getItem, nil
+}
+
+func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage) (*models.Item, error) {
+	s.lastCreateColl = collectionID
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	return s.createItem, nil
+}
+
+func (s *handlerStubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage) (*models.Item, error) {
+	if s.updateErr != nil {
+		return nil, s.updateErr
+	}
+	return s.updateItem, nil
+}
+
+func (s *handlerStubItemRepo) Delete(ctx context.Context, id int64) error {
+	return s.deleteErr
+}
+
+func TestItemHandler_Get_invalidID(t *testing.T) {
+	app := newItemTestApp(t, &handlerStubItemRepo{})
+	for _, path := range []string{"/items/0", "/items/-1", "/items/abc"} {
+		req := httptest.NewRequest("GET", path, nil)
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 400 {
+			t.Fatalf("%s: status %d want 400", path, resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	}
+}
+
+func TestItemHandler_Get_notFound(t *testing.T) {
+	repo := &handlerStubItemRepo{getErr: repository.ErrItemNotFound}
+	app := newItemTestApp(t, repo)
+	req := httptest.NewRequest("GET", "/items/99", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 404 {
+		t.Fatalf("status %d want 404", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestItemHandler_Get_ok(t *testing.T) {
+	now := time.Now().UTC()
+	item := &models.Item{
+		ID:           1,
+		CollectionID: 1,
+		Title:        "Test",
+		Category:     models.CategoryMusic,
+		Metadata:     json.RawMessage(`{"a":1}`),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	app := newItemTestApp(t, &handlerStubItemRepo{getItem: item})
+	req := httptest.NewRequest("GET", "/items/1", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	var got models.Item
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Test" || got.Category != models.CategoryMusic {
+		t.Fatalf("decode: %+v", got)
+	}
+}
+
+func TestItemHandler_Create_invalidJSON(t *testing.T) {
+	app := newItemTestApp(t, &handlerStubItemRepo{})
+	req := httptest.NewRequest("POST", "/items", bytes.NewBufferString("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("status %d want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestItemHandler_Create_invalidCategory(t *testing.T) {
+	app := newItemTestApp(t, &handlerStubItemRepo{})
+	body := map[string]any{
+		"title": "x", "category": "invalid", "metadata": map[string]any{},
+	}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest("POST", "/items", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("status %d want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestItemHandler_Create_created(t *testing.T) {
+	now := time.Now().UTC()
+	created := &models.Item{
+		ID:           7,
+		CollectionID: 1,
+		Title:        "New",
+		Category:     models.CategoryBook,
+		Metadata:     json.RawMessage(`{}`),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	repo := &handlerStubItemRepo{createItem: created}
+	app := newItemTestApp(t, repo)
+	payload := map[string]any{
+		"title": "New", "category": "book", "metadata": map[string]any{},
+	}
+	raw, _ := json.Marshal(payload)
+	req := httptest.NewRequest("POST", "/items", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 201 {
+		t.Fatalf("status %d want 201", resp.StatusCode)
+	}
+	if repo.lastCreateColl != 1 {
+		t.Fatalf("default collection: got %d", repo.lastCreateColl)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestItemHandler_List(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &handlerStubItemRepo{
+		list: []models.Item{
+			{ID: 1, CollectionID: 1, Title: "A", Category: models.CategoryGame, Metadata: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now},
+		},
+	}
+	app := newItemTestApp(t, repo)
+	req := httptest.NewRequest("GET", "/items?limit=5", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	var arr []models.Item
+	if err := json.Unmarshal(b, &arr); err != nil {
+		t.Fatal(err)
+	}
+	if len(arr) != 1 || arr[0].Title != "A" {
+		t.Fatalf("body: %s", string(b))
+	}
+}
+
+func TestItemHandler_Delete_noContent(t *testing.T) {
+	app := newItemTestApp(t, &handlerStubItemRepo{})
+	req := httptest.NewRequest("DELETE", "/items/1", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 204 {
+		t.Fatalf("status %d want 204", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}

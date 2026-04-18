@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --kurator-bg: #f4f6f9;
+  --kurator-surface: #ffffff;
+  --kurator-border: #e2e8f0;
+  --kurator-accent: #2563eb;
+  --kurator-muted: #64748b;
+  --kurator-fg: #0f172a;
+  --kurator-on-accent: #ffffff;
+}
+
+.dark {
+  color-scheme: dark;
+  --kurator-bg: #0c0f14;
+  --kurator-surface: #141a22;
+  --kurator-border: #243042;
+  --kurator-accent: #3d9cf0;
+  --kurator-muted: #8b9cb3;
+  --kurator-fg: #f4f4f5;
+  --kurator-on-accent: #ffffff;
+}
+
+body {
+  @apply min-h-dvh bg-kurator-bg text-kurator-fg antialiased;
+}
+
+@layer utilities {
+  .safe-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}

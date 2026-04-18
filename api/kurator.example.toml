@@ -1,0 +1,33 @@
+# Example Kurator API config (copy to kurator.toml).
+# Precedence: environment variables > CLI flags > this file > built-in defaults.
+# Config file path: -config flag, or KURATOR_CONFIG, or ./kurator.toml if present.
+
+http_addr = ":8080"
+database_url = "postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable"
+
+setup_enabled = false
+
+meilisearch_host = "http://localhost:7700"
+meilisearch_api_key = ""
+meilisearch_index = "kurator_items"
+
+cors_origins = ["http://localhost:3000"]
+
+auth_jwt_secret = "dev_only_change_me_in_production_use_long_random"
+session_max_age_seconds = 2592000
+cookie_secure = false
+
+s3_bucket = ""
+s3_region = "us-east-1"
+s3_endpoint = ""
+s3_access_key_id = ""
+s3_secret_access_key = ""
+s3_public_base_url = ""
+s3_key_prefix = "covers"
+
+metadata_user_agent = ""
+discogs_personal_token = ""
+thegamesdb_api_key = ""
+google_books_api_key = ""
+tmdb_api_key = ""
+comicvine_api_key = ""
