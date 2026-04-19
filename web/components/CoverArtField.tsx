@@ -85,7 +85,7 @@ export function CoverArtField({ value, onChange }: Props) {
         <label className="block min-w-0 flex-1 text-sm">
           <span className="text-kurator-muted">Import from URL</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={importUrl}
             onChange={(e) => setImportUrl(e.target.value)}
             placeholder="https://…"

@@ -275,7 +275,7 @@ export function CollectionDetailClient() {
                         setPrivacySaving(false);
                       }
                     }}
-                    className="rounded border-kurator-border"
+                    className="rounded-sm border-kurator-border"
                   />
                   {collection.is_public !== false ? "Public — listed for others and followers" : "Private — only you can open this shelf"}
                 </label>
@@ -348,7 +348,7 @@ export function CollectionDetailClient() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search titles…"
-                    className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                    className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                     autoComplete="off"
                   />
                 </label>
@@ -359,7 +359,7 @@ export function CollectionDetailClient() {
                     onChange={(e) =>
                       setCategoryFilter(e.target.value === "all" ? "all" : (e.target.value as Category))
                     }
-                    className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                    className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   >
                     <option value="all">All categories</option>
                     {ALL_CATEGORIES.map((c) => (
@@ -500,7 +500,7 @@ export function CollectionDetailClient() {
                             tabIndex={0}
                             role="link"
                             aria-label={`View ${item.title}`}
-                            className="cursor-pointer border-b border-kurator-border/80 last:border-0 hover:bg-kurator-surface/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-kurator-accent"
+                            className="cursor-pointer border-b border-kurator-border/80 last:border-0 hover:bg-kurator-surface/40 focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-kurator-accent"
                             onClick={() => router.push(`/items/${item.id}`)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
@@ -539,7 +539,7 @@ export function CollectionDetailClient() {
                       <li key={item.id}>
                         <Link
                           href={`/items/${item.id}`}
-                          className="group flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-sm outline-none ring-kurator-accent transition hover:border-kurator-accent/40 focus-visible:ring-2"
+                          className="group flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-visible:ring-2"
                         >
                           <div className="shrink-0 space-y-2 p-4 pb-2">
                             <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg group-hover:text-kurator-accent">
@@ -550,7 +550,7 @@ export function CollectionDetailClient() {
                             </span>
                           </div>
                           <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                            <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
                               <ItemCoverImage
                                 url={cover}
                                 alt={`Cover for ${item.title}`}

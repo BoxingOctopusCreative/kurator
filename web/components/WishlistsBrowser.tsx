@@ -107,7 +107,7 @@ export function WishlistsBrowser() {
             <span className="text-kurator-muted">Name</span>
             <input
               required
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="e.g. Vinyl to buy"
@@ -116,7 +116,7 @@ export function WishlistsBrowser() {
           <label className="block text-sm md:col-span-2">
             <span className="text-kurator-muted">Description (optional)</span>
             <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
             />
@@ -124,7 +124,7 @@ export function WishlistsBrowser() {
           <label className="block text-sm md:col-span-2">
             <span className="text-kurator-muted">Link to collection (optional)</span>
             <select
-              className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={targetCol === "" ? "" : String(targetCol)}
               onChange={(e) => {
                 const v = e.target.value;
@@ -147,7 +147,7 @@ export function WishlistsBrowser() {
               type="checkbox"
               checked={newPublic}
               onChange={(e) => setNewPublic(e.target.checked)}
-              className="rounded border-kurator-border"
+              className="rounded-sm border-kurator-border"
             />
             Public (visible to other signed-in users)
           </label>
@@ -183,7 +183,7 @@ export function WishlistsBrowser() {
             <li key={w.id}>
               <Link
                 href={`/wishlists/${w.id}`}
-                className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-sm transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
+                className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">

@@ -29,7 +29,7 @@ export function UserBar({ centered = false }: Props) {
   }
 
   const selectClass =
-    "max-w-[7.5rem] rounded-md border border-kurator-border bg-kurator-bg px-2 py-1 text-xs text-kurator-fg outline-none ring-kurator-accent focus:ring-2";
+    "max-w-30 rounded-md border border-kurator-border bg-kurator-bg px-2 py-1 text-xs text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2";
 
   const links = (
     <>
@@ -42,7 +42,7 @@ export function UserBar({ centered = false }: Props) {
       </Link>
       <Link
         href="/profile"
-        className="flex max-w-[10rem] items-center gap-1.5 truncate rounded-md px-2 py-1 text-kurator-muted hover:bg-kurator-border/50 hover:text-kurator-fg"
+        className="flex max-w-40 items-center gap-1.5 truncate rounded-md px-2 py-1 text-kurator-muted hover:bg-kurator-border/50 hover:text-kurator-fg"
         title={user.email}
       >
         {user.avatar_url ? (

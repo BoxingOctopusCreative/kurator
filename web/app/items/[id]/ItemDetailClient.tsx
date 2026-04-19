@@ -122,7 +122,7 @@ export function ItemDetailClient() {
           <ItemCoverImage
             url={cover}
             alt={`Cover for ${item.title}`}
-            className="aspect-[2/3] w-full object-cover"
+            className="aspect-2/3 w-full object-cover"
           />
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
@@ -221,7 +221,7 @@ export function ItemDetailClient() {
             {metaKeys.map((key) => (
               <div key={key} className="border-b border-kurator-border/50 pb-4 last:border-0 last:pb-0">
                 <dt className="font-mono text-xs font-medium text-kurator-accent">{key}</dt>
-                <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-kurator-fg">
+                <dd className="mt-1 whitespace-pre-wrap wrap-break-word text-sm text-kurator-fg">
                   {formatMetaValue(metaObj[key])}
                 </dd>
               </div>
@@ -233,7 +233,7 @@ export function ItemDetailClient() {
                   {catalogKeys.map((key) => (
                     <div key={key}>
                       <span className="font-mono text-xs text-kurator-accent/90">{key}</span>
-                      <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-kurator-fg">
+                      <p className="mt-0.5 whitespace-pre-wrap wrap-break-word text-sm text-kurator-fg">
                         {formatMetaValue(metaObj[key])}
                       </p>
                     </div>

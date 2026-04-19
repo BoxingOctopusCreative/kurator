@@ -83,7 +83,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
               type="email"
               required
               autoComplete="email"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -94,7 +94,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
               type="password"
               required
               autoComplete="current-password"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -135,7 +135,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
               autoComplete="one-time-code"
               maxLength={8}
               required
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm tracking-widest text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm tracking-widest text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={totp}
               onChange={(e) => setTotp(e.target.value)}
             />

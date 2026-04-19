@@ -88,7 +88,7 @@ export default function AddItemPage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">Collection</span>
           <select
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={collectionId ?? ""}
             onChange={(e) => setCollectionId(Number(e.target.value))}
             disabled={collections.length === 0}
@@ -113,7 +113,7 @@ export default function AddItemPage() {
           <span className="text-kurator-muted">Title</span>
           <input
             required
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Chrono Trigger"
@@ -132,7 +132,7 @@ export default function AddItemPage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">Category</span>
           <select
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={category}
             onChange={(e) => {
               setCategory(e.target.value as Category);

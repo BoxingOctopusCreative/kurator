@@ -123,9 +123,9 @@ export default function SetupPage() {
         <h1 className="text-2xl font-semibold text-kurator-fg">Database setup</h1>
         <p className="mt-3 text-sm text-kurator-muted">
           The setup API is disabled on this server. Start the API with{" "}
-          <code className="rounded bg-kurator-border/60 px-1 py-0.5 text-xs text-zinc-200">SETUP_ENABLED=true</code>{" "}
+          <code className="rounded-sm bg-kurator-border/60 px-1 py-0.5 text-xs text-zinc-200">SETUP_ENABLED=true</code>{" "}
           to run migrations from the web UI, or apply SQL files under{" "}
-          <code className="rounded bg-kurator-border/60 px-1 py-0.5 text-xs text-zinc-200">api/migrations/</code>{" "}
+          <code className="rounded-sm bg-kurator-border/60 px-1 py-0.5 text-xs text-zinc-200">api/migrations/</code>{" "}
           using your own tooling.
         </p>
         <p className="mt-6">
@@ -173,7 +173,7 @@ export default function SetupPage() {
             type="checkbox"
             checked={useUrl}
             onChange={(e) => setUseUrl(e.target.checked)}
-            className="rounded border-kurator-border"
+            className="rounded-sm border-kurator-border"
           />
           Use full connection URL
         </label>
@@ -182,7 +182,7 @@ export default function SetupPage() {
           <label className="block text-sm">
             <span className="text-kurator-muted">postgres://…</span>
             <textarea
-              className="mt-1 min-h-[88px] w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-xs text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 min-h-[88px] w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-xs text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={databaseUrl}
               onChange={(e) => setDatabaseUrl(e.target.value)}
               placeholder="postgres://user:pass@host:5432/dbname?sslmode=disable"
@@ -196,7 +196,7 @@ export default function SetupPage() {
               <label className="block text-sm sm:col-span-2">
                 <span className="text-kurator-muted">Host</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={host}
                   onChange={(e) => setHost(e.target.value)}
                   autoComplete="off"
@@ -208,7 +208,7 @@ export default function SetupPage() {
                   type="number"
                   min={1}
                   max={65535}
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={port}
                   onChange={(e) => setPort(e.target.value)}
                 />
@@ -216,7 +216,7 @@ export default function SetupPage() {
               <label className="block text-sm">
                 <span className="text-kurator-muted">SSL mode</span>
                 <select
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={sslmode}
                   onChange={(e) => setSslmode(e.target.value)}
                 >
@@ -228,7 +228,7 @@ export default function SetupPage() {
               <label className="block text-sm sm:col-span-2">
                 <span className="text-kurator-muted">User</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={user}
                   onChange={(e) => setUser(e.target.value)}
                   autoComplete="username"
@@ -238,7 +238,7 @@ export default function SetupPage() {
                 <span className="text-kurator-muted">Password</span>
                 <input
                   type="password"
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
@@ -247,7 +247,7 @@ export default function SetupPage() {
               <label className="block text-sm sm:col-span-2">
                 <span className="text-kurator-muted">Database name</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
                   autoComplete="off"

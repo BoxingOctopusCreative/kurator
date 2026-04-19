@@ -87,7 +87,7 @@ export function UnsplashMarketingShell({ initialBackground = null, children }: P
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-kurator-bg/88 via-kurator-bg/78 to-kurator-bg/92"
+            className="pointer-events-none absolute inset-0 bg-linear-to-b from-kurator-bg/88 via-kurator-bg/78 to-kurator-bg/92"
             aria-hidden
           />
         </>

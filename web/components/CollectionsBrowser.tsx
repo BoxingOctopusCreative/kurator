@@ -162,17 +162,17 @@ export function CollectionsBrowser() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="e.g. Graphic novels, Switch games"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               autoComplete="off"
             />
           </label>
-          <label className="block min-w-[220px] flex-[2] text-sm">
+          <label className="block min-w-[220px] flex-2 text-sm">
             <span className="text-kurator-muted">Description (optional)</span>
             <input
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
               placeholder="Short note about this shelf"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               autoComplete="off"
             />
           </label>
@@ -181,7 +181,7 @@ export function CollectionsBrowser() {
               type="checkbox"
               checked={newPublic}
               onChange={(e) => setNewPublic(e.target.checked)}
-              className="rounded border-kurator-border"
+              className="rounded-sm border-kurator-border"
             />
             Public
           </label>
@@ -242,7 +242,7 @@ export function CollectionsBrowser() {
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
             placeholder="Name or description…"
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             autoComplete="off"
           />
         </label>
@@ -251,7 +251,7 @@ export function CollectionsBrowser() {
           <select
             value={sort}
             onChange={(e) => replaceQuery({ sort: e.target.value, page: "1" })}
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           >
             {sortOptions.map((o) => (
               <option key={o.value} value={o.value}>
@@ -270,7 +270,7 @@ export function CollectionsBrowser() {
                 page: "1",
               })
             }
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           >
             {descFilterOptions.map((o) => (
               <option key={o.value || "any"} value={o.value}>
@@ -304,7 +304,7 @@ export function CollectionsBrowser() {
               <li key={c.id}>
                 <Link
                   href={`/collections/${c.id}`}
-                  className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-sm transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
+                  className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">

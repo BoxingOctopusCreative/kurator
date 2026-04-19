@@ -82,7 +82,7 @@ export function PeopleHomeClient() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Name or keywords in bio…"
-            className="w-full rounded-lg border border-kurator-border bg-kurator-bg py-2 pl-10 pr-3 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="w-full rounded-lg border border-kurator-border bg-kurator-bg py-2 pl-10 pr-3 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             autoComplete="off"
           />
         </div>

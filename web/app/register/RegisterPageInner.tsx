@@ -65,7 +65,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
             alt="Kurator"
             width={600}
             height={300}
-            className="mb-8 max-w-full h-auto w-auto [filter:drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
+            className="mb-8 max-w-full h-auto w-auto filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
             priority
           />
         </div>
@@ -81,7 +81,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
               type="email"
               required
               autoComplete="email"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -93,7 +93,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
               required
               minLength={8}
               autoComplete="new-password"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -104,7 +104,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
             <input
               type="text"
               autoComplete="nickname"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Defaults to the part before @ in your email"
@@ -115,7 +115,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
             <input
               type="text"
               autoComplete="username"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase())}
               placeholder="your-public-url — lowercase letters, digits, _ -"

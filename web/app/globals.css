@@ -1,35 +1,65 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
-  color-scheme: light;
-  --kurator-bg: #f4f6f9;
-  --kurator-surface: #ffffff;
-  --kurator-border: #e2e8f0;
-  --kurator-accent: #2563eb;
-  --kurator-muted: #64748b;
-  --kurator-fg: #0f172a;
-  --kurator-on-accent: #ffffff;
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+
+  --color-kurator-bg: var(--kurator-bg);
+  --color-kurator-surface: var(--kurator-surface);
+  --color-kurator-border: var(--kurator-border);
+  --color-kurator-accent: var(--kurator-accent);
+  --color-kurator-muted: var(--kurator-muted);
+  --color-kurator-fg: var(--kurator-fg);
+  --color-kurator-onAccent: var(--kurator-on-accent);
 }
 
-.dark {
-  color-scheme: dark;
-  --kurator-bg: #0c0f14;
-  --kurator-surface: #141a22;
-  --kurator-border: #243042;
-  --kurator-accent: #3d9cf0;
-  --kurator-muted: #8b9cb3;
-  --kurator-fg: #f4f4f5;
-  --kurator-on-accent: #ffffff;
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 }
 
-body {
-  @apply min-h-dvh bg-kurator-bg text-kurator-fg antialiased;
+@utility safe-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 @layer utilities {
-  .safe-pb {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+  :root {
+    color-scheme: light;
+    --kurator-bg: #f4f6f9;
+    --kurator-surface: #ffffff;
+    --kurator-border: #e2e8f0;
+    --kurator-accent: #2563eb;
+    --kurator-muted: #64748b;
+    --kurator-fg: #0f172a;
+    --kurator-on-accent: #ffffff;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --kurator-bg: #0c0f14;
+    --kurator-surface: #141a22;
+    --kurator-border: #243042;
+    --kurator-accent: #3d9cf0;
+    --kurator-muted: #8b9cb3;
+    --kurator-fg: #f4f4f5;
+    --kurator-on-accent: #ffffff;
+  }
+
+  body {
+    @apply min-h-dvh bg-kurator-bg text-kurator-fg antialiased;
   }
 }

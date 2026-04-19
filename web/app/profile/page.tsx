@@ -328,7 +328,7 @@ export default function ProfilePage() {
           <span className="text-kurator-muted">Theme</span>
           <ThemePreferenceSelect
             id="profile-theme"
-            className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           />
         </label>
       </section>
@@ -338,7 +338,7 @@ export default function ProfilePage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">Display name</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
@@ -346,7 +346,7 @@ export default function ProfilePage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">Username (public URL)</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2 read-only:cursor-not-allowed read-only:opacity-80"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 read-only:cursor-not-allowed read-only:opacity-80"
             value={profileUsername}
             onChange={(e) => setProfileUsername(e.target.value.toLowerCase())}
             readOnly={user.username_locked ?? true}
@@ -372,7 +372,7 @@ export default function ProfilePage() {
         <label className="flex cursor-pointer items-start gap-3 text-sm">
           <input
             type="checkbox"
-            className="mt-1 rounded border-kurator-border"
+            className="mt-1 rounded-sm border-kurator-border"
             checked={profilePublic}
             onChange={(e) => setProfilePublic(e.target.checked)}
           />
@@ -386,7 +386,7 @@ export default function ProfilePage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">First name (legal)</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             placeholder="Optional"
@@ -396,7 +396,7 @@ export default function ProfilePage() {
         <label className="flex cursor-pointer items-start gap-3 text-sm">
           <input
             type="checkbox"
-            className="mt-1 rounded border-kurator-border"
+            className="mt-1 rounded-sm border-kurator-border"
             checked={firstNamePublic}
             onChange={(e) => setFirstNamePublic(e.target.checked)}
           />
@@ -410,7 +410,7 @@ export default function ProfilePage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">Last name (legal)</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             placeholder="Optional"
@@ -420,7 +420,7 @@ export default function ProfilePage() {
         <label className="flex cursor-pointer items-start gap-3 text-sm">
           <input
             type="checkbox"
-            className="mt-1 rounded border-kurator-border"
+            className="mt-1 rounded-sm border-kurator-border"
             checked={lastNamePublic}
             onChange={(e) => setLastNamePublic(e.target.checked)}
           />
@@ -434,7 +434,7 @@ export default function ProfilePage() {
         <label className="block text-sm">
           <span className="text-kurator-muted">Location</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="City, country, etc."
@@ -450,7 +450,7 @@ export default function ProfilePage() {
               <li key={i} className="flex flex-wrap gap-2">
                 <input
                   aria-label={`Link label ${i + 1}`}
-                  className="min-w-[6rem] flex-1 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="min-w-24 flex-1 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   placeholder="Label"
                   value={row.label}
                   onChange={(e) => {
@@ -461,7 +461,7 @@ export default function ProfilePage() {
                 />
                 <input
                   aria-label={`Link URL ${i + 1}`}
-                  className="min-w-[12rem] flex-[2] rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="min-w-48 flex-2 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   placeholder="https://…"
                   inputMode="url"
                   value={row.url}
@@ -495,7 +495,7 @@ export default function ProfilePage() {
           <span className="text-kurator-muted">Bio</span>
           <textarea
             rows={3}
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
           />
@@ -546,7 +546,7 @@ export default function ProfilePage() {
             <input
               type="text"
               inputMode="url"
-              className="mt-1 w-full max-w-xl rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full max-w-xl rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={bannerUrl}
               onChange={(e) => setBannerUrl(e.target.value)}
               placeholder="https://…"
@@ -602,7 +602,7 @@ export default function ProfilePage() {
           <input
             type="text"
             inputMode="url"
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
             placeholder="https://…"
@@ -631,7 +631,7 @@ export default function ProfilePage() {
               <input
                 type="password"
                 required
-                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                 value={disablePassword}
                 onChange={(e) => setDisablePassword(e.target.value)}
               />
@@ -649,7 +649,7 @@ export default function ProfilePage() {
             <p className="text-xs text-kurator-muted">
               Scan this URI in your authenticator app, or enter the secret manually:
             </p>
-            <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-black/40 p-2 font-mono text-[11px] text-zinc-300">
+            <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-sm bg-black/40 p-2 font-mono text-[11px] text-zinc-300">
               {twoFASetup.otpauth_url}
             </pre>
             <p className="text-xs text-kurator-muted">
@@ -660,7 +660,7 @@ export default function ProfilePage() {
               <input
                 inputMode="numeric"
                 required
-                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                 value={enableCode}
                 onChange={(e) => setEnableCode(e.target.value)}
               />

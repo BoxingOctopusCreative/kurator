@@ -287,7 +287,7 @@ export function WishlistDetailClient() {
                 <span className="text-kurator-muted">Name</span>
                 <input
                   required
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                 />
@@ -295,7 +295,7 @@ export function WishlistDetailClient() {
               <label className="block text-sm md:col-span-2">
                 <span className="text-kurator-muted">Description</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                 />
@@ -303,7 +303,7 @@ export function WishlistDetailClient() {
               <label className="block text-sm md:col-span-2">
                 <span className="text-kurator-muted">Linked collection</span>
                 <select
-                  className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={editTarget === "" ? "" : String(editTarget)}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -326,7 +326,7 @@ export function WishlistDetailClient() {
                   type="checkbox"
                   checked={editIsPublic}
                   onChange={(e) => setEditIsPublic(e.target.checked)}
-                  className="rounded border-kurator-border"
+                  className="rounded-sm border-kurator-border"
                 />
                 Public — other signed-in users can browse this list (read-only)
               </label>
@@ -357,7 +357,7 @@ export function WishlistDetailClient() {
                 <label className="block min-w-0 flex-1 text-sm">
                   <span className="text-kurator-muted">Add to collection (destination)</span>
                   <select
-                    className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                    className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                     value={destCollectionId ?? ""}
                     onChange={(e) => setDestCollectionId(Number(e.target.value) || null)}
                     disabled={collections.length === 0}
@@ -381,7 +381,7 @@ export function WishlistDetailClient() {
                   const cover = getCoverArtUrl(item.metadata);
                   return (
                     <li key={item.id}>
-                      <div className="flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-sm">
+                      <div className="flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs">
                         <div className="shrink-0 space-y-2 p-4 pb-2">
                           <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
                             {item.title}
@@ -391,7 +391,7 @@ export function WishlistDetailClient() {
                           </span>
                         </div>
                         <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
                             <ItemCoverImage
                               url={cover}
                               alt={`Cover for ${item.title}`}
@@ -438,7 +438,7 @@ export function WishlistDetailClient() {
                 <span className="text-kurator-muted">Title</span>
                 <input
                   required
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={addTitle}
                   onChange={(e) => setAddTitle(e.target.value)}
                 />
@@ -456,7 +456,7 @@ export function WishlistDetailClient() {
               <label className="block text-sm">
                 <span className="text-kurator-muted">Category</span>
                 <select
-                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   value={addCategory}
                   onChange={(e) => {
                     setAddCategory(e.target.value as Category);

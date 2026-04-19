@@ -283,10 +283,10 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
                   <img
                     src={hit.thumb_url}
                     alt=""
-                    className="h-12 w-12 shrink-0 rounded object-cover"
+                    className="h-12 w-12 shrink-0 rounded-sm object-cover"
                   />
                 ) : (
-                  <div className="h-12 w-12 shrink-0 rounded bg-kurator-border/50" />
+                  <div className="h-12 w-12 shrink-0 rounded-sm bg-kurator-border/50" />
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="font-medium text-kurator-fg">{hit.title}</span>

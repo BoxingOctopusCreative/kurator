@@ -22,7 +22,7 @@ function ItemCard({ item }: { item: Item }) {
     <li className="w-[min(260px,85vw)] shrink-0 snap-start">
       <Link
         href={`/collections/${item.collection_id}`}
-        className="flex h-full min-h-[260px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-sm transition-colors hover:border-kurator-accent/50"
+        className="flex h-full min-h-[260px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs transition-colors hover:border-kurator-accent/50"
       >
         <div className="shrink-0 space-y-2 p-3 pb-2">
           <h3 className="line-clamp-2 text-sm font-medium leading-snug text-kurator-fg">{item.title}</h3>
@@ -31,7 +31,7 @@ function ItemCard({ item }: { item: Item }) {
           </span>
         </div>
         <div className="mt-auto flex flex-1 flex-col justify-end p-3 pt-2">
-          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
             <ItemCoverImage
               url={cover}
               alt={`Cover for ${item.title}`}

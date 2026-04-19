@@ -60,7 +60,7 @@ function ItemNotesField({
       <span className="text-kurator-muted">Notes</span>
       <textarea
         rows={4}
-        className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+        className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
         value={values.notes ?? ""}
         onChange={(e) => onChange({ ...values, notes: e.target.value })}
         placeholder="Optional: condition, edition, story arc, or other details"
@@ -78,7 +78,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Artist</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.artist ?? ""}
             onChange={(e) => onChange({ ...values, artist: e.target.value })}
             placeholder="e.g. Kraftwerk"
@@ -88,7 +88,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <div className="block text-sm">
           <span className="text-kurator-muted">Format</span>
           <select
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.format ?? ""}
             onChange={(e) => {
               const next = e.target.value;
@@ -111,7 +111,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             <label className="mt-3 block">
               <span className="text-kurator-muted">Custom format</span>
               <input
-                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                 value={values.format_custom ?? ""}
                 onChange={(e) => onChange({ ...values, format_custom: e.target.value })}
                 placeholder="e.g. MiniDisc, SACD, reel-to-reel"
@@ -123,7 +123,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Album</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.album ?? ""}
             onChange={(e) => onChange({ ...values, album: e.target.value })}
             placeholder="e.g. Autobahn"
@@ -133,7 +133,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Genre</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.genre ?? ""}
             onChange={(e) => onChange({ ...values, genre: e.target.value })}
             placeholder="e.g. Electronic"
@@ -146,7 +146,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             type="number"
             min={1000}
             max={9999}
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={values.year ?? ""}
             onChange={(e) => onChange({ ...values, year: e.target.value })}
             placeholder="e.g. 1974"
@@ -172,7 +172,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Format</span>
           <select
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.format ?? ""}
             onChange={(e) => onChange({ ...values, format: e.target.value })}
           >
@@ -185,7 +185,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Type</span>
           <select
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.video_type ?? ""}
             onChange={(e) => onChange({ ...values, video_type: e.target.value })}
           >
@@ -197,7 +197,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Genre</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.genre ?? ""}
             onChange={(e) => onChange({ ...values, genre: e.target.value })}
             placeholder="e.g. Sci-fi"
@@ -210,7 +210,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             type="number"
             min={1000}
             max={9999}
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={values.year ?? ""}
             onChange={(e) => onChange({ ...values, year: e.target.value })}
             placeholder="e.g. 1999"
@@ -236,7 +236,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">Platform</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.platform ?? ""}
             onChange={(e) => onChange({ ...values, platform: e.target.value })}
             placeholder="e.g. SNES, PS5"
@@ -249,7 +249,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             type="number"
             min={1000}
             max={9999}
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={values.year ?? ""}
             onChange={(e) => onChange({ ...values, year: e.target.value })}
             placeholder="e.g. 1998"
@@ -259,7 +259,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm sm:col-span-2">
           <span className="text-kurator-muted">Serial number</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.serial_number ?? ""}
             onChange={(e) => onChange({ ...values, serial_number: e.target.value })}
             placeholder="Cart / disc serial"
@@ -285,7 +285,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
           <label className="block text-sm">
             <span className="text-kurator-muted">Author</span>
             <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={values.author ?? ""}
               onChange={(e) => onChange({ ...values, author: e.target.value })}
               placeholder="e.g. Ursula K. Le Guin"
@@ -295,7 +295,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
           <label className="block text-sm">
             <span className="text-kurator-muted">Publisher</span>
             <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={values.publisher ?? ""}
               onChange={(e) => onChange({ ...values, publisher: e.target.value })}
               placeholder="e.g. HarperCollins"
@@ -309,7 +309,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
               inputMode="numeric"
               min={1000}
               max={9999}
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={values.year ?? ""}
               onChange={(e) => onChange({ ...values, year: e.target.value })}
               placeholder="e.g. 1998"
@@ -320,7 +320,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="block text-sm">
           <span className="text-kurator-muted">ISBN</span>
           <input
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={values.isbn ?? ""}
             onChange={(e) => onChange({ ...values, isbn: e.target.value })}
             placeholder="978-0-385-50422-5"
@@ -343,7 +343,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
         <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-muted">
           <input
             type="checkbox"
-            className="mt-1 rounded border-kurator-border bg-kurator-bg text-kurator-accent focus:ring-kurator-accent"
+            className="mt-1 rounded-sm border-kurator-border bg-kurator-bg text-kurator-accent focus:ring-kurator-accent"
             checked={values.single_issue === true}
             onChange={(e) =>
               onChange({
@@ -362,7 +362,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
           <label className="block text-sm">
             <span className="text-kurator-muted">Issue #</span>
             <input
-              className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={values.issue_number ?? ""}
               onChange={(e) => onChange({ ...values, issue_number: e.target.value })}
               placeholder="e.g. 1, 12, Annual 1"
@@ -375,7 +375,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
           <label className="block text-sm">
             <span className="text-kurator-muted">Writer</span>
             <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={values.writer ?? ""}
               onChange={(e) => onChange({ ...values, writer: e.target.value })}
               placeholder="e.g. Alan Moore"
@@ -385,7 +385,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
           <label className="block text-sm">
             <span className="text-kurator-muted">Artist</span>
             <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={values.artist ?? ""}
               onChange={(e) => onChange({ ...values, artist: e.target.value })}
               placeholder="e.g. Dave Gibbons"
@@ -395,7 +395,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
           <label className="block text-sm">
             <span className="text-kurator-muted">Publisher</span>
             <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={values.publisher ?? ""}
               onChange={(e) => onChange({ ...values, publisher: e.target.value })}
               placeholder="e.g. DC Comics"
@@ -409,7 +409,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
               inputMode="numeric"
               min={1000}
               max={9999}
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={values.year ?? ""}
               onChange={(e) => onChange({ ...values, year: e.target.value })}
               placeholder="e.g. 1987"
