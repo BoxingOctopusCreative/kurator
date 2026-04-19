@@ -25,6 +25,7 @@ type UserRepository interface {
 	SetTwoFactorPending(ctx context.Context, id int64, secret string) error
 	EnableTwoFactor(ctx context.Context, id int64) error
 	DisableTwoFactor(ctx context.Context, id int64) error
+	UpdatePasswordHash(ctx context.Context, id int64, passwordHash string) error
 }
 
 type PostgresUserRepository struct {
@@ -189,6 +190,19 @@ func (r *PostgresUserRepository) DisableTwoFactor(ctx context.Context, id int64)
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE users SET two_factor_enabled = FALSE, two_factor_secret = NULL, updated_at = NOW() WHERE id = $1
 	`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) UpdatePasswordHash(ctx context.Context, id int64, passwordHash string) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1
+	`, id, passwordHash)
 	if err != nil {
 		return err
 	}

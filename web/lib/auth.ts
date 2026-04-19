@@ -9,6 +9,7 @@ import {
   assertSocialLinksPayload,
   assertStrictPlainText,
   assertThemePreference,
+  assertRecoveryCode6,
   assertTotpCode,
   assertUsername,
   LIMITS,
@@ -155,6 +156,75 @@ export async function register(
 
 export async function logout() {
   await api("/auth/logout", { method: "POST" });
+}
+
+/** Step 1: request a 6-digit code by email (no enumeration; same message either way). */
+export async function requestPasswordRecovery(email: string, turnstileToken?: string) {
+  const safeEmail = assertEmail(email);
+  const payload: Record<string, string> = { email: safeEmail };
+  const ts = turnstileToken?.trim();
+  if (ts) {
+    payload.turnstile_token = assertTurnstileToken(ts);
+  }
+  const res = await api("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+  return (await res.json()) as { ok: boolean; message: string };
+}
+
+/** Step 2: verify code; returns reset_token for the final step. */
+export async function verifyPasswordRecoveryCode(
+  email: string,
+  code: string,
+  turnstileToken?: string,
+): Promise<{ reset_token: string }> {
+  const safeEmail = assertEmail(email);
+  const safeCode = assertRecoveryCode6(code, "Recovery code");
+  const payload: Record<string, string> = {
+    email: safeEmail,
+    code: safeCode,
+  };
+  const ts = turnstileToken?.trim();
+  if (ts) {
+    payload.turnstile_token = assertTurnstileToken(ts);
+  }
+  const res = await api("/auth/forgot-password/verify", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+  return (await res.json()) as { reset_token: string };
+}
+
+/** Step 3: set new password; invalidates existing sessions. */
+export async function resetPasswordWithToken(
+  resetToken: string,
+  password: string,
+  turnstileToken?: string,
+) {
+  const safePassword = assertPasswordClient(password);
+  const safeToken = assertPendingToken(resetToken, "Reset session");
+  const payload: Record<string, string> = {
+    reset_token: safeToken,
+    password: safePassword,
+  };
+  const ts = turnstileToken?.trim();
+  if (ts) {
+    payload.turnstile_token = assertTurnstileToken(ts);
+  }
+  const res = await api("/auth/forgot-password/reset", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
 }
 
 export async function patchProfile(body: {

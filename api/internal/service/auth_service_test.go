@@ -82,6 +82,10 @@ func (s *stubUserRepo) DisableTwoFactor(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (s *stubUserRepo) UpdatePasswordHash(ctx context.Context, id int64, passwordHash string) error {
+	return nil
+}
+
 type stubSessionRepo struct {
 	lastUserID int64
 	lastHash   string
@@ -98,6 +102,10 @@ func (s *stubSessionRepo) Create(ctx context.Context, userID int64, tokenHash st
 }
 
 func (s *stubSessionRepo) DeleteByTokenHash(ctx context.Context, tokenHash string) error {
+	return nil
+}
+
+func (s *stubSessionRepo) DeleteAllForUser(ctx context.Context, userID int64) error {
 	return nil
 }
 

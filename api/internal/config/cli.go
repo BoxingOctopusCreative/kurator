@@ -32,6 +32,10 @@ type LoadOptions struct {
 	SetupEnabled         string
 	TurnstileEnabled     string
 	TurnstileSecretKey   string
+	MailgunAPIKey        string
+	MailgunDomain        string
+	MailgunFrom          string
+	MailgunAPIBase       string
 }
 
 // RegisterFlags binds Kurator settings to the given FlagSet (use flag.CommandLine or a custom set).
@@ -62,4 +66,8 @@ func RegisterFlags(fs *flag.FlagSet, o *LoadOptions) {
 	fs.StringVar(&o.SetupEnabled, "setup-enabled", "", "true|false (env: SETUP_ENABLED); empty uses file/default")
 	fs.StringVar(&o.TurnstileEnabled, "turnstile-enabled", "", "true|false (env: CLOUDFLARE_TURNSTILE_ENABLED); empty uses file/default")
 	fs.StringVar(&o.TurnstileSecretKey, "turnstile-secret-key", "", "env: CLOUDFLARE_TURNSTILE_SECRETKEY")
+	fs.StringVar(&o.MailgunAPIKey, "mailgun-api-key", "", "env: MAILGUN_API_KEY")
+	fs.StringVar(&o.MailgunDomain, "mailgun-domain", "", "env: MAILGUN_DOMAIN")
+	fs.StringVar(&o.MailgunFrom, "mailgun-from", "", "env: MAILGUN_FROM")
+	fs.StringVar(&o.MailgunAPIBase, "mailgun-api-base", "", "env: MAILGUN_API_BASE")
 }

@@ -33,4 +33,9 @@ type Config struct {
 	TurnstileEnabled bool
 	// TurnstileSecretKey is required when TurnstileEnabled is true (env: CLOUDFLARE_TURNSTILE_SECRETKEY).
 	TurnstileSecretKey string
+	// Mailgun (optional): when API key and domain are set, password recovery emails are sent via Mailgun.
+	MailgunAPIKey  string
+	MailgunDomain  string
+	MailgunFrom    string
+	MailgunAPIBase string
 }

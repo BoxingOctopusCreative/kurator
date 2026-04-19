@@ -9,6 +9,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
   if (pathname.startsWith("/login")) return true;
   if (pathname.startsWith("/register")) return true;
+  if (pathname.startsWith("/forgot-password")) return true;
   if (pathname.startsWith("/setup")) return true;
   if (pathname.startsWith("/privacy")) return true;
   return false;
@@ -35,7 +36,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [user, isPublic, pathname, router]);
 
   useEffect(() => {
-    if (user && (pathname.startsWith("/login") || pathname.startsWith("/register"))) {
+    if (
+      user &&
+      (pathname.startsWith("/login") ||
+        pathname.startsWith("/register") ||
+        pathname.startsWith("/forgot-password"))
+    ) {
       router.replace("/");
     }
   }, [user, pathname, router]);
@@ -48,7 +54,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <FullPageLoading />;
   }
 
-  if (user && (pathname.startsWith("/login") || pathname.startsWith("/register"))) {
+  if (
+    user &&
+    (pathname.startsWith("/login") ||
+      pathname.startsWith("/register") ||
+      pathname.startsWith("/forgot-password"))
+  ) {
     return <FullPageLoading />;
   }
 

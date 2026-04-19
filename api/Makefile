@@ -25,14 +25,15 @@ help:
 	@echo "  build-linux-arm64  — Linux arm64 (e.g. AWS Graviton, Raspberry Pi 64-bit)"
 	@echo "  build-all          — all four cross-compiled binaries under $(BIN_DIR)/"
 	@echo "  test / vet / clean"
-	@echo "  swagger          — print OpenAPI doc location (docs/swagger.json; UI at GET /swagger/)"
+	@echo "  swagger          — print OpenAPI doc location (Swagger UI runs via infra compose, not the API binary)"
 
 swagger:
 	@echo "OpenAPI 2.0 spec: docs/swagger.json"
-	@echo "Swagger UI:       http://<host>:<port>/swagger/index.html (e.g. after make build && ./bin/kurator-api)"
+	@echo "Swagger UI:       docker compose -f ../infra/docker-compose.yml up -d swagger-ui"
+	@echo "                  then http://localhost:$${SWAGGER_UI_PORT:-8081} (mounts this swagger.json)"
 	@echo "To regenerate from code annotations, install github.com/swaggo/swag and run:"
 	@echo "  go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/api/main.go -o docs --parseInternal --parseDependency"
-	@echo "then merge generated paths into docs/swagger.json (this repo embeds the JSON in docs/docs.go)."
+	@echo "then merge generated paths into docs/swagger.json."
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)

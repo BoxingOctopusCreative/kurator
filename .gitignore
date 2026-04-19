@@ -23,6 +23,7 @@ vendor/
 !.env.example
 !.env*.example
 api/kurator.toml
+api/config/kurator.toml
 
 # --- Logs & debug ---
 *.log

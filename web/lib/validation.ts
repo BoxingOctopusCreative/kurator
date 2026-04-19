@@ -154,6 +154,15 @@ export function assertTotpCode(s: string, field = "Code"): string {
   return digits;
 }
 
+/** Exactly six digits (email recovery code). */
+export function assertRecoveryCode6(s: string, field = "Code"): string {
+  const digits = s.replace(/\s/g, "");
+  if (!/^\d{6}$/.test(digits)) {
+    throw new ValidationError(`${field} must be 6 digits.`);
+  }
+  return digits;
+}
+
 export type ThemePreference = "system" | "light" | "dark";
 
 export function assertThemePreference(raw: string): ThemePreference {

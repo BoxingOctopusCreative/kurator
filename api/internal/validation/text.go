@@ -175,6 +175,21 @@ func TotpCode(s string, field string) (string, error) {
 	return digits, nil
 }
 
+// RecoveryCode6 validates a 6-digit email recovery code.
+func RecoveryCode6(s string, field string) (string, error) {
+	digits := strings.TrimSpace(s)
+	digits = strings.ReplaceAll(digits, " ", "")
+	if len(digits) != 6 {
+		return "", Invalidf("%s must be 6 digits", field)
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return "", Invalidf("%s must be 6 digits", field)
+		}
+	}
+	return digits, nil
+}
+
 // PendingLoginToken bounds the 2FA pending JWT string.
 func PendingLoginToken(s string, field string) (string, error) {
 	t := strings.TrimSpace(s)

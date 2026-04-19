@@ -1,33 +1,55 @@
 # Example Kurator API config (copy to kurator.toml).
 # Precedence: environment variables > CLI flags > this file > built-in defaults.
 # Config file path: -config flag, or KURATOR_CONFIG, or ./kurator.toml if present.
+#
+# Settings are grouped by TOML table. Environment variable names are unchanged
+# (e.g. DATABASE_URL, S3_BUCKET). Migrate older flat kurator.toml files into these sections.
 
+[server]
 http_addr = ":8080"
-database_url = "postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable"
 
-setup_enabled = false
+[database]
+url = "postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable"
 
-meilisearch_host = "http://localhost:7700"
-meilisearch_api_key = ""
-meilisearch_index = "kurator_items"
+[setup]
+enabled = false
 
-cors_origins = ["http://localhost:3000"]
+[meilisearch]
+host = "http://localhost:7700"
+api_key = ""
+index = "kurator_items"
 
-auth_jwt_secret = "dev_only_change_me_in_production_use_long_random"
+[cors]
+origins = ["http://localhost:3000"]
+
+[auth]
+jwt_secret = "dev_only_change_me_in_production_use_long_random"
 session_max_age_seconds = 2592000
 cookie_secure = false
 
-s3_bucket = ""
-s3_region = "us-east-1"
-s3_endpoint = ""
-s3_access_key_id = ""
-s3_secret_access_key = ""
-s3_public_base_url = ""
-s3_key_prefix = "covers"
+[s3]
+bucket = ""
+region = "us-east-1"
+endpoint = ""
+access_key_id = ""
+secret_access_key = ""
+public_base_url = ""
+key_prefix = "covers"
 
-metadata_user_agent = ""
+[metadata]
+user_agent = ""
 discogs_personal_token = ""
 thegamesdb_api_key = ""
 google_books_api_key = ""
 tmdb_api_key = ""
 comicvine_api_key = ""
+
+[turnstile]
+enabled = false
+secret_key = ""
+
+[mailgun]
+api_key = ""
+domain = ""
+from = ""
+api_base = ""

@@ -15,6 +15,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
+  const passwordJustReset = searchParams.get("reset") === "1";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,6 +75,11 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
       <p className="mt-1 text-sm text-kurator-muted">
         Use the email and password for your Kurator account.
       </p>
+      {passwordJustReset && (
+        <p className="mt-4 rounded-lg border border-green-700/50 bg-green-950/40 px-3 py-2 text-sm text-green-200" role="status">
+          Your password was updated. You can log in with your new password.
+        </p>
+      )}
 
       {!pendingToken ? (
         <form onSubmit={onPasswordLogin} className="mt-8 space-y-4">
@@ -88,8 +94,13 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
               onChange={(e) => setEmail(e.target.value)}
             />
           </label>
-          <label className="block text-sm">
-            <span className="text-kurator-muted">Password</span>
+          <div className="block text-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+              <span className="text-kurator-muted">Password</span>
+              <Link href="/forgot-password" className="text-kurator-accent hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               required
@@ -98,7 +109,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </label>
+          </div>
           {turnstileEnabled && (
             <div className="flex min-h-[65px] justify-center">
               <TurnstileWidget

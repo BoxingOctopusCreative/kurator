@@ -17,9 +17,9 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/boxingoctopus/kurator/api/docs"
 	"github.com/boxingoctopus/kurator/api/internal/config"
 	"github.com/boxingoctopus/kurator/api/internal/handler"
+	"github.com/boxingoctopus/kurator/api/internal/mailgun"
 	"github.com/boxingoctopus/kurator/api/internal/middleware"
 	"github.com/boxingoctopus/kurator/api/internal/migrate"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
@@ -29,7 +29,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5/pgxpool"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 func main() {
@@ -82,6 +81,9 @@ func main() {
 	userRepo := repository.NewPostgresUserRepository(pool)
 	followRepo := repository.NewPostgresFollowRepository(pool)
 	sessionRepo := repository.NewPostgresSessionRepository(pool)
+	recoveryRepo := repository.NewPostgresPasswordRecoveryRepository(pool)
+	mg := mailgun.New(cfg.MailgunAPIKey, cfg.MailgunDomain, cfg.MailgunFrom, cfg.MailgunAPIBase)
+	recoverySvc := service.NewPasswordRecoveryService(userRepo, sessionRepo, recoveryRepo, mg, cfg.AuthJWTSecret)
 	itemSvc := service.NewItemService(itemRepo, indexer)
 	collSvc := service.NewCollectionService(collRepo)
 	wishSvc := service.NewWishlistService(wishRepo, collRepo, indexer)
@@ -105,6 +107,7 @@ func main() {
 	metaH := handler.NewMetadataHandler(metaSvc)
 	setupH := handler.NewSetupHandler(cfg)
 	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
+	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	requireAuth := middleware.RequireAuth(authSvc)
 
 	var imgSvc *service.ImageService
@@ -145,8 +148,6 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	app.Get("/swagger/*", fiberSwagger.WrapHandler)
-
 	app.Get("/health", health)
 
 	v1 := app.Group("/api/v1")
@@ -157,6 +158,9 @@ func main() {
 	v1.Post("/auth/login", authH.Login)
 	v1.Post("/auth/login/2fa", authH.Login2FA)
 	v1.Post("/auth/logout", authH.Logout)
+	v1.Post("/auth/forgot-password", recoveryH.ForgotPassword)
+	v1.Post("/auth/forgot-password/verify", recoveryH.VerifyForgotPassword)
+	v1.Post("/auth/forgot-password/reset", recoveryH.ResetForgotPassword)
 
 	me := v1.Group("/me", requireAuth)
 	me.Get("/", authH.Me)
