@@ -1,11 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, LayoutGrid, List } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  ArrowUpDown,
+  Download,
+  LayoutGrid,
+  List,
+  Upload,
+} from "lucide-react";
 import type { Category, Collection, Item } from "@/lib/api";
-import { fetchCollection, fetchItems, patchCollection } from "@/lib/api";
+import {
+  exportCollectionItemsCsv,
+  fetchCollection,
+  fetchItems,
+  importCollectionItemsCsv,
+  patchCollection,
+} from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { categoryLabel } from "@/lib/categoryLabels";
@@ -56,6 +71,7 @@ function sortListItems(items: Item[], key: ListSortKey, dir: "asc" | "desc"): It
 
 export function CollectionDetailClient() {
   const params = useParams();
+  const router = useRouter();
   const { user } = useAuth();
   const idRaw = params.id;
   const id = typeof idRaw === "string" ? Number(idRaw) : NaN;
@@ -72,6 +88,9 @@ export function CollectionDetailClient() {
   const [listSortDir, setListSortDir] = useState<"asc" | "desc">("asc");
   const [privacySaving, setPrivacySaving] = useState(false);
   const [privacyMsg, setPrivacyMsg] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const isOwner =
     user &&
@@ -115,6 +134,63 @@ export function CollectionDetailClient() {
       cancelled = true;
     };
   }, [id]);
+
+  async function reloadCollectionData() {
+    const [col, its] = await Promise.all([
+      fetchCollection(id),
+      fetchItems({ collectionId: id, limit: 500 }),
+    ]);
+    setCollection(col);
+    setItems(its);
+  }
+
+  async function onExportCsv() {
+    setImportMsg(null);
+    try {
+      const blob = await exportCollectionItemsCsv(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `collection-${id}-items.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : "Export failed.");
+    }
+  }
+
+  function onImportPickClick() {
+    importFileRef.current?.click();
+  }
+
+  async function onImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportBusy(true);
+    setImportMsg(null);
+    try {
+      const res = await importCollectionItemsCsv(id, file);
+      const parts = [`Created ${res.created}`, `updated ${res.updated}`];
+      if (res.errors?.length) {
+        parts.push(`${res.errors.length} row(s) skipped`);
+        const preview = res.errors
+          .slice(0, 5)
+          .map((er) => `Row ${er.row}: ${er.error}`)
+          .join("; ");
+        parts.push(preview);
+        if (res.errors.length > 5) {
+          parts.push("…");
+        }
+      }
+      setImportMsg(parts.join(" · "));
+      await reloadCollectionData();
+    } catch (err) {
+      setImportMsg(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setImportBusy(false);
+    }
+  }
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -210,6 +286,48 @@ export function CollectionDetailClient() {
                 )}
               </div>
             )}
+            {isOwner && (
+              <div className="mt-4 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4">
+                <p className="text-sm font-medium text-kurator-fg">Import &amp; export</p>
+                <p className="mt-1 text-xs text-kurator-muted">
+                  Spreadsheet columns: title, category, optional id (to update an item already on this shelf), and
+                  extra fields in one column.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void onExportCsv()}
+                    className="inline-flex items-center gap-2 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg hover:border-kurator-accent/50"
+                  >
+                    <Download className="h-4 w-4 shrink-0" aria-hidden />
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onImportPickClick}
+                    disabled={importBusy}
+                    className="inline-flex items-center gap-2 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50"
+                  >
+                    <Upload className="h-4 w-4 shrink-0" aria-hidden />
+                    {importBusy ? "Importing…" : "Import CSV"}
+                  </button>
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="sr-only"
+                    aria-hidden
+                    tabIndex={-1}
+                    onChange={onImportFileChange}
+                  />
+                </div>
+                {importMsg && (
+                  <p className="mt-2 text-sm text-kurator-muted" role="status">
+                    {importMsg}
+                  </p>
+                )}
+              </div>
+            )}
           </header>
 
           {items.length === 0 ? (
@@ -229,7 +347,7 @@ export function CollectionDetailClient() {
                     type="search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Title, category, metadata…"
+                    placeholder="Search titles…"
                     className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-none ring-kurator-accent focus:ring-2"
                     autoComplete="off"
                   />
@@ -379,7 +497,17 @@ export function CollectionDetailClient() {
                         return (
                           <tr
                             key={item.id}
-                            className="border-b border-kurator-border/80 last:border-0 hover:bg-kurator-surface/40"
+                            tabIndex={0}
+                            role="link"
+                            aria-label={`View ${item.title}`}
+                            className="cursor-pointer border-b border-kurator-border/80 last:border-0 hover:bg-kurator-surface/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-kurator-accent"
+                            onClick={() => router.push(`/items/${item.id}`)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                router.push(`/items/${item.id}`);
+                              }
+                            }}
                           >
                             <td className="align-top px-3 py-3">
                               <div className="h-20 w-16 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
@@ -409,9 +537,12 @@ export function CollectionDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <div className="flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-sm">
+                        <Link
+                          href={`/items/${item.id}`}
+                          className="group flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-sm outline-none ring-kurator-accent transition hover:border-kurator-accent/40 focus-visible:ring-2"
+                        >
                           <div className="shrink-0 space-y-2 p-4 pb-2">
-                            <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
+                            <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg group-hover:text-kurator-accent">
                               {item.title}
                             </h2>
                             <span className="inline-flex rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">
@@ -427,7 +558,7 @@ export function CollectionDetailClient() {
                               />
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       </li>
                     );
                   })}

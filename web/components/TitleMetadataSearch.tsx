@@ -12,16 +12,17 @@ type Props = {
   onApply: (payload: { title?: string; slice: Partial<CategoryFormSlice> }) => void;
 };
 
+/** Short tag for where a match came from (kept generic in the UI). */
 const labels: Record<string, string> = {
-  discogs: "Discogs",
-  thegamesdb: "TheGamesDB",
-  openlibrary: "Open Library",
-  googlebooks: "Google Books",
-  tmdb: "TMDB",
-  jikan: "Jikan",
-  comicvine: "Comic Vine",
-  comic: "Catalog",
-  book: "Catalog",
+  discogs: "Music",
+  thegamesdb: "Games",
+  openlibrary: "Books",
+  googlebooks: "Books",
+  tmdb: "Film & TV",
+  jikan: "Manga",
+  comicvine: "Comics",
+  comic: "Match",
+  book: "Match",
 };
 
 const lookupCategories: Category[] = [
@@ -32,25 +33,6 @@ const lookupCategories: Category[] = [
   "comic_book",
   "manga",
 ];
-
-function catalogHint(c: Category): string {
-  switch (c) {
-    case "music":
-      return "Discogs";
-    case "game":
-      return "TheGamesDB";
-    case "book":
-      return "Open Library / Google Books";
-    case "video":
-      return "TMDB";
-    case "comic_book":
-      return "Comic Vine (with API key), or Open Library / Google Books";
-    case "manga":
-      return "Jikan (MyAnimeList)";
-    default:
-      return "the catalog";
-  }
-}
 
 export function TitleMetadataSearch({ category, title, onApply }: Props) {
   const enabled = lookupCategories.includes(category);
@@ -109,11 +91,15 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
           platform: hit.platform || undefined,
           year: hit.year != null ? String(hit.year) : undefined,
           cover_art: hit.thumb_url || undefined,
+          catalog_gamesdb_id: hit.external_id,
         },
       });
       return;
     }
     if (category === "book") {
+      const olKey =
+        (typeof hit.extra?.open_library_key === "string" && hit.extra.open_library_key) ||
+        (hit.source === "openlibrary" ? hit.external_id : undefined);
       onApply({
         title: hit.title || undefined,
         slice: {
@@ -122,6 +108,17 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
           year: hit.year != null ? String(hit.year) : undefined,
           isbn: hit.isbn,
           cover_art: hit.thumb_url || undefined,
+          ...(hit.source === "googlebooks"
+            ? {
+                catalog_google_books_id: hit.external_id,
+                catalog_open_library_key: undefined,
+              }
+            : hit.source === "openlibrary"
+              ? {
+                  catalog_open_library_key: olKey,
+                  catalog_google_books_id: undefined,
+                }
+              : {}),
         },
       });
       return;
@@ -130,6 +127,7 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
       const mt = (hit.extra?.media_type as string) || "";
       const videoType =
         mt === "tv" ? "series" : mt === "movie" ? "movie" : undefined;
+      const tmdbMedia = mt === "tv" ? "tv" : mt === "movie" ? "movie" : undefined;
       onApply({
         title: hit.title || undefined,
         slice: {
@@ -137,6 +135,8 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
           genre: hit.genre,
           cover_art: hit.thumb_url || undefined,
           video_type: videoType,
+          catalog_tmdb_id: hit.external_id,
+          catalog_tmdb_media_type: tmdbMedia,
         },
       });
       return;
@@ -151,21 +151,60 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
       } else if (kind === "volume") {
         singleIssue = false;
       }
-      onApply({
-        title: hit.title || undefined,
-        slice: {
-          writer: hit.author,
-          artist: hit.artist,
-          publisher: hit.publisher,
-          year: hit.year != null ? String(hit.year) : undefined,
-          cover_art: hit.thumb_url || undefined,
-          ...(singleIssue !== undefined ? { single_issue: singleIssue } : {}),
-          ...(issueNum ? { issue_number: issueNum } : {}),
-        },
-      });
+      const olKey =
+        (typeof ex.open_library_key === "string" && ex.open_library_key) ||
+        (hit.source === "openlibrary" ? hit.external_id : undefined);
+      const baseSlice: Partial<CategoryFormSlice> = {
+        writer: hit.author,
+        artist: hit.artist,
+        publisher: hit.publisher,
+        year: hit.year != null ? String(hit.year) : undefined,
+        cover_art: hit.thumb_url || undefined,
+        ...(singleIssue !== undefined ? { single_issue: singleIssue } : {}),
+        ...(issueNum ? { issue_number: issueNum } : {}),
+      };
+      if (hit.source === "comicvine") {
+        onApply({
+          title: hit.title || undefined,
+          slice: {
+            ...baseSlice,
+            catalog_comicvine_id: hit.external_id,
+            catalog_comicvine_resource: kind === "issue" ? "issue" : "volume",
+            catalog_google_books_id: undefined,
+            catalog_open_library_key: undefined,
+          },
+        });
+      } else if (hit.source === "googlebooks") {
+        onApply({
+          title: hit.title || undefined,
+          slice: {
+            ...baseSlice,
+            catalog_google_books_id: hit.external_id,
+            catalog_comicvine_id: undefined,
+            catalog_comicvine_resource: undefined,
+            catalog_open_library_key: undefined,
+          },
+        });
+      } else if (hit.source === "openlibrary") {
+        onApply({
+          title: hit.title || undefined,
+          slice: {
+            ...baseSlice,
+            catalog_open_library_key: olKey,
+            catalog_comicvine_id: undefined,
+            catalog_comicvine_resource: undefined,
+            catalog_google_books_id: undefined,
+          },
+        });
+      } else {
+        onApply({ title: hit.title || undefined, slice: baseSlice });
+      }
       return;
     }
     if (category === "manga") {
+      const olKey =
+        (typeof hit.extra?.open_library_key === "string" && hit.extra.open_library_key) ||
+        (hit.source === "openlibrary" ? hit.external_id : undefined);
       onApply({
         title: hit.title || undefined,
         slice: {
@@ -174,6 +213,25 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
           year: hit.year != null ? String(hit.year) : undefined,
           isbn: hit.isbn,
           cover_art: hit.thumb_url || undefined,
+          ...(hit.source === "jikan"
+            ? {
+                catalog_mal_id: hit.external_id,
+                catalog_google_books_id: undefined,
+                catalog_open_library_key: undefined,
+              }
+            : hit.source === "googlebooks"
+              ? {
+                  catalog_google_books_id: hit.external_id,
+                  catalog_mal_id: undefined,
+                  catalog_open_library_key: undefined,
+                }
+              : hit.source === "openlibrary"
+                ? {
+                    catalog_open_library_key: olKey,
+                    catalog_mal_id: undefined,
+                    catalog_google_books_id: undefined,
+                  }
+                : {}),
         },
       });
     }
@@ -182,9 +240,7 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
   const q = title.trim();
   if (q.length < 2) {
     return (
-      <p className="text-xs text-kurator-muted">
-        Type at least 2 characters in Title to search {catalogHint(category)}.
-      </p>
+      <p className="text-xs text-kurator-muted">Type at least two characters in the title to search for matches.</p>
     );
   }
 
@@ -192,7 +248,7 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
     <div className="rounded-lg border border-kurator-border bg-kurator-bg/40 p-3">
       <div className="flex items-center gap-2 text-xs font-medium text-kurator-muted">
         <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        {loading ? "Searching…" : "Catalog matches"}
+        {loading ? "Searching…" : "Matches"}
       </div>
 
       {err && (

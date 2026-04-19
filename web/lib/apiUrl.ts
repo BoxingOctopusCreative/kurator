@@ -1,6 +1,10 @@
 /**
- * Resolves API URLs for server vs browser. When NEXT_PUBLIC_API_URL is unset,
- * the browser uses same-origin `/api/v1/...` (see next.config rewrites) so session cookies work.
+ * Resolves API URLs for server vs browser.
+ *
+ * In the browser, always use same-origin `/api/v1/...` so Next.js rewrites proxy to the API
+ * and session cookies stay on the app origin. Sending `NEXT_PUBLIC_API_URL` here used to
+ * bypass the rewrite and break auth (see metadata lookup comment in api.ts).
+ *
  * Server-side uses API_INTERNAL_URL or falls back to a direct backend URL.
  */
 export function apiUrl(path: string): string {
@@ -8,9 +12,7 @@ export function apiUrl(path: string): string {
     path.startsWith("/api/v1") ? path : `/api/v1${path.startsWith("/") ? path : `/${path}`}`;
 
   if (typeof window !== "undefined") {
-    const pub = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
-    if (!pub) return normalized;
-    return `${pub}${normalized}`;
+    return normalized;
   }
 
   const internal =

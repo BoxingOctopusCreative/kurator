@@ -5,6 +5,7 @@ import {
   assertOptionalHttpUrl,
   assertPasswordClient,
   assertPendingToken,
+  assertTurnstileToken,
   assertSocialLinksPayload,
   assertStrictPlainText,
   assertThemePreference,
@@ -78,12 +79,20 @@ export async function fetchMe(): Promise<AuthUser | null> {
   return res.json() as Promise<AuthUser>;
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, turnstileToken?: string) {
   const safeEmail = assertEmail(email);
   const safePassword = assertPasswordClient(password);
+  const payload: Record<string, string> = {
+    email: safeEmail,
+    password: safePassword,
+  };
+  const ts = turnstileToken?.trim();
+  if (ts) {
+    payload.turnstile_token = assertTurnstileToken(ts);
+  }
   const res = await api("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: safeEmail, password: safePassword }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     throw new Error(await readApiError(res));
@@ -113,6 +122,7 @@ export async function register(
   password: string,
   displayName: string,
   username?: string,
+  turnstileToken?: string,
 ) {
   const safeEmail = assertEmail(email);
   const safePassword = assertPasswordClient(password);
@@ -128,6 +138,10 @@ export async function register(
   };
   if (un) {
     body.username = assertUsername(un, "Username");
+  }
+  const ts = turnstileToken?.trim();
+  if (ts) {
+    body.turnstile_token = assertTurnstileToken(ts);
   }
   const res = await api("/auth/register", {
     method: "POST",

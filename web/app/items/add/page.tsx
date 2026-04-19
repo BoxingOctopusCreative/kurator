@@ -9,6 +9,7 @@ import {
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
 import { createItem, fetchCollections, type Category } from "@/lib/api";
 import { buildItemMetadata } from "@/lib/itemMetadata";
+import { mergeCategoryFormSlice } from "@/lib/mergeCategoryFormSlice";
 import { assertItemTitle } from "@/lib/validation";
 
 const categories: { value: Category; label: string }[] = [
@@ -80,7 +81,7 @@ export default function AddItemPage() {
     <div className="mx-auto max-w-lg">
       <h1 className="text-2xl font-semibold text-kurator-fg">Add item</h1>
       <p className="mt-1 text-sm text-kurator-muted">
-        Title, category, and flexible metadata stored as JSONB on the server.
+        Add a title, pick a type, and fill in what you know.
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-6">
@@ -124,27 +125,7 @@ export default function AddItemPage() {
           title={title}
           onApply={({ title: nextTitle, slice }) => {
             if (nextTitle) setTitle(nextTitle);
-            setSlice((prev) => {
-              const merged: CategoryFormSlice = { ...prev };
-              for (const key of Object.keys(slice) as (keyof CategoryFormSlice)[]) {
-                const raw = slice[key];
-                if (raw === undefined || raw === null) continue;
-                if (key === "single_issue") {
-                  if (typeof raw === "boolean") {
-                    merged.single_issue = raw;
-                    if (raw === false) {
-                      merged.issue_number = "";
-                    }
-                  }
-                  continue;
-                }
-                if (raw === "") continue;
-                // API may send numbers (e.g. year); inputs need strings.
-                const str = typeof raw === "string" ? raw : String(raw);
-                (merged as Record<string, string | boolean | undefined>)[key] = str;
-              }
-              return merged;
-            });
+            setSlice((prev) => mergeCategoryFormSlice(prev, slice));
           }}
         />
 

@@ -44,6 +44,10 @@ func (s *stubItemRepo) ListByCollection(ctx context.Context, collectionID int64,
 	return s.list, nil
 }
 
+func (s *stubItemRepo) ListByCollectionExport(ctx context.Context, collectionID int64, max int) ([]models.Item, error) {
+	return s.ListByCollection(ctx, collectionID, max)
+}
+
 func (s *stubItemRepo) ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error) {
 	if s.listErr != nil {
 		return nil, s.listErr

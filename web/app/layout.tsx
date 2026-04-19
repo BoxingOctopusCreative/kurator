@@ -17,6 +17,9 @@ export const metadata: Metadata = {
     template: "Kurator - %s",
   },
   description: "Collection tracker — games, music, books, and video.",
+  icons: {
+    icon: "https://assets.kuratorapp.cc/brand/PNG/kurator_favicon-white.png",
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

@@ -18,7 +18,7 @@ import (
 func newItemTestApp(t *testing.T, repo *handlerStubItemRepo) *fiber.App {
 	t.Helper()
 	svc := service.NewItemService(repo, nil)
-	h := NewItemHandler(svc, nil, nil)
+	h := NewItemHandler(svc, nil, nil, nil)
 	app := fiber.New()
 	app.Get("/items", h.List)
 	app.Get("/items/:id", h.Get)
@@ -48,6 +48,10 @@ func (s *handlerStubItemRepo) ListLatest(ctx context.Context, limit int) ([]mode
 }
 
 func (s *handlerStubItemRepo) ListByCollection(ctx context.Context, collectionID int64, limit int) ([]models.Item, error) {
+	return s.list, nil
+}
+
+func (s *handlerStubItemRepo) ListByCollectionExport(ctx context.Context, collectionID int64, max int) ([]models.Item, error) {
 	return s.list, nil
 }
 

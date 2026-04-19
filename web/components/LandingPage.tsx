@@ -26,6 +26,7 @@ export function LandingPage({ initialBackground = null }: Props) {
             height={300}
             className="mb-8 max-w-full h-auto w-auto [filter:drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
             priority
+            loading="eager"
           />
         </div>
 
@@ -35,8 +36,8 @@ export function LandingPage({ initialBackground = null }: Props) {
             manga in one place.
           </p>
           <p className="text-sm leading-relaxed text-kurator-muted">
-            Catalog what you own, add rich metadata, search your library, and keep collections tidy. Sign in
-            to manage your items; everything stays in your own backend under your control.
+            Catalog what you own, add details, search your library, and keep shelves tidy. Sign in to manage your
+            collection—it stays yours.
           </p>
         </div>
 
@@ -66,7 +67,7 @@ export function LandingPage({ initialBackground = null }: Props) {
             <Link href="/setup" className="text-kurator-accent/90 hover:underline">
               Database setup
             </Link>
-            <span className="text-kurator-muted/70"> — initialize the PostgreSQL schema</span>
+            <span className="text-kurator-muted/70"> — first-time install</span>
           </p>
         )}
       </div>

@@ -25,4 +25,6 @@ type fileConfig struct {
 	TMDBAPIKey           string `toml:"tmdb_api_key"`
 	ComicVineAPIKey      string `toml:"comicvine_api_key"`
 	SetupEnabled         *bool  `toml:"setup_enabled"`
+	TurnstileEnabled     *bool  `toml:"turnstile_enabled"`
+	TurnstileSecretKey   string `toml:"turnstile_secret_key"`
 }

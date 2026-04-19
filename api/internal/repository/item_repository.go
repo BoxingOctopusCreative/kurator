@@ -16,6 +16,8 @@ var ErrItemNotFound = errors.New("item not found")
 type ItemRepository interface {
 	ListLatest(ctx context.Context, limit int) ([]models.Item, error)
 	ListByCollection(ctx context.Context, collectionID int64, limit int) ([]models.Item, error)
+	// ListByCollectionExport returns items in stable id order for CSV export (capped).
+	ListByCollectionExport(ctx context.Context, collectionID int64, max int) ([]models.Item, error)
 	ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error)
 	ListRecentFromFollowedUsers(ctx context.Context, followerUserID int64, limit int) ([]models.Item, error)
 	GetByID(ctx context.Context, id int64) (*models.Item, error)
@@ -72,6 +74,33 @@ func (r *PostgresItemRepository) ListByCollection(ctx context.Context, collectio
 	`, collectionID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list items by collection: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]models.Item, 0)
+	for rows.Next() {
+		var it models.Item
+		if err := rows.Scan(&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &it.CreatedAt, &it.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan item: %w", err)
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresItemRepository) ListByCollectionExport(ctx context.Context, collectionID int64, max int) ([]models.Item, error) {
+	if max <= 0 || max > 50000 {
+		max = 50000
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, collection_id, title, category, metadata, created_at, updated_at
+		FROM items
+		WHERE collection_id = $1
+		ORDER BY id ASC
+		LIMIT $2
+	`, collectionID, max)
+	if err != nil {
+		return nil, fmt.Errorf("list items for export: %w", err)
 	}
 	defer rows.Close()
 

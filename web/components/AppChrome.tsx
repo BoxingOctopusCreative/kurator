@@ -52,12 +52,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
               width={256}
               height={128}
               className="h-auto w-32 invert dark:invert-0"
+              loading="eager"
             />
           </Link>
           <p className="mt-1 text-center text-sm text-kurator-muted">Collection tracker</p>
         </div>
         <div className="px-5 pb-4">
-          <UserBar />
+          <UserBar centered />
         </div>
         <div className="flex min-h-0 flex-1 flex-col px-3">
           <nav className="flex flex-1 flex-col gap-1" aria-label="Primary">
@@ -97,14 +98,16 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="mt-4 border-t border-kurator-border pt-3">
             <Copyright />
-            <Link
-              href="/privacy"
-              className={`block px-3 py-1.5 text-xs transition-colors ${
-                privacyActive ? "text-kurator-fg" : "text-kurator-muted hover:text-kurator-fg"
-              }`}
-            >
-              Privacy Policy
-            </Link>
+            <div className="flex justify-center">
+              <Link
+                href="/privacy"
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  privacyActive ? "text-kurator-fg" : "text-kurator-muted hover:text-kurator-fg"
+                }`}
+              >
+                Privacy Policy
+              </Link>
+            </div>
           </div>
         </div>
       </aside>
@@ -117,6 +120,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
               width={256}
               height={128}
               className="h-auto w-32 invert dark:invert-0"
+              loading="eager"
             />
           </Link>
           <UserBar />

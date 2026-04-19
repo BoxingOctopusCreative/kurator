@@ -25,6 +25,7 @@ import {
 } from "@/lib/api";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { buildItemMetadata } from "@/lib/itemMetadata";
+import { mergeCategoryFormSlice } from "@/lib/mergeCategoryFormSlice";
 import { getCoverArtUrl } from "@/lib/itemDisplay";
 import {
   assertCollectionOrWishlistName,
@@ -448,24 +449,7 @@ export function WishlistDetailClient() {
                 title={addTitle}
                 onApply={({ title: nextTitle, slice }) => {
                   if (nextTitle) setAddTitle(nextTitle);
-                  setAddSlice((prev) => {
-                    const merged: CategoryFormSlice = { ...prev };
-                    for (const key of Object.keys(slice) as (keyof CategoryFormSlice)[]) {
-                      const raw = slice[key];
-                      if (raw === undefined || raw === null) continue;
-                      if (key === "single_issue") {
-                        if (typeof raw === "boolean") {
-                          merged.single_issue = raw;
-                          if (raw === false) merged.issue_number = "";
-                        }
-                        continue;
-                      }
-                      if (raw === "") continue;
-                      const str = typeof raw === "string" ? raw : String(raw);
-                      (merged as Record<string, string | boolean | undefined>)[key] = str;
-                    }
-                    return merged;
-                  });
+                  setAddSlice((prev) => mergeCategoryFormSlice(prev, slice));
                 }}
               />
 

@@ -1,34 +1,46 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/boxingoctopus/kurator/api/internal/middleware"
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
+	"github.com/boxingoctopus/kurator/api/internal/turnstile"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
 	"github.com/gofiber/fiber/v2"
 )
 
 type AuthHandler struct {
-	auth             *service.AuthService
-	cookieSecure     bool
-	sessionMaxAgeSec int
+	auth               *service.AuthService
+	cookieSecure       bool
+	sessionMaxAgeSec   int
+	turnstileEnabled   bool
+	turnstileSecretKey string
 }
 
-func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeSec int) *AuthHandler {
-	return &AuthHandler{auth: auth, cookieSecure: cookieSecure, sessionMaxAgeSec: sessionMaxAgeSec}
+func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeSec int, turnstileEnabled bool, turnstileSecretKey string) *AuthHandler {
+	return &AuthHandler{
+		auth:               auth,
+		cookieSecure:       cookieSecure,
+		sessionMaxAgeSec:   sessionMaxAgeSec,
+		turnstileEnabled:   turnstileEnabled,
+		turnstileSecretKey: strings.TrimSpace(turnstileSecretKey),
+	}
 }
 
 // RegisterBody is the JSON body for POST /api/v1/auth/register.
 type RegisterBody struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
-	Username    string `json:"username"`
+	Email          string `json:"email"`
+	Password       string `json:"password"`
+	DisplayName    string `json:"display_name"`
+	Username       string `json:"username"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 // Register creates an account and sets the session cookie.
@@ -45,6 +57,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var body RegisterBody
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	if err := h.verifyTurnstile(c, body.TurnstileToken); err != nil {
+		return err
 	}
 	u, raw, err := h.auth.Register(c.Context(), body.Email, body.Password, body.DisplayName, body.Username)
 	if err != nil {
@@ -65,8 +80,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 // LoginBody is the JSON body for POST /api/v1/auth/login.
 type LoginBody struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email          string `json:"email"`
+	Password       string `json:"password"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 // Login starts a session or returns a pending 2FA token.
@@ -83,6 +99,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var body LoginBody
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	if err := h.verifyTurnstile(c, body.TurnstileToken); err != nil {
+		return err
 	}
 	res, err := h.auth.Login(c.Context(), body.Email, body.Password)
 	if err != nil {
@@ -175,19 +194,19 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 
 // PatchMeBody is the JSON body for PATCH /api/v1/me.
 type PatchMeBody struct {
-	DisplayName       *string          `json:"display_name"`
-	Bio               *string          `json:"bio"`
-	AvatarURL         *string          `json:"avatar_url"`
-	BannerURL         *string          `json:"banner_url"`
-	FirstName         *string          `json:"first_name"`
-	LastName          *string          `json:"last_name"`
-	FirstNamePublic   *bool            `json:"first_name_public"`
-	LastNamePublic    *bool            `json:"last_name_public"`
-	Location          *string          `json:"location"`
-	SocialLinks       *json.RawMessage `json:"social_links"`
-	Username          *string          `json:"username"`
-	ProfileIsPublic   *bool            `json:"profile_is_public"`
-	ThemePreference   *string          `json:"theme_preference"`
+	DisplayName     *string          `json:"display_name"`
+	Bio             *string          `json:"bio"`
+	AvatarURL       *string          `json:"avatar_url"`
+	BannerURL       *string          `json:"banner_url"`
+	FirstName       *string          `json:"first_name"`
+	LastName        *string          `json:"last_name"`
+	FirstNamePublic *bool            `json:"first_name_public"`
+	LastNamePublic  *bool            `json:"last_name_public"`
+	Location        *string          `json:"location"`
+	SocialLinks     *json.RawMessage `json:"social_links"`
+	Username        *string          `json:"username"`
+	ProfileIsPublic *bool            `json:"profile_is_public"`
+	ThemePreference *string          `json:"theme_preference"`
 }
 
 // PatchMe updates profile fields for the signed-in user.
@@ -416,6 +435,25 @@ func (h *AuthHandler) TwoFADisable(c *fiber.Ctx) error {
 	return c.JSON(publicUser(u))
 }
 
+func (h *AuthHandler) verifyTurnstile(c *fiber.Ctx, token string) error {
+	if !h.turnstileEnabled || h.turnstileSecretKey == "" {
+		return nil
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "turnstile verification required")
+	}
+	if len(token) > 4096 {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid turnstile token")
+	}
+	ctx, cancel := context.WithTimeout(c.Context(), 12*time.Second)
+	defer cancel()
+	if err := turnstile.Verify(ctx, nil, h.turnstileSecretKey, token, c.IP()); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "turnstile verification failed")
+	}
+	return nil
+}
+
 func localUserID(c *fiber.Ctx) (int64, error) {
 	v := c.Locals("userID")
 	if v == nil {
@@ -430,23 +468,23 @@ func localUserID(c *fiber.Ctx) (int64, error) {
 
 func publicUser(u *models.User) fiber.Map {
 	m := fiber.Map{
-		"id":                  u.ID,
-		"email":               u.Email,
-		"username":            u.Username,
-		"username_locked":     u.UsernameLocked,
-		"profile_is_public":   u.ProfileIsPublic,
-		"display_name":        u.DisplayName,
-		"first_name":          u.FirstName,
-		"last_name":           u.LastName,
-		"first_name_public":   u.FirstNamePublic,
-		"last_name_public":    u.LastNamePublic,
-		"location":            u.Location,
-		"bio":                 u.Bio,
-		"social_links":        socialLinksForResponse(u.SocialLinks),
-		"theme_preference":    u.ThemePreference,
-		"two_factor_enabled":  u.TwoFactorEnabled,
-		"created_at":          u.CreatedAt,
-		"updated_at":          u.UpdatedAt,
+		"id":                 u.ID,
+		"email":              u.Email,
+		"username":           u.Username,
+		"username_locked":    u.UsernameLocked,
+		"profile_is_public":  u.ProfileIsPublic,
+		"display_name":       u.DisplayName,
+		"first_name":         u.FirstName,
+		"last_name":          u.LastName,
+		"first_name_public":  u.FirstNamePublic,
+		"last_name_public":   u.LastNamePublic,
+		"location":           u.Location,
+		"bio":                u.Bio,
+		"social_links":       socialLinksForResponse(u.SocialLinks),
+		"theme_preference":   u.ThemePreference,
+		"two_factor_enabled": u.TwoFactorEnabled,
+		"created_at":         u.CreatedAt,
+		"updated_at":         u.UpdatedAt,
 	}
 	if u.AvatarURL != nil {
 		m["avatar_url"] = *u.AvatarURL

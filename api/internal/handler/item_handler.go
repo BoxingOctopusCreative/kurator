@@ -17,10 +17,11 @@ type ItemHandler struct {
 	svc  *service.ItemService
 	coll *repository.PostgresCollectionRepository
 	auth *service.AuthService
+	meta *service.MetadataService
 }
 
-func NewItemHandler(svc *service.ItemService, coll *repository.PostgresCollectionRepository, auth *service.AuthService) *ItemHandler {
-	return &ItemHandler{svc: svc, coll: coll, auth: auth}
+func NewItemHandler(svc *service.ItemService, coll *repository.PostgresCollectionRepository, auth *service.AuthService, meta *service.MetadataService) *ItemHandler {
+	return &ItemHandler{svc: svc, coll: coll, auth: auth, meta: meta}
 }
 
 // List returns recent items, or items for collection_id when set. Optional session cookie can unlock private collections.
@@ -133,6 +134,48 @@ func (h *ItemHandler) Get(c *fiber.Ctx) error {
 		}
 	}
 	return c.JSON(item)
+}
+
+// Enrichment returns synopsis/plot text from external catalogs (TMDB, Jikan, Google Books, etc.) when API keys allow.
+// @Summary Item enrichment (synopsis)
+// @Tags items
+// @Produce json
+// @Param id path int true "Item ID"
+// @Success 200 {object} service.ItemEnrichment
+// @Failure 404 {object} map[string]string
+// @Router /api/v1/items/{id}/enrichment [get]
+func (h *ItemHandler) Enrichment(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id < 1 {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
+	}
+	item, err := h.svc.Get(c.Context(), id)
+	if errors.Is(err, repository.ErrItemNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	if h.coll != nil {
+		var viewer *int64
+		raw := c.Cookies(middleware.SessionCookieName)
+		if raw != "" {
+			uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
+			if aerr == nil {
+				viewer = &uid
+			}
+		}
+		if _, cerr := h.coll.GetByID(c.Context(), item.CollectionID, viewer); errors.Is(cerr, repository.ErrCollectionNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "not found")
+		} else if cerr != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, cerr.Error())
+		}
+	}
+	if h.meta == nil {
+		return c.JSON(service.ItemEnrichment{Note: "Summaries aren’t available on this server yet."})
+	}
+	out := h.meta.EnrichItem(c.Context(), item.Category, item.Metadata, item.Title)
+	return c.JSON(out)
 }
 
 // ItemBody is the JSON body for creating or updating an item.

@@ -112,7 +112,7 @@ func (s *MetadataService) Lookup(ctx context.Context, provider, q string) Metada
 		return s.lookupJikanManga(ctx, q)
 	case "auto":
 		base.Stub = true
-		base.Message = "Specify category (music, game, book, video, comic_book, manga) or provider=discogs|thegamesdb|book|tmdb|comic|comicvine|jikan."
+		base.Message = "Choose a category to search."
 		return base
 	default:
 		base.Stub = true
@@ -148,7 +148,7 @@ func (s *MetadataService) lookupDiscogs(ctx context.Context, q string) MetadataL
 	out := MetadataLookupResult{Source: "discogs", Query: q}
 	if strings.TrimSpace(s.cfg.DiscogsToken) == "" {
 		out.Stub = true
-		out.Message = "Discogs search requires DISCOGS_PERSONAL_TOKEN (create at discogs.com/settings/developers)."
+		out.Message = "Music search isn’t set up on this server yet."
 		return out
 	}
 
@@ -172,7 +172,7 @@ func (s *MetadataService) lookupDiscogs(ctx context.Context, q string) MetadataL
 	if status < 200 || status >= 300 {
 		out.Stub = true
 		if status == http.StatusUnauthorized {
-			out.Message = "Discogs rejected the token (HTTP 401). Regenerate DISCOGS_PERSONAL_TOKEN at discogs.com/settings/developers."
+			out.Message = "Couldn’t connect to the music catalog. Check with your admin."
 		} else {
 			out.Message = fmt.Sprintf("Discogs HTTP %d", status)
 		}
@@ -191,7 +191,7 @@ func (s *MetadataService) lookupDiscogs(ctx context.Context, q string) MetadataL
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		out.Stub = true
-		out.Message = "Invalid Discogs response."
+		out.Message = "Something went wrong loading music matches."
 		return out
 	}
 
@@ -437,7 +437,7 @@ func (s *MetadataService) lookupTheGamesDB(ctx context.Context, q string) Metada
 	out := MetadataLookupResult{Source: "thegamesdb", Query: q}
 	if strings.TrimSpace(s.cfg.TheGamesDBAPIKey) == "" {
 		out.Stub = true
-		out.Message = "TheGamesDB requires THEGAMESDB_API_KEY (request at thegamesdb.net forums)."
+		out.Message = "Game search isn’t set up on this server yet."
 		return out
 	}
 
@@ -472,7 +472,7 @@ func (s *MetadataService) lookupTheGamesDB(ctx context.Context, q string) Metada
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		out.Stub = true
-		out.Message = "Invalid TheGamesDB response."
+		out.Message = "Something went wrong loading game matches."
 		return out
 	}
 
@@ -722,7 +722,7 @@ func (s *MetadataService) lookupComicVine(ctx context.Context, q string) Metadat
 	out := MetadataLookupResult{Source: "comicvine", Query: q}
 	if strings.TrimSpace(s.cfg.ComicVineAPIKey) == "" {
 		out.Stub = true
-		out.Message = "Comic Vine requires COMICVINE_API_KEY (register at comicvine.gamespot.com/api)."
+		out.Message = "Comic search isn’t set up on this server yet."
 		return out
 	}
 
@@ -905,7 +905,7 @@ func (s *MetadataService) lookupComic(ctx context.Context, q string) MetadataLoo
 				return cv
 			}
 		} else if len(cv.Results) > 0 {
-			cv.Message = "Results from Comic Vine."
+			cv.Message = "Showing comic matches."
 			return cv
 		}
 	}
@@ -913,13 +913,6 @@ func (s *MetadataService) lookupComic(ctx context.Context, q string) MetadataLoo
 }
 
 func (s *MetadataService) lookupBookFamily(ctx context.Context, q string, comic bool) MetadataLookupResult {
-	bookDisclaimer := "Goodreads does not offer a public search API."
-	comicDisclaimer := "There is no single public comic-database API."
-	disclaimer := bookDisclaimer
-	if comic {
-		disclaimer = comicDisclaimer
-	}
-
 	if strings.TrimSpace(s.cfg.GoogleBooksKey) != "" {
 		g := s.lookupGoogleBooks(ctx, q)
 		if !g.Stub && len(g.Results) > 0 {
@@ -929,7 +922,7 @@ func (s *MetadataService) lookupBookFamily(ctx context.Context, q string, comic 
 				g.Source = "book"
 			}
 			g.Query = q
-			g.Message = disclaimer + " Results are from Google Books."
+			g.Message = "Showing book matches."
 			return g
 		}
 	}
@@ -945,12 +938,10 @@ func (s *MetadataService) lookupBookFamily(ctx context.Context, q string, comic 
 		return ol
 	}
 	if ol.Message == "No books found." && comic {
-		ol.Message = "No matching comics found in Open Library."
+		ol.Message = "No matching comics found."
 	}
 	if ol.Message == "" {
-		ol.Message = disclaimer + " Results are from Open Library."
-	} else {
-		ol.Message = disclaimer + " " + ol.Message
+		ol.Message = "Showing book matches."
 	}
 	return ol
 }
@@ -1014,7 +1005,7 @@ func (s *MetadataService) lookupTMDB(ctx context.Context, q string) MetadataLook
 	out := MetadataLookupResult{Source: "tmdb", Query: q}
 	if strings.TrimSpace(s.cfg.TMDBAPIKey) == "" {
 		out.Stub = true
-		out.Message = "TMDB search requires TMDB_API_KEY (themoviedb.org → Settings → API)."
+		out.Message = "Film & TV search isn’t set up on this server yet."
 		return out
 	}
 
@@ -1054,7 +1045,7 @@ func (s *MetadataService) lookupTMDB(ctx context.Context, q string) MetadataLook
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		out.Stub = true
-		out.Message = "Invalid TMDB response."
+		out.Message = "Something went wrong loading film & TV matches."
 		return out
 	}
 
@@ -1145,7 +1136,7 @@ func (s *MetadataService) lookupJikanManga(ctx context.Context, q string) Metada
 	}
 	if status == 429 {
 		out.Stub = true
-		out.Message = "Jikan rate limit: wait a few seconds and try again."
+		out.Message = "Too many searches—wait a few seconds and try again."
 		return out
 	}
 	if status < 200 || status >= 300 {
@@ -1237,6 +1228,7 @@ func (s *MetadataService) lookupOpenLibrary(ctx context.Context, q string) Metad
 
 	var parsed struct {
 		Docs []struct {
+			Key              string   `json:"key"`
 			Title            string   `json:"title"`
 			AuthorName       []string `json:"author_name"`
 			Publisher        []string `json:"publisher"`
@@ -1255,6 +1247,13 @@ func (s *MetadataService) lookupOpenLibrary(ctx context.Context, q string) Metad
 		hit := MetadataHit{
 			Source: "openlibrary",
 			Title:  d.Title,
+		}
+		if k := strings.TrimSpace(d.Key); k != "" {
+			hit.ExternalID = k
+			if hit.Extra == nil {
+				hit.Extra = map[string]any{}
+			}
+			hit.Extra["open_library_key"] = k
 		}
 		if len(d.AuthorName) > 0 {
 			hit.Author = d.AuthorName[0]

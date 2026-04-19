@@ -31,6 +31,15 @@ export type CategoryFormSlice = {
   issue_number?: string;
   /** Free-form notes stored as `metadata.notes` (multiline). */
   notes?: string;
+  /** External catalog IDs for synopsis/plot enrichment (set from catalog search). */
+  catalog_tmdb_id?: string;
+  catalog_tmdb_media_type?: string;
+  catalog_gamesdb_id?: string;
+  catalog_mal_id?: string;
+  catalog_google_books_id?: string;
+  catalog_open_library_key?: string;
+  catalog_comicvine_id?: string;
+  catalog_comicvine_resource?: string;
 };
 
 type Props = {

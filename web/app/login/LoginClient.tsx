@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { completeLogin2FA, login } from "@/lib/auth";
 
-export function LoginClient() {
+type Props = {
+  turnstileSiteKey: string;
+  turnstileEnabled: boolean;
+};
+
+export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
@@ -16,13 +22,19 @@ export function LoginClient() {
   const [totp, setTotp] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileMountKey, setTurnstileMountKey] = useState(0);
 
   async function onPasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
+    if (turnstileEnabled && !turnstileToken) {
+      setMessage("Complete the verification challenge below.");
+      return;
+    }
     setBusy(true);
     try {
-      const out = await login(email, password);
+      const out = await login(email, password, turnstileEnabled ? (turnstileToken ?? undefined) : undefined);
       if (out.two_factor_required) {
         setPendingToken(out.pending_token);
         return;
@@ -31,6 +43,10 @@ export function LoginClient() {
       router.refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Login failed.");
+      setTurnstileToken(null);
+      if (turnstileEnabled) {
+        setTurnstileMountKey((k) => k + 1);
+      }
     } finally {
       setBusy(false);
     }
@@ -83,6 +99,16 @@ export function LoginClient() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
+          {turnstileEnabled && (
+            <div className="flex min-h-[65px] justify-center">
+              <TurnstileWidget
+                key={turnstileMountKey}
+                siteKey={turnstileSiteKey.trim()}
+                onToken={setTurnstileToken}
+                theme="auto"
+              />
+            </div>
+          )}
           {message && (
             <p className="text-sm text-red-400" role="alert">
               {message}
@@ -90,7 +116,7 @@ export function LoginClient() {
           )}
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || (turnstileEnabled && !turnstileToken)}
             className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
           >
             {busy ? "Please wait…" : "Continue"}

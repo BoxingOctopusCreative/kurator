@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { register } from "@/lib/auth";
@@ -11,9 +12,11 @@ import { Copyright } from "@/components/Copyright";
 
 type Props = {
   initialBackground: UnsplashBackgroundPayload | null;
+  turnstileSiteKey: string;
+  turnstileEnabled: boolean;
 };
 
-export function RegisterPageInner({ initialBackground }: Props) {
+export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnstileEnabled }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,17 +24,33 @@ export function RegisterPageInner({ initialBackground }: Props) {
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileMountKey, setTurnstileMountKey] = useState(0);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
+    if (turnstileEnabled && !turnstileToken) {
+      setMessage("Complete the verification challenge below.");
+      return;
+    }
     setBusy(true);
     try {
-      await register(email, password, displayName, username.trim() || undefined);
+      await register(
+        email,
+        password,
+        displayName,
+        username.trim() || undefined,
+        turnstileEnabled ? (turnstileToken ?? undefined) : undefined,
+      );
       router.push("/");
       router.refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Registration failed.");
+      setTurnstileToken(null);
+      if (turnstileEnabled) {
+        setTurnstileMountKey((k) => k + 1);
+      }
     } finally {
       setBusy(false);
     }
@@ -105,6 +124,16 @@ export function RegisterPageInner({ initialBackground }: Props) {
               Your profile will be at /people/your-username. Leave blank to pick one from your email.
             </span>
           </label>
+          {turnstileEnabled && (
+            <div className="flex min-h-[65px] justify-center">
+              <TurnstileWidget
+                key={turnstileMountKey}
+                siteKey={turnstileSiteKey.trim()}
+                onToken={setTurnstileToken}
+                theme="auto"
+              />
+            </div>
+          )}
           {message && (
             <p className="text-sm text-red-400" role="alert">
               {message}
@@ -112,7 +141,7 @@ export function RegisterPageInner({ initialBackground }: Props) {
           )}
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || (turnstileEnabled && !turnstileToken)}
             className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create account"}

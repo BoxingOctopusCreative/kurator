@@ -97,14 +97,14 @@ func main() {
 	authSvc := service.NewAuthService(userRepo, sessionRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge)
 	socialSvc := service.NewSocialService(userRepo, followRepo)
 
-	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc)
-	collH := handler.NewCollectionHandler(collSvc, authSvc)
+	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc)
+	collH := handler.NewCollectionHandler(collSvc, authSvc, itemSvc, collRepo)
 	socialH := handler.NewSocialHandler(socialSvc, authSvc)
 	wishH := handler.NewWishlistHandler(wishSvc)
 	searchH := handler.NewSearchHandler(searchSvc)
 	metaH := handler.NewMetadataHandler(metaSvc)
 	setupH := handler.NewSetupHandler(cfg)
-	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge)
+	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	requireAuth := middleware.RequireAuth(authSvc)
 
 	var imgSvc *service.ImageService
@@ -176,6 +176,8 @@ func main() {
 
 	v1.Get("/collections", collH.List)
 	v1.Post("/collections", requireAuth, collH.Create)
+	v1.Get("/collections/:id/items.csv", requireAuth, collH.ExportItemsCSV)
+	v1.Post("/collections/:id/items/import", requireAuth, collH.ImportItemsCSV)
 	v1.Get("/collections/:id", collH.Get)
 	v1.Patch("/collections/:id", requireAuth, collH.Patch)
 	v1.Get("/wishlists", requireAuth, wishH.List)
@@ -188,6 +190,7 @@ func main() {
 	v1.Delete("/wishlists/:id/entries/:entryId", requireAuth, wishH.DeleteEntry)
 	v1.Post("/wishlists/:id/entries/:entryId/obtain", requireAuth, wishH.Obtain)
 	v1.Get("/items", itemH.List)
+	v1.Get("/items/:id/enrichment", itemH.Enrichment)
 	v1.Get("/items/:id", itemH.Get)
 	v1.Post("/items", itemH.Create)
 	v1.Put("/items/:id", itemH.Update)

@@ -7,22 +7,22 @@ import "flag"
 type LoadOptions struct {
 	ConfigFile string
 
-	HTTPAddr         string
-	DatabaseURL      string
-	MeilisearchHost  string
-	MeilisearchKey   string
-	MeilisearchIndex string
-	CORSOrigins      string
-	AuthJWTSecret    string
-	SessionMaxAge    int
-	CookieSecure     string
-	S3Bucket         string
-	S3Region         string
-	S3Endpoint       string
-	S3AccessKey      string
-	S3SecretKey      string
-	S3PublicBaseURL  string
-	S3KeyPrefix      string
+	HTTPAddr             string
+	DatabaseURL          string
+	MeilisearchHost      string
+	MeilisearchKey       string
+	MeilisearchIndex     string
+	CORSOrigins          string
+	AuthJWTSecret        string
+	SessionMaxAge        int
+	CookieSecure         string
+	S3Bucket             string
+	S3Region             string
+	S3Endpoint           string
+	S3AccessKey          string
+	S3SecretKey          string
+	S3PublicBaseURL      string
+	S3KeyPrefix          string
 	MetadataUserAgent    string
 	DiscogsPersonalToken string
 	TheGamesDBAPIKey     string
@@ -30,6 +30,8 @@ type LoadOptions struct {
 	TMDBAPIKey           string
 	ComicVineAPIKey      string
 	SetupEnabled         string
+	TurnstileEnabled     string
+	TurnstileSecretKey   string
 }
 
 // RegisterFlags binds Kurator settings to the given FlagSet (use flag.CommandLine or a custom set).
@@ -58,4 +60,6 @@ func RegisterFlags(fs *flag.FlagSet, o *LoadOptions) {
 	fs.StringVar(&o.TMDBAPIKey, "tmdb-api-key", "", "env: TMDB_API_KEY")
 	fs.StringVar(&o.ComicVineAPIKey, "comicvine-api-key", "", "env: COMICVINE_API_KEY")
 	fs.StringVar(&o.SetupEnabled, "setup-enabled", "", "true|false (env: SETUP_ENABLED); empty uses file/default")
+	fs.StringVar(&o.TurnstileEnabled, "turnstile-enabled", "", "true|false (env: CLOUDFLARE_TURNSTILE_ENABLED); empty uses file/default")
+	fs.StringVar(&o.TurnstileSecretKey, "turnstile-secret-key", "", "env: CLOUDFLARE_TURNSTILE_SECRETKEY")
 }

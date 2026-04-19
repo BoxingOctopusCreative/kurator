@@ -29,4 +29,8 @@ type Config struct {
 	ComicVineAPIKey      string
 	// SetupEnabled allows GET/POST /api/v1/setup/* (run migrations from the API). Disable in production after bootstrap.
 	SetupEnabled bool
+	// TurnstileEnabled opts in to Cloudflare Turnstile on POST /auth/login and /auth/register (env: CLOUDFLARE_TURNSTILE_ENABLED, default false).
+	TurnstileEnabled bool
+	// TurnstileSecretKey is required when TurnstileEnabled is true (env: CLOUDFLARE_TURNSTILE_SECRETKEY).
+	TurnstileSecretKey string
 }

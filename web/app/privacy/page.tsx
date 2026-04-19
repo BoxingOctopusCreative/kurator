@@ -36,7 +36,7 @@ export default function PrivacyPolicyPage() {
               profile.
             </li>
             <li>
-              <span className="text-kurator-fg">Collection content:</span> titles, categories, metadata,
+              <span className="text-kurator-fg">Collection content:</span> titles, categories, details you add,
               cover images, wishlists, and any other items or notes you store in the app.
             </li>
           </ul>

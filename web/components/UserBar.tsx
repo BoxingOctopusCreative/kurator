@@ -7,8 +7,13 @@ import { useAuth } from "@/components/AuthProvider";
 import { User } from "lucide-react";
 import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
 
+type Props = {
+  /** When true, centers controls in the desktop left sidebar. */
+  centered?: boolean;
+};
+
 /** Shown in AppChrome only when the user is signed in. */
-export function UserBar() {
+export function UserBar({ centered = false }: Props) {
   const router = useRouter();
   const { user, refresh } = useAuth();
 
@@ -23,9 +28,11 @@ export function UserBar() {
     return null;
   }
 
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <ThemePreferenceSelect className="max-w-[7.5rem] rounded-md border border-kurator-border bg-kurator-bg px-2 py-1 text-xs text-kurator-fg outline-none ring-kurator-accent focus:ring-2" />
+  const selectClass =
+    "max-w-[7.5rem] rounded-md border border-kurator-border bg-kurator-bg px-2 py-1 text-xs text-kurator-fg outline-none ring-kurator-accent focus:ring-2";
+
+  const links = (
+    <>
       <Link
         href={`/people/${encodeURIComponent(user.username)}`}
         className="rounded-md px-2 py-1 text-kurator-muted hover:bg-kurator-border/50 hover:text-kurator-fg"
@@ -57,6 +64,26 @@ export function UserBar() {
       >
         Log out
       </button>
+    </>
+  );
+
+  if (centered) {
+    return (
+      <div className="flex w-full flex-col gap-2 text-xs">
+        <div className="flex justify-center">
+          <ThemePreferenceSelect
+            className={`${selectClass} text-center`}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-2">{links}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <ThemePreferenceSelect className={selectClass} />
+      {links}
     </div>
   );
 }

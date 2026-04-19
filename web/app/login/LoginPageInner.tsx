@@ -9,6 +9,8 @@ import { Copyright } from "@/components/Copyright";
 
 type Props = {
   initialBackground: UnsplashBackgroundPayload | null;
+  turnstileSiteKey: string;
+  turnstileEnabled: boolean;
 };
 
 function LoginFormFallback() {
@@ -19,7 +21,7 @@ function LoginFormFallback() {
   );
 }
 
-export function LoginPageInner({ initialBackground }: Props) {
+export function LoginPageInner({ initialBackground, turnstileSiteKey, turnstileEnabled }: Props) {
   return (
     <UnsplashMarketingShell initialBackground={initialBackground}>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-4 py-12">
@@ -34,7 +36,7 @@ export function LoginPageInner({ initialBackground }: Props) {
           />
         </div>
         <Suspense fallback={<LoginFormFallback />}>
-          <LoginClient />
+          <LoginClient turnstileSiteKey={turnstileSiteKey} turnstileEnabled={turnstileEnabled} />
         </Suspense>
       </div>
       <Copyright />

@@ -593,9 +593,7 @@ export default function ProfilePage() {
                   </button>
                 ) : null}
               </div>
-              <p className="text-xs text-kurator-muted/90">
-                Images are stored in your app&apos;s S3 bucket (same as item covers). Max 10 MB.
-              </p>
+              <p className="text-xs text-kurator-muted/90">Saved with your account. Max 10 MB.</p>
             </div>
           </div>
         </div>

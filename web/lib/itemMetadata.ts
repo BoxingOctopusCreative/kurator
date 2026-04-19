@@ -67,6 +67,8 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
     if (serial) out.serial_number = serial;
     const gy = yearFromString(slice.year, "Year");
     if (gy !== undefined) out.year = gy;
+    const cgid = optionalStrictPlain(slice.catalog_gamesdb_id, LIMITS.dbIdentifier, "Catalog (TheGamesDB)");
+    if (cgid) out.catalog_gamesdb_id = cgid;
   }
 
   if (category === "video") {
@@ -88,6 +90,15 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
     if (genre) out.genre = genre;
     const vy = yearFromString(slice.year, "Year");
     if (vy !== undefined) out.year = vy;
+    const tid = optionalStrictPlain(slice.catalog_tmdb_id, LIMITS.dbIdentifier, "Catalog (TMDB id)");
+    if (tid) out.catalog_tmdb_id = tid;
+    const tmt = slice.catalog_tmdb_media_type?.trim();
+    if (tmt) {
+      if (tmt !== "movie" && tmt !== "tv") {
+        throw new ValidationError("Catalog TMDB media type must be movie or tv.");
+      }
+      out.catalog_tmdb_media_type = tmt;
+    }
   }
 
   if (category === "book" || category === "manga") {
@@ -99,6 +110,15 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
     if (by !== undefined) out.year = by;
     const isbn = optionalStrictPlain(slice.isbn, 32, "ISBN");
     if (isbn) out.isbn = isbn;
+    const gb = optionalStrictPlain(slice.catalog_google_books_id, LIMITS.dbIdentifier, "Catalog (Google Books)");
+    if (gb) out.catalog_google_books_id = gb;
+    const olk = optionalStrictPlain(slice.catalog_open_library_key, LIMITS.metadataString, "Catalog (Open Library)");
+    if (olk) out.catalog_open_library_key = olk;
+  }
+
+  if (category === "manga") {
+    const mal = optionalStrictPlain(slice.catalog_mal_id, LIMITS.dbIdentifier, "Catalog (MyAnimeList)");
+    if (mal) out.catalog_mal_id = mal;
   }
 
   if (category === "comic_book") {
@@ -117,6 +137,19 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
     }
     const issueNum = optionalStrictPlain(slice.issue_number, 64, "Issue #");
     if (issueNum) out.issue_number = issueNum;
+    const cvid = optionalStrictPlain(slice.catalog_comicvine_id, LIMITS.dbIdentifier, "Catalog (Comic Vine id)");
+    if (cvid) out.catalog_comicvine_id = cvid;
+    const cvr = slice.catalog_comicvine_resource?.trim();
+    if (cvr) {
+      if (cvr !== "issue" && cvr !== "volume") {
+        throw new ValidationError("Comic Vine resource must be issue or volume.");
+      }
+      out.catalog_comicvine_resource = cvr;
+    }
+    const gb = optionalStrictPlain(slice.catalog_google_books_id, LIMITS.dbIdentifier, "Catalog (Google Books)");
+    if (gb) out.catalog_google_books_id = gb;
+    const olk = optionalStrictPlain(slice.catalog_open_library_key, LIMITS.metadataString, "Catalog (Open Library)");
+    if (olk) out.catalog_open_library_key = olk;
   }
 
   const cover = slice.cover_art?.trim();

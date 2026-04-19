@@ -63,6 +63,34 @@ export async function fetchItems(opts?: {
   return Array.isArray(data) ? data : [];
 }
 
+export async function fetchItem(id: number): Promise<Item> {
+  const res = await fetch(apiUrl(`/items/${id}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new Error("Item not found.");
+  if (!res.ok) throw new Error(`item: ${res.status}`);
+  return res.json() as Promise<Item>;
+}
+
+export type ItemEnrichment = {
+  synopsis?: string;
+  source?: string;
+  source_url?: string;
+  note?: string;
+};
+
+/** Plot or summary text when available for this item. */
+export async function fetchItemEnrichment(id: number): Promise<ItemEnrichment> {
+  const res = await fetch(apiUrl(`/items/${id}/enrichment`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new Error("Item not found.");
+  if (!res.ok) throw new Error(`enrichment: ${res.status}`);
+  return res.json() as Promise<ItemEnrichment>;
+}
+
 export async function fetchCollections(params: {
   q?: string;
   page?: number;
@@ -146,6 +174,43 @@ export async function patchCollection(
     throw new Error(t || `update collection: ${res.status}`);
   }
   return res.json();
+}
+
+/** CSV columns: id, title, category, metadata (JSON). Owner-only. */
+export async function exportCollectionItemsCsv(collectionId: number): Promise<Blob> {
+  const res = await fetch(apiUrl(`/collections/${collectionId}/items.csv`), {
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in to export.");
+  if (res.status === 403) throw new Error("Only the collection owner can export items.");
+  if (!res.ok) throw new Error(`export: ${res.status}`);
+  return res.blob();
+}
+
+export type ImportItemsResult = {
+  created: number;
+  updated: number;
+  errors?: { row: number; error: string }[];
+};
+
+export async function importCollectionItemsCsv(
+  collectionId: number,
+  file: File
+): Promise<ImportItemsResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(apiUrl(`/collections/${collectionId}/items/import`), {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  });
+  if (res.status === 401) throw new Error("Sign in to import.");
+  if (res.status === 403) throw new Error("Only the collection owner can import items.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `import: ${res.status}`);
+  }
+  return res.json() as Promise<ImportItemsResult>;
 }
 
 export type PublicUser = {
@@ -473,13 +538,7 @@ export type MetadataLookupResponse = {
 /** Search external catalogs by title (category selects the backend provider). */
 export async function fetchMetadataLookup(category: Category, q: string): Promise<MetadataLookupResponse> {
   const params = new URLSearchParams({ category, q });
-  // Always use same-origin /api/v1 in the browser so Next rewrites proxy to the Kurator API.
-  // Using NEXT_PUBLIC_API_URL here would skip the rewrite and can hit the wrong host (401s from gateways or other services).
-  const url =
-    typeof window !== "undefined"
-      ? `/api/v1/metadata/lookup?${params}`
-      : apiUrl(`/metadata/lookup?${params}`);
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(apiUrl(`/metadata/lookup?${params}`), { cache: "no-store" });
   if (!res.ok) throw new Error(`metadata: ${res.status}`);
   return res.json();
 }

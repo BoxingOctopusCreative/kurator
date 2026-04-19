@@ -211,6 +211,23 @@ func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id int64, vi
 	return &c, nil
 }
 
+// IsUserOwnedCollection reports whether the collection exists and is owned by userID.
+// Legacy shared collections (user_id NULL) return (false, nil).
+func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context, collectionID, userID int64) (bool, error) {
+	var uid sql.NullInt64
+	err := r.pool.QueryRow(ctx, `SELECT user_id FROM collections WHERE id = $1`, collectionID).Scan(&uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrCollectionNotFound
+	}
+	if err != nil {
+		return false, fmt.Errorf("collection owner check: %w", err)
+	}
+	if !uid.Valid {
+		return false, nil
+	}
+	return uid.Int64 == userID, nil
+}
+
 func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 	var c models.Collection
 	var uid sql.NullInt64

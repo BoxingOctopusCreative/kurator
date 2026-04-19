@@ -70,15 +70,15 @@ func Load(opts *LoadOptions) (Config, error) {
 			fc.AuthJWTSecret,
 			"dev_only_change_me_in_production_use_long_random",
 		),
-		SessionMaxAge: mergeSessionMaxAge("SESSION_MAX_AGE_SECONDS", cliSession, fc.SessionMaxAge, sessionDef),
-		CookieSecure: mergeBool("COOKIE_SECURE", opts.CookieSecure, fc.CookieSecure, false),
-		S3Bucket:         mergeString("S3_BUCKET", opts.S3Bucket, fc.S3Bucket, ""),
-		S3Region:         mergeString("S3_REGION", opts.S3Region, fc.S3Region, "us-east-1"),
-		S3Endpoint:       mergeString("S3_ENDPOINT", opts.S3Endpoint, fc.S3Endpoint, ""),
-		S3AccessKey:      mergeString("S3_ACCESS_KEY_ID", opts.S3AccessKey, fc.S3AccessKey, ""),
-		S3SecretKey:      mergeString("S3_SECRET_ACCESS_KEY", opts.S3SecretKey, fc.S3SecretKey, ""),
-		S3PublicBaseURL:  mergeString("S3_PUBLIC_BASE_URL", opts.S3PublicBaseURL, fc.S3PublicBaseURL, ""),
-		S3KeyPrefix:      mergeString("S3_KEY_PREFIX", opts.S3KeyPrefix, fc.S3KeyPrefix, "covers"),
+		SessionMaxAge:   mergeSessionMaxAge("SESSION_MAX_AGE_SECONDS", cliSession, fc.SessionMaxAge, sessionDef),
+		CookieSecure:    mergeBool("COOKIE_SECURE", opts.CookieSecure, fc.CookieSecure, false),
+		S3Bucket:        mergeString("S3_BUCKET", opts.S3Bucket, fc.S3Bucket, ""),
+		S3Region:        mergeString("S3_REGION", opts.S3Region, fc.S3Region, "us-east-1"),
+		S3Endpoint:      mergeString("S3_ENDPOINT", opts.S3Endpoint, fc.S3Endpoint, ""),
+		S3AccessKey:     mergeString("S3_ACCESS_KEY_ID", opts.S3AccessKey, fc.S3AccessKey, ""),
+		S3SecretKey:     mergeString("S3_SECRET_ACCESS_KEY", opts.S3SecretKey, fc.S3SecretKey, ""),
+		S3PublicBaseURL: mergeString("S3_PUBLIC_BASE_URL", opts.S3PublicBaseURL, fc.S3PublicBaseURL, ""),
+		S3KeyPrefix:     mergeString("S3_KEY_PREFIX", opts.S3KeyPrefix, fc.S3KeyPrefix, "covers"),
 		MetadataUserAgent: mergeString(
 			"METADATA_USER_AGENT",
 			opts.MetadataUserAgent,
@@ -111,6 +111,18 @@ func Load(opts *LoadOptions) (Config, error) {
 			"",
 		),
 		SetupEnabled: mergeBool("SETUP_ENABLED", opts.SetupEnabled, fc.SetupEnabled, false),
+		TurnstileEnabled: mergeBool(
+			"CLOUDFLARE_TURNSTILE_ENABLED",
+			opts.TurnstileEnabled,
+			fc.TurnstileEnabled,
+			false,
+		),
+		TurnstileSecretKey: mergeString(
+			"CLOUDFLARE_TURNSTILE_SECRETKEY",
+			opts.TurnstileSecretKey,
+			fc.TurnstileSecretKey,
+			"",
+		),
 	}
 
 	return cfg, nil

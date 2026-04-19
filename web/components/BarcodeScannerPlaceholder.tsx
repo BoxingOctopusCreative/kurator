@@ -72,7 +72,7 @@ export function BarcodeScannerPlaceholder() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-kurator-muted">
-        Placeholder UI for device barcode scanning. Kurator will map codes to metadata lookups later.
+        Try the camera below. Full barcode-to-title matching is coming later.
       </p>
       <div
         id={boxId}

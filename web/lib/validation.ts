@@ -358,6 +358,19 @@ export function assertPendingToken(s: string, field = "Session"): string {
   return t;
 }
 
+/** Cloudflare Turnstile response token (client-validated before POST). */
+export function assertTurnstileToken(s: string, field = "Verification"): string {
+  const t = s.trim();
+  if (!t) {
+    throw new ValidationError(`Complete the ${field.toLowerCase()} challenge.`);
+  }
+  assertMaxLen(t, 4096, field);
+  if (/[\x00-\x1f\x7f]/.test(t)) {
+    throw new ValidationError(`${field} contains invalid characters.`);
+  }
+  return t;
+}
+
 const KEY_SAFE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 function sanitizeJsonValue(val: unknown, depth: number, path: string): unknown {
