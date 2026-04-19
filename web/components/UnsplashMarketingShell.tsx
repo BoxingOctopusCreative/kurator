@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import {
@@ -74,20 +75,31 @@ export function UnsplashMarketingShell({ initialBackground = null, children }: P
   }, [initialBackground]);
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden">
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden">
       {bg && (
         <>
+          {/*
+            Use next/image instead of CSS background-image so URLs with query params cannot break
+            url() parsing, and loading is explicit. Tint uses solid bg + opacity (not bg-kurator-bg/xx)
+            so we never rely on Tailwind’s color-mix fallback, which can render fully opaque and hide
+            the photo in some browsers.
+          */}
+          <div className="pointer-events-none absolute inset-0 z-0">
+            <Image
+              alt=""
+              src={bg.url}
+              fill
+              className="object-cover"
+              sizes="100vw"
+              fetchPriority="low"
+            />
+          </div>
           <div
-            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.38]"
-            style={{ backgroundImage: `url(${bg.url})` }}
+            className="pointer-events-none absolute inset-0 z-1 bg-kurator-bg opacity-45 backdrop-blur-[1px]"
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-0 bg-kurator-bg/72 backdrop-blur-[1px]"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-0 bg-linear-to-b from-kurator-bg/88 via-kurator-bg/78 to-kurator-bg/92"
+            className="pointer-events-none absolute inset-0 z-2 bg-kurator-bg opacity-70 mask-[linear-gradient(to_bottom,transparent,black)] [-webkit-mask-image:linear-gradient(to_bottom,transparent,black)]"
             aria-hidden
           />
         </>

@@ -35,6 +35,19 @@ function shuffleCopy<T>(items: readonly T[]): T[] {
   return out;
 }
 
+function unsplashHeaders(key: string): Record<string, string> {
+  return {
+    Authorization: `Client-ID ${key}`,
+    "Accept-Version": "v1",
+    "User-Agent": "Kurator/1.0 (https://kuratorapp.cc)",
+  };
+}
+
+/** Auth or permission failure — retrying other endpoints will not help. */
+function isUnsplashAuthError(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
 /**
  * Fetches a random Unsplash background image (same logic as GET /api/unsplash-background).
  * Returns null if UNSPLASH_ACCESS_KEY is missing or Unsplash returns an error.
@@ -45,7 +58,7 @@ export async function fetchUnsplashBackground(): Promise<UnsplashBackgroundPaylo
     return null;
   }
 
-  const headers = { Authorization: `Client-ID ${key}` };
+  const headers = unsplashHeaders(key);
 
   for (const query of shuffleCopy(SEARCH_TERMS)) {
     const url = new URL("https://api.unsplash.com/search/photos");
@@ -56,10 +69,18 @@ export async function fetchUnsplashBackground(): Promise<UnsplashBackgroundPaylo
 
     const res = await fetch(url.toString(), { headers, cache: "no-store" });
     if (!res.ok) {
-      return null;
+      if (isUnsplashAuthError(res.status)) {
+        return null;
+      }
+      continue;
     }
 
-    const data = (await res.json()) as { results?: UnsplashPhoto[] };
+    let data: { results?: UnsplashPhoto[] };
+    try {
+      data = (await res.json()) as { results?: UnsplashPhoto[] };
+    } catch {
+      continue;
+    }
     const results = data.results ?? [];
     if (results.length === 0) {
       continue;
@@ -91,7 +112,12 @@ export async function fetchUnsplashBackground(): Promise<UnsplashBackgroundPaylo
     return null;
   }
 
-  const photo = (await res.json()) as UnsplashPhoto;
+  let photo: UnsplashPhoto;
+  try {
+    photo = (await res.json()) as UnsplashPhoto;
+  } catch {
+    return null;
+  }
   const imageUrl = photo.urls?.regular ?? photo.urls?.full;
   if (!imageUrl) {
     return null;

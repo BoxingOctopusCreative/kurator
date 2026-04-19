@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
         hostname: "assets.kuratorapp.cc",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        pathname: "/**",
+      },
     ],
   },
   async rewrites() {
