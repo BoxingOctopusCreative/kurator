@@ -1,11 +1,12 @@
-# CI, CodeQL SAST, semantic version tagging, API binaries, GitHub Release assets, and GHCR images.
+# CI, semantic version tagging, API binaries, GitHub Release assets, and GHCR images.
 #
-# CodeQL uploads to the Security tab (Code scanning). To block merges on alerts, enable a branch
-# protection rule that requires code scanning results to pass.
+# CodeQL was removed while GitHub Advanced Security is not enabled (uploads fail without it).
+# To restore: add codeql-go and codeql-js jobs back from git history and set
+# release.needs to [unit-tests, codeql-go, codeql-js].
 #
 # GHCR images: ghcr.io/<owner-lowercase>/kurator-api and kurator-web.
 
-name: CI, security, and release
+name: CI and release
 
 on:
   push:
@@ -45,61 +46,8 @@ jobs:
         working-directory: web
         run: npm ci && npm test
 
-  codeql-go:
-    name: CodeQL (Go)
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: github/codeql-action/init@v3
-        with:
-          languages: go
-          queries: security-extended
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: api/go.mod
-          cache-dependency-path: api/go.sum
-
-      - name: Build Go (api) for CodeQL
-        working-directory: api
-        run: go build ./...
-
-      - uses: github/codeql-action/analyze@v3
-
-  codeql-js:
-    name: CodeQL (JavaScript/TypeScript)
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          queries: security-extended
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Build web for CodeQL
-        working-directory: web
-        run: npm ci && npm run build
-
-      - uses: github/codeql-action/analyze@v3
-
   release:
-    needs: [unit-tests, codeql-go, codeql-js]
+    needs: [unit-tests]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
