@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { User, UserRoundSearch } from "lucide-react";
 import type { PublicUser } from "@/lib/api";
 import { publicLegalNameLine, searchUsers } from "@/lib/api";
+import { safeImageSrcUrl } from "@/lib/safeUrl";
 import { useAuth } from "@/components/AuthProvider";
 
 export function PeopleHomeClient() {
@@ -102,16 +103,18 @@ export function PeopleHomeClient() {
 
       {results && results.length > 0 && (
         <ul className="mt-6 space-y-2">
-          {results.map((u) => (
+          {results.map((u) => {
+            const avatarSrc = safeImageSrcUrl(u.avatar_url);
+            return (
             <li key={u.id}>
               <Link
                 href={`/people/${encodeURIComponent(u.username)}`}
                 className="flex items-start gap-3 rounded-xl border border-kurator-border bg-kurator-surface/60 px-4 py-3 transition-colors hover:border-kurator-accent/50"
               >
                 <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-kurator-border bg-kurator-bg">
-                  {u.avatar_url ? (
+                  {avatarSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element -- remote CDN / S3 profile URL
-                    <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
+                    <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-kurator-muted" aria-hidden>
                       <User className="h-5 w-5" />
@@ -131,7 +134,8 @@ export function PeopleHomeClient() {
                 </div>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

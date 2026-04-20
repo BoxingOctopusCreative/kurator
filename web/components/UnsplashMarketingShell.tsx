@@ -9,6 +9,7 @@ import {
   writeUnsplashBackgroundCache,
   writeUnsplashBackgroundLastSuccess,
 } from "@/lib/unsplash-background-cache";
+import { safeHttpUrl, safeImageSrcUrl } from "@/lib/safeUrl";
 
 type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
@@ -83,6 +84,10 @@ export function UnsplashMarketingShell({
     };
   }, [initialBackground]);
 
+  const backgroundImageSrc = bg ? safeImageSrcUrl(bg.url) : null;
+  const photoPageHref = bg?.photoPageUrl ? safeHttpUrl(bg.photoPageUrl) : null;
+  const photographerPageHref = bg?.photographerUrl ? safeHttpUrl(bg.photographerUrl) : null;
+
   return (
     <div className="relative isolate flex h-dvh w-full max-w-none flex-col overflow-hidden">
       {bg && (
@@ -93,16 +98,18 @@ export function UnsplashMarketingShell({
             so we never rely on Tailwind’s color-mix fallback, which can render fully opaque and hide
             the photo in some browsers.
           */}
-          <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-kurator-bg">
-            <Image
-              alt=""
-              src={bg.url}
-              fill
-              className="object-cover object-center border-0! shadow-none! outline-none! ring-0 transform-[translateZ(0)_scale(1.03)]"
-              sizes="100vw"
-              fetchPriority="low"
-            />
-          </div>
+          {backgroundImageSrc ? (
+            <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-kurator-bg">
+              <Image
+                alt=""
+                src={backgroundImageSrc}
+                fill
+                className="object-cover object-center border-0! shadow-none! outline-none! ring-0 transform-[translateZ(0)_scale(1.03)]"
+                sizes="100vw"
+                fetchPriority="low"
+              />
+            </div>
+          ) : null}
           <div
             className="pointer-events-none absolute inset-0 z-1 bg-kurator-bg opacity-45 backdrop-blur-[1px]"
             aria-hidden
@@ -126,24 +133,29 @@ export function UnsplashMarketingShell({
             </p>
           )
         ) : (
-          bg?.photoPageUrl && (
+          bg &&
+          (bg.photoPageUrl || bg.photographer) && (
             <p className="shrink-0 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-2 text-center text-[11px] text-kurator-muted/80">
               Background:{" "}
-              <a
-                href={bg.photoPageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
-              >
-                Photo
-              </a>
+              {photoPageHref ? (
+                <a
+                  href={photoPageHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
+                >
+                  Photo
+                </a>
+              ) : (
+                <span>Photo</span>
+              )}
               {bg.photographer && (
                 <>
                   {" "}
                   by{" "}
-                  {bg.photographerUrl ? (
+                  {photographerPageHref ? (
                     <a
-                      href={bg.photographerUrl}
+                      href={photographerPageHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"

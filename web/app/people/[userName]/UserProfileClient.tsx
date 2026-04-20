@@ -7,6 +7,7 @@ import type { CollectionListResponse, UserProfile } from "@/lib/api";
 import { fetchUserProfile, followUser, unfollowUser, publicLegalNameLine } from "@/lib/api";
 import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
 import { socialPlatformDisplayName } from "@/lib/socialPlatforms";
+import { safeHttpUrl, safeImageSrcUrl } from "@/lib/safeUrl";
 import { useAuth } from "@/components/AuthProvider";
 
 type Props = {
@@ -69,6 +70,9 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
     }
   }
 
+  const bannerSrc = safeImageSrcUrl(profile.banner_url);
+  const avatarSrc = safeImageSrcUrl(profile.avatar_url);
+
   return (
     <div className="mx-auto max-w-3xl">
       <Link
@@ -86,19 +90,19 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
       )}
 
       <>
-        {profile.banner_url ? (
+        {bannerSrc ? (
           <div className="relative -mx-1 mb-6 h-40 overflow-hidden rounded-xl border border-kurator-border bg-kurator-border/40 sm:mx-0 sm:h-48">
             {/* eslint-disable-next-line @next/next/no-img-element -- remote S3/CDN */}
-            <img src={profile.banner_url} alt="" className="h-full w-full object-cover" />
+            <img src={bannerSrc} alt="" className="h-full w-full object-cover" />
           </div>
         ) : null}
 
         <header className="mb-8 border-b border-kurator-border pb-6">
           <div className="flex flex-wrap items-start gap-4">
             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border border-kurator-border bg-kurator-bg">
-              {profile.avatar_url ? (
+              {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element -- remote CDN / S3 profile URL
-                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-kurator-muted">
                   No photo
@@ -121,20 +125,32 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
           </div>
           {profile.social_links?.length ? (
             <ul className="mt-4 flex flex-wrap gap-3">
-              {profile.social_links.map((link, i) => (
-                <li key={`${link.url}-${i}`}>
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={socialPlatformDisplayName(link.platform ?? "")}
-                    aria-label={socialPlatformDisplayName(link.platform ?? "")}
-                    className="inline-flex rounded-full border border-kurator-border/80 bg-kurator-surface/50 p-1.5 text-kurator-accent transition-colors hover:border-kurator-accent/50 hover:bg-kurator-surface"
-                  >
-                    <SocialLinkDecorativeIcon url={link.url} platform={link.platform ?? undefined} />
-                  </a>
-                </li>
-              ))}
+              {profile.social_links.map((link, i) => {
+                const socialHref = safeHttpUrl(link.url);
+                const label = socialPlatformDisplayName(link.platform ?? "");
+                const wrapClass =
+                  "inline-flex rounded-full border border-kurator-border/80 bg-kurator-surface/50 p-1.5 text-kurator-accent transition-colors hover:border-kurator-accent/50 hover:bg-kurator-surface";
+                return (
+                  <li key={`${link.url}-${i}`}>
+                    {socialHref ? (
+                      <a
+                        href={socialHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={label}
+                        aria-label={label}
+                        className={wrapClass}
+                      >
+                        <SocialLinkDecorativeIcon url={link.url} platform={link.platform ?? undefined} />
+                      </a>
+                    ) : (
+                      <span title={label} aria-label={label} className={`${wrapClass} cursor-default opacity-60`}>
+                        <SocialLinkDecorativeIcon url={link.url} platform={link.platform ?? undefined} />
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
           {profile.bio ? <p className="mt-3 text-sm text-kurator-muted">{profile.bio}</p> : null}

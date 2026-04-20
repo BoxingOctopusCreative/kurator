@@ -10,6 +10,7 @@ import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { getCoverArtUrl, getItemYear } from "@/lib/itemDisplay";
+import { safeHttpUrl } from "@/lib/safeUrl";
 
 function formatMetaValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -133,6 +134,11 @@ export function ItemDetailClient() {
   );
   const hasDetailRows = metaKeys.length > 0 || showLinkedLookups;
 
+  const enrichmentMoreHref =
+    enrichment?.synopsis && enrichment.source && enrichment.source_url
+      ? safeHttpUrl(enrichment.source_url)
+      : null;
+
   return (
     <div className="mx-auto max-w-3xl">
       <Link
@@ -222,11 +228,11 @@ export function ItemDetailClient() {
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-kurator-fg">{enrichment.synopsis}</p>
               {enrichment.source && (
                 <p className="mt-3 text-xs text-kurator-muted">
-                  {enrichment.source_url ? (
+                  {enrichmentMoreHref ? (
                     <>
                       More at{" "}
                       <a
-                        href={enrichment.source_url}
+                        href={enrichmentMoreHref}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-kurator-accent hover:underline"

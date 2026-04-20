@@ -23,6 +23,7 @@ import {
   SOCIAL_PLATFORM_OPTIONS,
   type SocialEditRow,
 } from "@/lib/socialPlatforms";
+import { safeImageSrcUrl } from "@/lib/safeUrl";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -330,6 +331,9 @@ export default function ProfilePage() {
     );
   }
 
+  const bannerPreviewSrc = safeImageSrcUrl(bannerUrl);
+  const avatarPreviewSrc = safeImageSrcUrl(avatarUrl);
+
   return (
     <div className="mx-auto max-w-lg space-y-10">
       {cropSession ? (
@@ -545,9 +549,9 @@ export default function ProfilePage() {
             Wide image for your public /people page (crop to 3:1, exported 1800×600). Optional. Max 10 MB before crop.
           </p>
           <div className="relative h-28 w-full max-w-xl overflow-hidden rounded-xl border border-kurator-border bg-kurator-bg">
-            {bannerUrl ? (
+            {bannerPreviewSrc ? (
               // eslint-disable-next-line @next/next/no-img-element -- remote S3/CDN URL
-              <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
+              <img src={bannerPreviewSrc} alt="" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xs text-kurator-muted">
                 No banner
@@ -596,9 +600,9 @@ export default function ProfilePage() {
           <span className="text-sm text-kurator-muted">Profile photo</span>
           <div className="flex flex-wrap items-center gap-4">
             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border border-kurator-border bg-kurator-bg">
-              {avatarUrl ? (
+              {avatarPreviewSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element -- remote S3/CDN URL
-                <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                <img src={avatarPreviewSrc} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-kurator-muted">
                   No photo

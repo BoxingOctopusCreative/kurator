@@ -8,7 +8,8 @@ export function getCoverArtUrl(metadata: Record<string, unknown> | undefined): s
   if (typeof c !== "string") return null;
   const t = c.trim();
   if (t === "") return null;
-  if (t.startsWith("http://") || t.startsWith("https://") || t.startsWith("/")) return t;
+  if (t.startsWith("http://") || t.startsWith("https://")) return t;
+  if (t.startsWith("/") && !t.startsWith("//")) return t;
   return null;
 }
 
