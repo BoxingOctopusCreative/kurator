@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -84,7 +86,22 @@ func NewImageService(bucket, region, endpoint, accessKey, secretKey, publicBaseU
 	if err := s.ensureBucket(ctx); err != nil {
 		return nil, err
 	}
+	if strings.Contains(strings.ToLower(publicBaseURL), "r2.cloudflarestorage.com") {
+		log.Printf(
+			"image storage: S3_PUBLIC_BASE_URL uses the R2 S3 API host (*.r2.cloudflarestorage.com). " +
+				"Browsers cannot load <img> URLs from that host without signing; use an R2 public custom domain (or r2.dev public URL) as public_base_url instead.",
+		)
+	}
 	return s, nil
+}
+
+// Ping verifies the configured bucket is reachable (HeadBucket).
+func (s *ImageService) Ping(ctx context.Context) error {
+	if s == nil || s.bucket == "" {
+		return ErrImageNotConfigured
+	}
+	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(s.bucket)})
+	return err
 }
 
 func (s *ImageService) ensureBucket(ctx context.Context) error {
@@ -145,7 +162,11 @@ func (s *ImageService) UploadBytes(ctx context.Context, data []byte, kind string
 	if err != nil {
 		return "", err
 	}
-	return s.publicBase + "/" + key, nil
+	out, err := url.JoinPath(s.publicBase, key)
+	if err != nil {
+		return "", fmt.Errorf("public image url: %w", err)
+	}
+	return out, nil
 }
 
 // UploadFromURL fetches a remote image and stores it like UploadBytes.

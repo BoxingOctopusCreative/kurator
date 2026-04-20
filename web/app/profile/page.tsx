@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { ProfileImageCropModal } from "@/components/ProfileImageCropModal";
+import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
 import {
   disable2FA,
   enable2FA,
@@ -14,23 +17,12 @@ import {
   type TwoFASetup,
 } from "@/lib/auth";
 import { uploadAvatarImage, uploadBannerImage } from "@/lib/api";
-import { useAuth } from "@/components/AuthProvider";
-import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
-import type { SocialLinkInput } from "@/lib/validation";
-
-function parseSocialLinks(raw: unknown): SocialLinkInput[] {
-  if (!Array.isArray(raw)) return [];
-  const out: SocialLinkInput[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const label = typeof o.label === "string" ? o.label : "";
-    const url = typeof o.url === "string" ? o.url.trim() : "";
-    if (!url) continue;
-    out.push({ label, url });
-  }
-  return out;
-}
+import {
+  parseSocialLinksToRows,
+  socialEditRowsToPayload,
+  SOCIAL_PLATFORM_OPTIONS,
+  type SocialEditRow,
+} from "@/lib/socialPlatforms";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -44,7 +36,7 @@ export default function ProfilePage() {
   const [firstNamePublic, setFirstNamePublic] = useState(false);
   const [lastNamePublic, setLastNamePublic] = useState(false);
   const [location, setLocation] = useState("");
-  const [socialRows, setSocialRows] = useState<SocialLinkInput[]>([]);
+  const [socialRows, setSocialRows] = useState<SocialEditRow[]>([]);
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
@@ -52,6 +44,16 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [bannerBusy, setBannerBusy] = useState(false);
+  const [cropSession, setCropSession] = useState<{ kind: "avatar" | "banner"; url: string } | null>(null);
+
+  function closeCropSession() {
+    setCropSession((prev) => {
+      if (prev?.url) {
+        URL.revokeObjectURL(prev.url);
+      }
+      return null;
+    });
+  }
 
   const [twoFASetup, setTwoFASetup] = useState<TwoFASetup | null>(null);
   const [enableCode, setEnableCode] = useState("");
@@ -73,7 +75,7 @@ export default function ProfilePage() {
       setFirstNamePublic(u.first_name_public ?? false);
       setLastNamePublic(u.last_name_public ?? false);
       setLocation(u.location ?? "");
-      setSocialRows(parseSocialLinks(u.social_links));
+      setSocialRows(parseSocialLinksToRows(u.social_links));
       setBio(u.bio);
       setAvatarUrl(u.avatar_url ?? "");
       setBannerUrl(u.banner_url ?? "");
@@ -102,7 +104,7 @@ export default function ProfilePage() {
       first_name_public: firstNamePublic,
       last_name_public: lastNamePublic,
       location,
-      social_links: socialRows,
+      social_links: socialEditRowsToPayload(socialRows),
       bio,
       avatar_url: avatarUrl.trim() === "" ? "" : avatarUrl.trim(),
       banner_url: bannerUrl.trim() === "" ? "" : bannerUrl.trim(),
@@ -124,7 +126,7 @@ export default function ProfilePage() {
       setFirstNamePublic(u.first_name_public ?? false);
       setLastNamePublic(u.last_name_public ?? false);
       setLocation(u.location ?? "");
-      setSocialRows(parseSocialLinks(u.social_links));
+      setSocialRows(parseSocialLinksToRows(u.social_links));
       setAvatarUrl(u.avatar_url ?? "");
       setBannerUrl(u.banner_url ?? "");
       void refreshAuth();
@@ -190,7 +192,7 @@ export default function ProfilePage() {
     router.refresh();
   }
 
-  async function onAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !file.type.startsWith("image/")) {
@@ -198,6 +200,14 @@ export default function ProfilePage() {
       return;
     }
     setMessage(null);
+    setCropSession((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { kind: "avatar", url: URL.createObjectURL(file) };
+    });
+  }
+
+  async function uploadCroppedAvatar(file: File) {
+    closeCropSession();
     setAvatarBusy(true);
     try {
       const url = await uploadAvatarImage(file);
@@ -210,7 +220,7 @@ export default function ProfilePage() {
       setFirstNamePublic(u.first_name_public ?? false);
       setLastNamePublic(u.last_name_public ?? false);
       setLocation(u.location ?? "");
-      setSocialRows(parseSocialLinks(u.social_links));
+      setSocialRows(parseSocialLinksToRows(u.social_links));
       setAvatarUrl(u.avatar_url ?? "");
       setBannerUrl(u.banner_url ?? "");
       await refreshAuth();
@@ -235,7 +245,7 @@ export default function ProfilePage() {
       setFirstNamePublic(u.first_name_public ?? false);
       setLastNamePublic(u.last_name_public ?? false);
       setLocation(u.location ?? "");
-      setSocialRows(parseSocialLinks(u.social_links));
+      setSocialRows(parseSocialLinksToRows(u.social_links));
       setAvatarUrl("");
       setBannerUrl(u.banner_url ?? "");
       await refreshAuth();
@@ -247,7 +257,7 @@ export default function ProfilePage() {
     }
   }
 
-  async function onBannerFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onBannerFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !file.type.startsWith("image/")) {
@@ -255,6 +265,14 @@ export default function ProfilePage() {
       return;
     }
     setMessage(null);
+    setCropSession((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { kind: "banner", url: URL.createObjectURL(file) };
+    });
+  }
+
+  async function uploadCroppedBanner(file: File) {
+    closeCropSession();
     setBannerBusy(true);
     try {
       const url = await uploadBannerImage(file);
@@ -267,7 +285,7 @@ export default function ProfilePage() {
       setFirstNamePublic(u.first_name_public ?? false);
       setLastNamePublic(u.last_name_public ?? false);
       setLocation(u.location ?? "");
-      setSocialRows(parseSocialLinks(u.social_links));
+      setSocialRows(parseSocialLinksToRows(u.social_links));
       setAvatarUrl(u.avatar_url ?? "");
       setBannerUrl(u.banner_url ?? "");
       await refreshAuth();
@@ -292,7 +310,7 @@ export default function ProfilePage() {
       setFirstNamePublic(u.first_name_public ?? false);
       setLastNamePublic(u.last_name_public ?? false);
       setLocation(u.location ?? "");
-      setSocialRows(parseSocialLinks(u.social_links));
+      setSocialRows(parseSocialLinksToRows(u.social_links));
       setAvatarUrl(u.avatar_url ?? "");
       setBannerUrl("");
       await refreshAuth();
@@ -314,6 +332,14 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-10">
+      {cropSession ? (
+        <ProfileImageCropModal
+          kind={cropSession.kind}
+          imageObjectUrl={cropSession.url}
+          onClose={closeCropSession}
+          onComplete={cropSession.kind === "avatar" ? uploadCroppedAvatar : uploadCroppedBanner}
+        />
+      ) : null}
       <div>
         <h1 className="text-2xl font-semibold text-kurator-fg">Profile</h1>
         <p className="mt-1 text-sm text-kurator-muted">Signed in as {user.email}</p>
@@ -443,49 +469,62 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <span className="text-sm text-kurator-muted">Social links</span>
           <p className="text-xs text-kurator-muted/90">
-            Up to 12 links. Labels are optional; URLs must use http or https.
+            Choose a platform, then enter your username or paste a full profile URL (https). Up to 12 links.
+            Mastodon and &quot;Other website&quot; always need a full URL.
           </p>
-          <ul className="space-y-2">
-            {socialRows.map((row, i) => (
-              <li key={i} className="flex flex-wrap gap-2">
-                <input
-                  aria-label={`Link label ${i + 1}`}
-                  className="min-w-24 flex-1 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-                  placeholder="Label"
-                  value={row.label}
-                  onChange={(e) => {
-                    const next = [...socialRows];
-                    next[i] = { ...next[i], label: e.target.value };
-                    setSocialRows(next);
-                  }}
-                />
-                <input
-                  aria-label={`Link URL ${i + 1}`}
-                  className="min-w-48 flex-2 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-                  placeholder="https://…"
-                  inputMode="url"
-                  value={row.url}
-                  onChange={(e) => {
-                    const next = [...socialRows];
-                    next[i] = { ...next[i], url: e.target.value };
-                    setSocialRows(next);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="rounded-lg border border-kurator-border px-2 py-2 text-xs text-kurator-muted hover:text-kurator-fg"
-                  onClick={() => setSocialRows(socialRows.filter((_, j) => j !== i))}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
+          <ul className="space-y-3">
+            {socialRows.map((row, i) => {
+              const meta = SOCIAL_PLATFORM_OPTIONS.find((o) => o.id === row.platform);
+              return (
+                <li key={i} className="flex flex-wrap items-end gap-2">
+                  <label className="block min-w-[11rem] flex-1 text-xs text-kurator-muted">
+                    <span className="mb-1 block">Platform</span>
+                    <select
+                      className="mt-0.5 w-full rounded-lg border border-kurator-border bg-kurator-bg px-2 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                      value={row.platform}
+                      onChange={(e) => {
+                        const next = [...socialRows];
+                        next[i] = { platform: e.target.value, handle: "" };
+                        setSocialRows(next);
+                      }}
+                    >
+                      {SOCIAL_PLATFORM_OPTIONS.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block min-w-[12rem] flex-[2] text-xs text-kurator-muted">
+                    <span className="mb-1 block">Profile</span>
+                    <input
+                      aria-label={`Social profile ${i + 1}`}
+                      className="mt-0.5 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                      placeholder={meta?.placeholder ?? ""}
+                      value={row.handle}
+                      onChange={(e) => {
+                        const next = [...socialRows];
+                        next[i] = { ...next[i], handle: e.target.value };
+                        setSocialRows(next);
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg border border-kurator-border px-2 py-2 text-xs text-kurator-muted hover:text-kurator-fg"
+                    onClick={() => setSocialRows(socialRows.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           {socialRows.length < 12 ? (
             <button
               type="button"
               className="rounded-lg border border-kurator-border px-3 py-1.5 text-xs text-kurator-muted hover:text-kurator-fg"
-              onClick={() => setSocialRows([...socialRows, { label: "", url: "" }])}
+              onClick={() => setSocialRows([...socialRows, { platform: "github", handle: "" }])}
             >
               Add link
             </button>
@@ -503,7 +542,7 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <span className="text-sm text-kurator-muted">Profile banner</span>
           <p className="text-xs text-kurator-muted/90">
-            Wide image shown at the top of your public /people page. Optional. Same storage as photos, max 10 MB.
+            Wide image for your public /people page (crop to 3:1, exported 1800×600). Optional. Max 10 MB before crop.
           </p>
           <div className="relative h-28 w-full max-w-xl overflow-hidden rounded-xl border border-kurator-border bg-kurator-bg">
             {bannerUrl ? (
@@ -593,7 +632,9 @@ export default function ProfilePage() {
                   </button>
                 ) : null}
               </div>
-              <p className="text-xs text-kurator-muted/90">Saved with your account. Max 10 MB.</p>
+              <p className="text-xs text-kurator-muted/90">
+                Square crop, exported 512×512. Max 10 MB before crop.
+              </p>
             </div>
           </div>
         </div>

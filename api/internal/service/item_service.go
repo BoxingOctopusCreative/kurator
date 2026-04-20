@@ -44,6 +44,7 @@ type CreateItemInput struct {
 	Title        string
 	Category     models.Category
 	Metadata     json.RawMessage
+	Rating       *int
 }
 
 func (s *ItemService) Create(ctx context.Context, in CreateItemInput) (*models.Item, error) {
@@ -58,10 +59,14 @@ func (s *ItemService) Create(ctx context.Context, in CreateItemInput) (*models.I
 	if err != nil {
 		return nil, err
 	}
+	rating, err := validation.OptionalItemRating(in.Rating)
+	if err != nil {
+		return nil, err
+	}
 	if in.CollectionID == 0 {
 		in.CollectionID = 1
 	}
-	item, err := s.repo.Create(ctx, in.CollectionID, title, in.Category, meta)
+	item, err := s.repo.Create(ctx, in.CollectionID, title, in.Category, meta, rating)
 	if err != nil {
 		return nil, err
 	}
@@ -72,9 +77,24 @@ func (s *ItemService) Create(ctx context.Context, in CreateItemInput) (*models.I
 }
 
 type UpdateItemInput struct {
-	Title    string
-	Category models.Category
-	Metadata json.RawMessage
+	Title           string
+	Category        models.Category
+	Metadata        json.RawMessage
+	Rating          *models.RatingUpdate
+	NewCollectionID *int64
+}
+
+func validateRatingUpdate(ru *models.RatingUpdate) error {
+	if ru == nil {
+		return nil
+	}
+	if ru.SetNull {
+		return nil
+	}
+	if ru.Stars < 1 || ru.Stars > 5 {
+		return fmt.Errorf("rating must be between 1 and 5")
+	}
+	return nil
 }
 
 func (s *ItemService) Update(ctx context.Context, id int64, in UpdateItemInput) (*models.Item, error) {
@@ -89,7 +109,10 @@ func (s *ItemService) Update(ctx context.Context, id int64, in UpdateItemInput) 
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.repo.Update(ctx, id, title, in.Category, meta)
+	if err := validateRatingUpdate(in.Rating); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.Update(ctx, id, title, in.Category, meta, in.Rating, in.NewCollectionID)
 	if err != nil {
 		return nil, err
 	}

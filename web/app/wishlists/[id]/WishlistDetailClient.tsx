@@ -60,11 +60,13 @@ export function WishlistDetailClient() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editTarget, setEditTarget] = useState<number | "">("");
-  const [editIsPublic, setEditIsPublic] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
 
   const [destCollectionId, setDestCollectionId] = useState<number | null>(null);
+  const [entryObtainColl, setEntryObtainColl] = useState<Record<number, number>>({});
+  const [visibilitySaving, setVisibilitySaving] = useState(false);
+  const [visibilityMsg, setVisibilityMsg] = useState<string | null>(null);
 
   const [addTitle, setAddTitle] = useState("");
   const [addCategory, setAddCategory] = useState<Category>("game");
@@ -92,7 +94,6 @@ export function WishlistDetailClient() {
         setEditName(wl.name);
         setEditDesc(wl.description ?? "");
         setEditTarget(wl.target_collection_id ?? "");
-        setEditIsPublic(wl.is_public !== false);
         if (wl.target_collection_id && cols.some((c) => c.id === wl.target_collection_id)) {
           setDestCollectionId(wl.target_collection_id);
         } else if (cols.length > 0) {
@@ -125,7 +126,7 @@ export function WishlistDetailClient() {
         description,
         target_collection_id:
           editTarget === "" || editTarget === 0 ? null : Number(editTarget),
-        is_public: editIsPublic,
+        is_public: wishlist.is_public !== false,
       });
       setWishlist(updated);
       setSettingsMsg("Saved.");
@@ -174,9 +175,17 @@ export function WishlistDetailClient() {
     }
   }
 
+  function resolveObtainCollectionId(entryId: number): number | null {
+    const fromEntry = entryObtainColl[entryId];
+    if (fromEntry != null && fromEntry > 0) return fromEntry;
+    if (destCollectionId != null && destCollectionId > 0) return destCollectionId;
+    const first = collections[0]?.id;
+    return first != null && first > 0 ? first : null;
+  }
+
   async function onObtain(entry: WishlistEntry) {
     if (!Number.isFinite(id) || id < 1) return;
-    const cid = destCollectionId;
+    const cid = resolveObtainCollectionId(entry.id);
     if (cid == null || cid < 1) {
       setError("Choose a destination collection.");
       return;
@@ -260,6 +269,47 @@ export function WishlistDetailClient() {
                     </span>
                   )}
                 </p>
+                {isOwner && (
+                  <div className="mt-4 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4">
+                    <p className="text-sm font-medium text-kurator-fg">Visibility</p>
+                    <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-kurator-muted">
+                      <input
+                        type="checkbox"
+                        checked={wishlist.is_public !== false}
+                        disabled={visibilitySaving}
+                        onChange={async (e) => {
+                          const is_public = e.target.checked;
+                          setVisibilityMsg(null);
+                          setVisibilitySaving(true);
+                          try {
+                            const updated = await updateWishlist(id, {
+                              name: wishlist.name,
+                              description: wishlist.description ?? "",
+                              target_collection_id: wishlist.target_collection_id ?? null,
+                              is_public,
+                            });
+                            setWishlist(updated);
+                          } catch (err) {
+                            setVisibilityMsg(
+                              err instanceof Error ? err.message : "Could not update visibility."
+                            );
+                          } finally {
+                            setVisibilitySaving(false);
+                          }
+                        }}
+                        className="rounded-sm border-kurator-border"
+                      />
+                      {wishlist.is_public !== false
+                        ? "Public — other signed-in users can browse this list (read-only)"
+                        : "Private — only you can open this list"}
+                    </label>
+                    {visibilityMsg && (
+                      <p className="mt-2 text-sm text-amber-200/90" role="status">
+                        {visibilityMsg}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {!isOwner && (
                   <p className="mt-2 text-xs text-kurator-muted">You’re viewing another member’s public list (read-only).</p>
                 )}
@@ -318,17 +368,8 @@ export function WishlistDetailClient() {
                   ))}
                 </select>
                 <span className="mt-1 block text-xs text-kurator-muted">
-                  Default shelf when you use “Add to collection” below (you can still pick another in the dropdown).
+                  Default shelf for “Add to collection” on each wished item (each card has its own picker).
                 </span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-kurator-muted md:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={editIsPublic}
-                  onChange={(e) => setEditIsPublic(e.target.checked)}
-                  className="rounded-sm border-kurator-border"
-                />
-                Public — other signed-in users can browse this list (read-only)
               </label>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -352,30 +393,6 @@ export function WishlistDetailClient() {
             </p>
           ) : (
             <>
-              {isOwner && (
-              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-kurator-border bg-kurator-bg/40 p-4 sm:flex-row sm:items-end sm:justify-between">
-                <label className="block min-w-0 flex-1 text-sm">
-                  <span className="text-kurator-muted">Add to collection (destination)</span>
-                  <select
-                    className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-                    value={destCollectionId ?? ""}
-                    onChange={(e) => setDestCollectionId(Number(e.target.value) || null)}
-                    disabled={collections.length === 0}
-                  >
-                    {collections.length === 0 ? (
-                      <option value="">No collections — create one under Collections</option>
-                    ) : (
-                      collections.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
-              </div>
-              )}
-
               <ul className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {entries.map((item) => {
                   const cover = getCoverArtUrl(item.metadata);
@@ -399,27 +416,56 @@ export function WishlistDetailClient() {
                             />
                           </div>
                           {isOwner && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={
-                                obtainBusy === item.id ||
-                                destCollectionId == null ||
-                                collections.length === 0
-                              }
-                              onClick={() => onObtain(item)}
-                              className="flex-1 rounded-lg bg-kurator-accent px-3 py-2 text-center text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
-                            >
-                              {obtainBusy === item.id ? "Adding…" : "Add to collection"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onRemoveEntry(item)}
-                              className="rounded-lg border border-kurator-border px-3 py-2 text-xs text-kurator-muted hover:text-kurator-fg"
-                            >
-                              Remove
-                            </button>
-                          </div>
+                            <div className="mt-3 space-y-2 border-t border-kurator-border/60 pt-3">
+                              <label className="block text-xs text-kurator-muted">
+                                Add to shelf
+                                <select
+                                  className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg"
+                                  value={String(
+                                    entryObtainColl[item.id] ??
+                                      destCollectionId ??
+                                      collections[0]?.id ??
+                                      ""
+                                  )}
+                                  onChange={(e) => {
+                                    const n = Number(e.target.value);
+                                    setEntryObtainColl((m) => ({ ...m, [item.id]: n }));
+                                  }}
+                                  disabled={collections.length === 0}
+                                >
+                                  {collections.length === 0 ? (
+                                    <option value="">Create a collection first</option>
+                                  ) : (
+                                    collections.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.name}
+                                      </option>
+                                    ))
+                                  )}
+                                </select>
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={
+                                    obtainBusy === item.id ||
+                                    resolveObtainCollectionId(item.id) == null ||
+                                    collections.length === 0
+                                  }
+                                  onClick={() => onObtain(item)}
+                                  className="flex-1 rounded-lg bg-kurator-accent px-3 py-2 text-center text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+                                >
+                                  {obtainBusy === item.id ? "Adding…" : "Add to collection"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onRemoveEntry(item)}
+                                  className="rounded-lg border border-kurator-border px-3 py-2 text-xs text-kurator-muted hover:text-kurator-fg"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>

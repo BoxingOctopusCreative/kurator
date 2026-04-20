@@ -3,15 +3,16 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppChrome } from "@/components/AppChrome";
+import { LoggedInFeatureFlags } from "@/components/LoggedInFeatureFlags";
 import { useAuth } from "@/components/AuthProvider";
 
-function isPublicPath(pathname: string): boolean {
-  if (pathname === "/") return true;
-  if (pathname.startsWith("/login")) return true;
-  if (pathname.startsWith("/register")) return true;
-  if (pathname.startsWith("/forgot-password")) return true;
-  if (pathname.startsWith("/setup")) return true;
-  if (pathname.startsWith("/privacy")) return true;
+/** Routes that require a signed-in session. Everything else (including unknown URLs / 404) stays reachable while logged out. */
+function requiresAuth(pathname: string): boolean {
+  if (pathname.startsWith("/profile")) return true;
+  if (pathname.startsWith("/collections")) return true;
+  if (pathname.startsWith("/wishlists")) return true;
+  if (pathname.startsWith("/items")) return true;
+  if (pathname.startsWith("/scan")) return true;
   return false;
 }
 
@@ -27,13 +28,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const isPublic = isPublicPath(pathname);
+  const needsAuth = requiresAuth(pathname);
 
   useEffect(() => {
-    if (user === null && !isPublic) {
+    if (user === null && needsAuth) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [user, isPublic, pathname, router]);
+  }, [user, needsAuth, pathname, router]);
 
   useEffect(() => {
     if (
@@ -50,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <FullPageLoading />;
   }
 
-  if (user === null && !isPublic) {
+  if (user === null && needsAuth) {
     return <FullPageLoading />;
   }
 
@@ -67,5 +68,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <div className="min-h-dvh bg-kurator-bg">{children}</div>;
   }
 
-  return <AppChrome>{children}</AppChrome>;
+  return (
+    <LoggedInFeatureFlags user={user}>
+      <AppChrome>{children}</AppChrome>
+    </LoggedInFeatureFlags>
+  );
 }

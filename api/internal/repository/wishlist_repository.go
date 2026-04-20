@@ -327,16 +327,36 @@ func (r *PostgresWishlistRepository) ObtainEntry(ctx context.Context, wishlistID
 		return nil, fmt.Errorf("load entry: %w", err)
 	}
 
+	withR, cerr := itemsTableHasRatingColumn(ctx, r.pool)
+	if cerr != nil {
+		return nil, fmt.Errorf("insert item: %w", cerr)
+	}
+	retCols := selectItemColumns(withR)
 	var it models.Item
-	err = tx.QueryRow(ctx, `
-		INSERT INTO items (collection_id, title, category, metadata)
-		VALUES ($1, $2, $3, $4::jsonb)
-		RETURNING id, collection_id, title, category, metadata, created_at, updated_at
-	`, collectionID, title, string(cat), string(meta)).Scan(
-		&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &it.CreatedAt, &it.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("insert item: %w", err)
+	if withR {
+		var rating sql.NullInt32
+		err = tx.QueryRow(ctx, `
+			INSERT INTO items (collection_id, title, category, metadata, rating)
+			VALUES ($1, $2, $3, $4::jsonb, NULL)
+			RETURNING `+retCols+`
+		`, collectionID, title, string(cat), string(meta)).Scan(
+			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &rating, &it.CreatedAt, &it.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("insert item: %w", err)
+		}
+		it.Rating = ratingPtrFromNull(rating)
+	} else {
+		err = tx.QueryRow(ctx, `
+			INSERT INTO items (collection_id, title, category, metadata)
+			VALUES ($1, $2, $3, $4::jsonb)
+			RETURNING `+retCols+`
+		`, collectionID, title, string(cat), string(meta)).Scan(
+			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &it.CreatedAt, &it.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("insert item: %w", err)
+		}
 	}
 
 	_, err = tx.Exec(ctx, `DELETE FROM wishlist_entries WHERE id = $1`, entryID)

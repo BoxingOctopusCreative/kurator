@@ -15,14 +15,23 @@ import {
 } from "lucide-react";
 import type { Category, Collection, Item } from "@/lib/api";
 import {
+  deleteItem,
   exportCollectionItemsCsv,
   fetchCollection,
+  fetchCollections,
   fetchItems,
   importCollectionItemsCsv,
   patchCollection,
+  updateItem,
 } from "@/lib/api";
+import {
+  assertCollectionOrWishlistName,
+  assertLooseMultilineText,
+  LIMITS,
+} from "@/lib/validation";
 import { useAuth } from "@/components/AuthProvider";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { getCoverArtUrl, getItemYear, itemMatchesSearch } from "@/lib/itemDisplay";
 
@@ -30,7 +39,7 @@ const VIEW_STORAGE_KEY = "kurator_collection_items_view";
 
 const ALL_CATEGORIES: Category[] = ["game", "music", "book", "video", "comic_book", "manga"];
 
-type ListSortKey = "title" | "category" | "year";
+type ListSortKey = "title" | "category" | "rating" | "year";
 
 function parseYearNum(item: Item): number | null {
   const y = getItemYear(item.metadata);
@@ -39,27 +48,35 @@ function parseYearNum(item: Item): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseRatingSort(item: Item): number {
+  const r = item.rating;
+  if (r == null || r < 1) return 0;
+  return r;
+}
+
 function sortListItems(items: Item[], key: ListSortKey, dir: "asc" | "desc"): Item[] {
   const out = [...items];
   out.sort((a, b) => {
+    if (key === "year") {
+      const na = parseYearNum(a);
+      const nb = parseYearNum(b);
+      if (na === null && nb === null) {
+        return Number(a.id) - Number(b.id);
+      }
+      if (na === null) return 1;
+      if (nb === null) return -1;
+      const diff = na - nb;
+      if (diff !== 0) return dir === "asc" ? diff : -diff;
+      return Number(a.id) - Number(b.id);
+    }
+
     let cmp = 0;
     if (key === "title") {
       cmp = a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
     } else if (key === "category") {
       cmp = a.category.localeCompare(b.category);
-    } else {
-      const na = parseYearNum(a);
-      const nb = parseYearNum(b);
-      if (na === null && nb === null) {
-        cmp = 0;
-      } else if (na === null) {
-        return 1;
-      } else if (nb === null) {
-        return -1;
-      } else {
-        const diff = na - nb;
-        return dir === "asc" ? diff : -diff;
-      }
+    } else if (key === "rating") {
+      cmp = parseRatingSort(a) - parseRatingSort(b);
     }
     if (cmp !== 0) {
       return dir === "asc" ? cmp : -cmp;
@@ -92,10 +109,43 @@ export function CollectionDetailClient() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
+  const [myCollections, setMyCollections] = useState<Collection[]>([]);
+  const [shelfName, setShelfName] = useState("");
+  const [shelfDesc, setShelfDesc] = useState("");
+  const [shelfSaving, setShelfSaving] = useState(false);
+  const [shelfMsg, setShelfMsg] = useState<string | null>(null);
+  const [itemBusy, setItemBusy] = useState<{ id: number; op: "move" | "remove" } | null>(null);
+  const [itemMsg, setItemMsg] = useState<string | null>(null);
+  const [movePick, setMovePick] = useState<Record<number, number>>({});
+
   const isOwner =
     user &&
     collection?.user_id != null &&
     Number(collection.user_id) === Number(user.id);
+
+  useEffect(() => {
+    if (!collection) return;
+    setShelfName(collection.name);
+    setShelfDesc(collection.description ?? "");
+  }, [collection]);
+
+  useEffect(() => {
+    if (!user || !collection || Number(collection.user_id) !== Number(user.id)) {
+      setMyCollections([]);
+      return;
+    }
+    let cancelled = false;
+    fetchCollections({ limit: 200, sort: "name_asc" })
+      .then((r) => {
+        if (!cancelled) setMyCollections(r.items);
+      })
+      .catch(() => {
+        if (!cancelled) setMyCollections([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, collection]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -192,6 +242,68 @@ export function CollectionDetailClient() {
     }
   }
 
+  async function onSaveShelfDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!collection) return;
+    setShelfMsg(null);
+    setShelfSaving(true);
+    try {
+      const name = assertCollectionOrWishlistName(shelfName, "Name");
+      let description = "";
+      const trimmed = shelfDesc.trim();
+      if (trimmed) {
+        description = assertLooseMultilineText(shelfDesc, LIMITS.description, "Description");
+      }
+      const updated = await patchCollection(collection.id, { name, description });
+      setCollection(updated);
+      setShelfMsg("Saved.");
+    } catch (err) {
+      setShelfMsg(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setShelfSaving(false);
+    }
+  }
+
+  async function onMoveItemToShelf(item: Item, targetCollectionId: number) {
+    if (!Number.isFinite(targetCollectionId) || targetCollectionId < 1) {
+      setItemMsg("Pick a collection.");
+      return;
+    }
+    if (targetCollectionId === item.collection_id) {
+      setItemMsg("Choose a different shelf than this one.");
+      return;
+    }
+    setItemMsg(null);
+    setItemBusy({ id: item.id, op: "move" });
+    try {
+      await updateItem(item.id, {
+        title: item.title,
+        category: item.category,
+        metadata: item.metadata,
+        collection_id: targetCollectionId,
+      });
+      await reloadCollectionData();
+    } catch (err) {
+      setItemMsg(err instanceof Error ? err.message : "Could not move item.");
+    } finally {
+      setItemBusy(null);
+    }
+  }
+
+  async function onRemoveItemForever(item: Item) {
+    if (!window.confirm(`Remove “${item.title}” permanently? This cannot be undone.`)) return;
+    setItemMsg(null);
+    setItemBusy({ id: item.id, op: "remove" });
+    try {
+      await deleteItem(item.id);
+      await reloadCollectionData();
+    } catch (err) {
+      setItemMsg(err instanceof Error ? err.message : "Could not remove item.");
+    } finally {
+      setItemBusy(null);
+    }
+  }
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
@@ -203,6 +315,11 @@ export function CollectionDetailClient() {
     if (viewMode !== "list") return filteredItems;
     return sortListItems(filteredItems, listSortKey, listSortDir);
   }, [filteredItems, viewMode, listSortKey, listSortDir]);
+
+  const moveTargets = useMemo(
+    () => (collection ? myCollections.filter((c) => c.id !== collection.id) : []),
+    [myCollections, collection]
+  );
 
   function toggleListSort(key: ListSortKey) {
     if (listSortKey === key) {
@@ -285,6 +402,51 @@ export function CollectionDetailClient() {
                   </p>
                 )}
               </div>
+            )}
+            {isOwner && (
+              <form
+                onSubmit={onSaveShelfDetails}
+                className="mt-4 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4"
+              >
+                <p className="text-sm font-medium text-kurator-fg">Shelf name &amp; description</p>
+                <label className="mt-3 block text-sm">
+                  <span className="text-kurator-muted">Name</span>
+                  <input
+                    value={shelfName}
+                    onChange={(e) => setShelfName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="mt-3 block text-sm">
+                  <span className="text-kurator-muted">Description</span>
+                  <textarea
+                    value={shelfDesc}
+                    onChange={(e) => setShelfDesc(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full resize-y rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                  />
+                </label>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={shelfSaving}
+                    className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+                  >
+                    {shelfSaving ? "Saving…" : "Save shelf details"}
+                  </button>
+                  {shelfMsg && (
+                    <p className="text-sm text-kurator-muted" role="status">
+                      {shelfMsg}
+                    </p>
+                  )}
+                </div>
+              </form>
+            )}
+            {isOwner && itemMsg && (
+              <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100/90" role="alert">
+                {itemMsg}
+              </p>
             )}
             {isOwner && (
               <div className="mt-4 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4">
@@ -462,6 +624,34 @@ export function CollectionDetailClient() {
                         </th>
                         <th
                           scope="col"
+                          className="w-36 px-3 py-3"
+                          aria-sort={
+                            listSortKey === "rating"
+                              ? listSortDir === "asc"
+                                ? "ascending"
+                                : "descending"
+                              : "none"
+                          }
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleListSort("rating")}
+                            className="inline-flex items-center gap-1.5 font-medium text-kurator-muted hover:text-kurator-fg"
+                          >
+                            Rating
+                            {listSortKey === "rating" ? (
+                              listSortDir === "asc" ? (
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                              ) : (
+                                <ArrowDown className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                              )
+                            ) : (
+                              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                            )}
+                          </button>
+                        </th>
+                        <th
+                          scope="col"
                           className="w-28 px-3 py-3"
                           aria-sort={
                             listSortKey === "year"
@@ -488,6 +678,14 @@ export function CollectionDetailClient() {
                             )}
                           </button>
                         </th>
+                        {isOwner && (
+                          <th
+                            scope="col"
+                            className="w-52 px-3 py-3 text-right text-xs font-medium uppercase tracking-wide text-kurator-muted"
+                          >
+                            Manage
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -524,7 +722,69 @@ export function CollectionDetailClient() {
                                 {categoryLabel(item.category)}
                               </span>
                             </td>
+                            <td className="align-top px-3 py-3">
+                              <ItemStarRating value={item.rating ?? null} size="sm" />
+                            </td>
                             <td className="align-top px-3 py-3 text-kurator-muted">{year || "—"}</td>
+                            {isOwner && (
+                              <td
+                                className="align-top px-3 py-3 text-right"
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              >
+                                {moveTargets.length > 0 ? (
+                                  <div className="flex flex-col items-stretch gap-2 sm:inline-flex sm:flex-row sm:items-center sm:justify-end">
+                                    <select
+                                      aria-label={`Move “${item.title}” to another shelf`}
+                                      className="max-w-44 rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg"
+                                      value={String(movePick[item.id] ?? "")}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setMovePick((m) => ({
+                                          ...m,
+                                          [item.id]: v === "" ? 0 : Number(v),
+                                        }));
+                                      }}
+                                    >
+                                      <option value="">Move to…</option>
+                                      {moveTargets.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                          {c.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        itemBusy?.id === item.id ||
+                                        !movePick[item.id] ||
+                                        movePick[item.id] === item.collection_id
+                                      }
+                                      onClick={() =>
+                                        void onMoveItemToShelf(item, movePick[item.id] ?? 0)
+                                      }
+                                      className="rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50"
+                                    >
+                                      {itemBusy?.id === item.id && itemBusy.op === "move"
+                                        ? "Moving…"
+                                        : "Move"}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-kurator-muted">No other shelf</span>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={itemBusy?.id === item.id}
+                                  onClick={() => void onRemoveItemForever(item)}
+                                  className="mt-2 block w-full rounded-lg border border-red-500/35 px-2 py-1.5 text-xs text-red-200/90 hover:bg-red-500/10 disabled:opacity-50 sm:mt-0 sm:ml-2 sm:inline sm:w-auto"
+                                >
+                                  {itemBusy?.id === item.id && itemBusy.op === "remove"
+                                    ? "Removing…"
+                                    : "Remove"}
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -537,28 +797,86 @@ export function CollectionDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <Link
-                          href={`/items/${item.id}`}
-                          className="group flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-visible:ring-2"
-                        >
-                          <div className="shrink-0 space-y-2 p-4 pb-2">
-                            <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg group-hover:text-kurator-accent">
-                              {item.title}
-                            </h2>
-                            <span className="inline-flex rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">
-                              {categoryLabel(item.category)}
-                            </span>
-                          </div>
-                          <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                            <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
-                              <ItemCoverImage
-                                url={cover}
-                                alt={`Cover for ${item.title}`}
-                                className="absolute inset-0 h-full w-full object-cover"
-                              />
+                        <div className="flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2">
+                          <Link
+                            href={`/items/${item.id}`}
+                            className="group flex flex-1 flex-col focus-visible:outline-hidden"
+                          >
+                            <div className="shrink-0 space-y-2 p-4 pb-2">
+                              <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg group-hover:text-kurator-accent">
+                                {item.title}
+                              </h2>
+                              <span className="inline-flex rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">
+                                {categoryLabel(item.category)}
+                              </span>
+                              <div className="mt-1.5">
+                                <ItemStarRating value={item.rating ?? null} size="sm" />
+                              </div>
                             </div>
-                          </div>
-                        </Link>
+                            <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
+                              <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                                <ItemCoverImage
+                                  url={cover}
+                                  alt={`Cover for ${item.title}`}
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                />
+                              </div>
+                            </div>
+                          </Link>
+                          {isOwner && (
+                            <div className="border-t border-kurator-border/80 p-3">
+                              {moveTargets.length > 0 ? (
+                                <div className="flex flex-col gap-2">
+                                  <select
+                                    aria-label={`Move “${item.title}” to another shelf`}
+                                    className="w-full rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg"
+                                    value={String(movePick[item.id] ?? "")}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setMovePick((m) => ({
+                                        ...m,
+                                        [item.id]: v === "" ? 0 : Number(v),
+                                      }));
+                                    }}
+                                  >
+                                    <option value="">Move to…</option>
+                                    {moveTargets.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      itemBusy?.id === item.id ||
+                                      !movePick[item.id] ||
+                                      movePick[item.id] === item.collection_id
+                                    }
+                                    onClick={() => void onMoveItemToShelf(item, movePick[item.id] ?? 0)}
+                                    className="rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50"
+                                  >
+                                    {itemBusy?.id === item.id && itemBusy.op === "move"
+                                      ? "Moving…"
+                                      : "Move to shelf"}
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-kurator-muted">Create another collection to move items.</p>
+                              )}
+                              <button
+                                type="button"
+                                disabled={itemBusy?.id === item.id}
+                                onClick={() => void onRemoveItemForever(item)}
+                                className="mt-2 w-full rounded-lg border border-red-500/35 px-2 py-1.5 text-xs text-red-200/90 hover:bg-red-500/10 disabled:opacity-50"
+                              >
+                                {itemBusy?.id === item.id && itemBusy.op === "remove"
+                                  ? "Removing…"
+                                  : "Remove from library"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </li>
                     );
                   })}

@@ -38,4 +38,8 @@ type Config struct {
 	MailgunDomain  string
 	MailgunFrom    string
 	MailgunAPIBase string
+	// SentryDSN enables Sentry error reporting and the Fiber middleware when non-empty (env: SENTRY_DSN).
+	SentryDSN string
+	// SentryEnvironment is optional (e.g. production, staging); env: SENTRY_ENVIRONMENT.
+	SentryEnvironment string
 }

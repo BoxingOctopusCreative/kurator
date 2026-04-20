@@ -12,6 +12,12 @@ type fileConfig struct {
 	Setup       fileSetup       `toml:"setup"`
 	Turnstile   fileTurnstile   `toml:"turnstile"`
 	Mailgun     fileMailgun     `toml:"mailgun"`
+	Sentry      fileSentry      `toml:"sentry"`
+}
+
+type fileSentry struct {
+	DSN         string `toml:"dsn"`
+	Environment string `toml:"environment"`
 }
 
 type fileServer struct {

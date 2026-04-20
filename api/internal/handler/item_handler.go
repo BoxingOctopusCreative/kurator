@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -22,6 +23,33 @@ type ItemHandler struct {
 
 func NewItemHandler(svc *service.ItemService, coll *repository.PostgresCollectionRepository, auth *service.AuthService, meta *service.MetadataService) *ItemHandler {
 	return &ItemHandler{svc: svc, coll: coll, auth: auth, meta: meta}
+}
+
+func (h *ItemHandler) requireUserID(c *fiber.Ctx) (int64, error) {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return 0, fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	return uid, nil
+}
+
+// assertMayMutateCollection returns 403 when the viewer may not change content in this collection,
+// 404 when the collection is missing. Allows the legacy seed Default shelf (id=1, user_id NULL).
+func (h *ItemHandler) assertMayMutateCollection(c *fiber.Ctx, userID, collectionID int64) error {
+	if h.coll == nil {
+		return nil
+	}
+	ok, err := h.coll.UserMayMutateCollectionContent(c.Context(), collectionID, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrCollectionNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "collection not found")
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	if !ok {
+		return fiber.NewError(fiber.StatusForbidden, "forbidden")
+	}
+	return nil
 }
 
 // List returns recent items, or items for collection_id when set. Optional session cookie can unlock private collections.
@@ -184,6 +212,7 @@ type ItemBody struct {
 	Title        string          `json:"title"`
 	Category     models.Category `json:"category"`
 	Metadata     json.RawMessage `json:"metadata"`
+	Rating       *int            `json:"rating"`
 }
 
 // Create adds an item (defaults collection_id to 1 when zero).
@@ -196,15 +225,27 @@ type ItemBody struct {
 // @Failure 400 {object} map[string]string
 // @Router /api/v1/items [post]
 func (h *ItemHandler) Create(c *fiber.Ctx) error {
+	uid, err := h.requireUserID(c)
+	if err != nil {
+		return err
+	}
 	var body ItemBody
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
+	cid := body.CollectionID
+	if cid == 0 {
+		cid = 1
+	}
+	if err := h.assertMayMutateCollection(c, uid, cid); err != nil {
+		return err
+	}
 	item, err := h.svc.Create(c.Context(), service.CreateItemInput{
-		CollectionID: body.CollectionID,
+		CollectionID: cid,
 		Title:        body.Title,
 		Category:     body.Category,
 		Metadata:     body.Metadata,
+		Rating:       body.Rating,
 	})
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
@@ -224,18 +265,67 @@ func (h *ItemHandler) Create(c *fiber.Ctx) error {
 // @Failure 404 {object} map[string]string
 // @Router /api/v1/items/{id} [put]
 func (h *ItemHandler) Update(c *fiber.Ctx) error {
+	uid, err := h.requireUserID(c)
+	if err != nil {
+		return err
+	}
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil || id < 1 {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	var body ItemBody
-	if err := c.BodyParser(&body); err != nil {
+	raw := c.Body()
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
+	var body ItemBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	existing, gerr := h.svc.Get(c.Context(), id)
+	if errors.Is(gerr, repository.ErrItemNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if gerr != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, gerr.Error())
+	}
+	if err := h.assertMayMutateCollection(c, uid, existing.CollectionID); err != nil {
+		return err
+	}
+	var newColl *int64
+	if _, has := keys["collection_id"]; has {
+		rawCID := keys["collection_id"]
+		if bytes.Equal(bytes.TrimSpace(rawCID), []byte("null")) {
+			return fiber.NewError(fiber.StatusBadRequest, "collection_id must be a positive integer")
+		}
+		var cid int64
+		if err := json.Unmarshal(rawCID, &cid); err != nil || cid < 1 {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid collection_id")
+		}
+		if cid != existing.CollectionID {
+			if err := h.assertMayMutateCollection(c, uid, cid); err != nil {
+				return err
+			}
+			newColl = &cid
+		}
+	}
+	var ru *models.RatingUpdate
+	if _, has := keys["rating"]; has {
+		if body.Rating == nil {
+			ru = &models.RatingUpdate{SetNull: true}
+		} else {
+			if *body.Rating < 1 || *body.Rating > 5 {
+				return fiber.NewError(fiber.StatusBadRequest, "rating must be between 1 and 5")
+			}
+			ru = &models.RatingUpdate{SetNull: false, Stars: *body.Rating}
+		}
+	}
 	item, err := h.svc.Update(c.Context(), id, service.UpdateItemInput{
-		Title:    body.Title,
-		Category: body.Category,
-		Metadata: body.Metadata,
+		Title:           body.Title,
+		Category:        body.Category,
+		Metadata:        body.Metadata,
+		Rating:          ru,
+		NewCollectionID: newColl,
 	})
 	if errors.Is(err, repository.ErrItemNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
@@ -256,9 +346,23 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 // @Failure 500 {object} map[string]string
 // @Router /api/v1/items/{id} [delete]
 func (h *ItemHandler) Delete(c *fiber.Ctx) error {
+	uid, err := h.requireUserID(c)
+	if err != nil {
+		return err
+	}
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil || id < 1 {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
+	}
+	existing, gerr := h.svc.Get(c.Context(), id)
+	if errors.Is(gerr, repository.ErrItemNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if gerr != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, gerr.Error())
+	}
+	if err := h.assertMayMutateCollection(c, uid, existing.CollectionID); err != nil {
+		return err
 	}
 	if err := h.svc.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repository.ErrItemNotFound) {

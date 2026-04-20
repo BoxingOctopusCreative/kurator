@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 `
 
 // Up applies embedded SQL migrations that are not yet recorded in schema_migrations.
+// It opens its own short-lived pool to the given database URL.
 func Up(ctx context.Context, databaseURL string) (applied []string, err error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
@@ -33,6 +34,12 @@ func Up(ctx context.Context, databaseURL string) (applied []string, err error) {
 	}
 	defer pool.Close()
 
+	return UpWithExistingPool(ctx, pool)
+}
+
+// UpWithExistingPool applies embedded SQL migrations using an already-connected pool
+// (e.g. the API server's long-lived pool after startup checks).
+func UpWithExistingPool(ctx context.Context, pool *pgxpool.Pool) (applied []string, err error) {
 	pingCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	if err := pool.Ping(pingCtx); err != nil {

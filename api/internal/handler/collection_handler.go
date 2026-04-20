@@ -32,14 +32,14 @@ func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID int
 	if !ok || uid < 1 {
 		return 0, fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	owned, err := h.coll.IsUserOwnedCollection(c.Context(), collectionID, uid)
+	ok, err := h.coll.UserMayMutateCollectionContent(c.Context(), collectionID, uid)
 	if err != nil {
 		if errors.Is(err, repository.ErrCollectionNotFound) {
 			return 0, fiber.NewError(fiber.StatusNotFound, "not found")
 		}
 		return 0, fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
-	if !owned {
+	if !ok {
 		return 0, fiber.NewError(fiber.StatusForbidden, "only the collection owner can import or export items")
 	}
 	return uid, nil

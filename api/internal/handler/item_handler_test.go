@@ -20,6 +20,10 @@ func newItemTestApp(t *testing.T, repo *handlerStubItemRepo) *fiber.App {
 	svc := service.NewItemService(repo, nil)
 	h := NewItemHandler(svc, nil, nil, nil)
 	app := fiber.New()
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals("userID", int64(1))
+		return c.Next()
+	})
 	app.Get("/items", h.List)
 	app.Get("/items/:id", h.Get)
 	app.Post("/items", h.Create)
@@ -70,7 +74,7 @@ func (s *handlerStubItemRepo) GetByID(ctx context.Context, id int64) (*models.It
 	return s.getItem, nil
 }
 
-func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage) (*models.Item, error) {
+func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage, rating *int) (*models.Item, error) {
 	s.lastCreateColl = collectionID
 	if s.createErr != nil {
 		return nil, s.createErr
@@ -78,7 +82,7 @@ func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID int64, ti
 	return s.createItem, nil
 }
 
-func (s *handlerStubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage) (*models.Item, error) {
+func (s *handlerStubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, newCollectionID *int64) (*models.Item, error) {
 	if s.updateErr != nil {
 		return nil, s.updateErr
 	}
@@ -241,7 +245,19 @@ func TestItemHandler_List(t *testing.T) {
 }
 
 func TestItemHandler_Delete_noContent(t *testing.T) {
-	app := newItemTestApp(t, &handlerStubItemRepo{})
+	now := time.Now().UTC()
+	repo := &handlerStubItemRepo{
+		getItem: &models.Item{
+			ID:           1,
+			CollectionID: 1,
+			Title:        "X",
+			Category:     models.CategoryGame,
+			Metadata:     json.RawMessage(`{}`),
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		},
+	}
+	app := newItemTestApp(t, repo)
 	req := httptest.NewRequest("DELETE", "/items/1", nil)
 	resp, err := app.Test(req, -1)
 	if err != nil {

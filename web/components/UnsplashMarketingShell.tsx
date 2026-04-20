@@ -13,13 +13,22 @@ import {
 type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
   children: ReactNode;
+  /**
+   * When set (including `null`), controls the footer credit line instead of the default
+   * “Background: Photo…” Unsplash line. Use `null` to hide attribution entirely.
+   */
+  attribution?: ReactNode | null;
 };
 
 /**
  * Full-viewport Unsplash background (tinted layers) + optional attribution footer.
  * Uses the same cache + API fallback as the home landing page.
  */
-export function UnsplashMarketingShell({ initialBackground = null, children }: Props) {
+export function UnsplashMarketingShell({
+  initialBackground = null,
+  children,
+  attribution: attributionOverride,
+}: Props) {
   const [bg, setBg] = useState<UnsplashBackgroundPayload | null>(() =>
     initialBackground?.url ? initialBackground : null,
   );
@@ -75,7 +84,7 @@ export function UnsplashMarketingShell({ initialBackground = null, children }: P
   }, [initialBackground]);
 
   return (
-    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden">
+    <div className="relative isolate flex h-dvh w-full max-w-none flex-col overflow-hidden">
       {bg && (
         <>
           {/*
@@ -84,12 +93,12 @@ export function UnsplashMarketingShell({ initialBackground = null, children }: P
             so we never rely on Tailwind’s color-mix fallback, which can render fully opaque and hide
             the photo in some browsers.
           */}
-          <div className="pointer-events-none absolute inset-0 z-0">
+          <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-kurator-bg">
             <Image
               alt=""
               src={bg.url}
               fill
-              className="object-cover"
+              className="object-cover object-center border-0! shadow-none! outline-none! ring-0 transform-[translateZ(0)_scale(1.03)]"
               sizes="100vw"
               fetchPriority="low"
             />
@@ -105,48 +114,58 @@ export function UnsplashMarketingShell({ initialBackground = null, children }: P
         </>
       )}
 
-      <div className="relative z-10 flex min-h-dvh flex-1 flex-col">
-        <div className="flex flex-1 flex-col">{children}</div>
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+          <div className="flex min-h-full min-w-0 flex-1 flex-col">{children}</div>
+        </div>
 
-        {bg?.photoPageUrl && (
-          <p className="shrink-0 px-4 pb-6 text-center text-[11px] text-kurator-muted/80">
-            Background:{" "}
-            <a
-              href={bg.photoPageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
-            >
-              Photo
-            </a>
-            {bg.photographer && (
-              <>
-                {" "}
-                by{" "}
-                {bg.photographerUrl ? (
+        {attributionOverride !== undefined ? (
+          attributionOverride === null ? null : (
+            <p className="shrink-0 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-2 text-center text-[11px] text-kurator-muted/80">
+              {attributionOverride}
+            </p>
+          )
+        ) : (
+          bg?.photoPageUrl && (
+            <p className="shrink-0 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-2 text-center text-[11px] text-kurator-muted/80">
+              Background:{" "}
+              <a
+                href={bg.photoPageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
+              >
+                Photo
+              </a>
+              {bg.photographer && (
+                <>
+                  {" "}
+                  by{" "}
+                  {bg.photographerUrl ? (
+                    <a
+                      href={bg.photographerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
+                    >
+                      {bg.photographer}
+                    </a>
+                  ) : (
+                    bg.photographer
+                  )}{" "}
+                  on{" "}
                   <a
-                    href={bg.photographerUrl}
+                    href="https://unsplash.com/?utm_source=kurator&utm_medium=referral"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
                   >
-                    {bg.photographer}
+                    Unsplash
                   </a>
-                ) : (
-                  bg.photographer
-                )}{" "}
-                on{" "}
-                <a
-                  href="https://unsplash.com/?utm_source=kurator&utm_medium=referral"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-kurator-muted underline decoration-kurator-border underline-offset-2 hover:text-kurator-fg"
-                >
-                  Unsplash
-                </a>
-              </>
-            )}
-          </p>
+                </>
+              )}
+            </p>
+          )
         )}
       </div>
     </div>

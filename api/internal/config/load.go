@@ -152,6 +152,18 @@ func Load(opts *LoadOptions) (Config, error) {
 			fc.Mailgun.APIBase,
 			"",
 		),
+		SentryDSN: mergeString(
+			"SENTRY_DSN",
+			"",
+			fc.Sentry.DSN,
+			"",
+		),
+		SentryEnvironment: mergeString(
+			"SENTRY_ENVIRONMENT",
+			"",
+			fc.Sentry.Environment,
+			"",
+		),
 	}
 
 	return cfg, nil

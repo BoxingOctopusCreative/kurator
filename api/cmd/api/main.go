@@ -1,6 +1,6 @@
 // @title Kurator API
 // @version 1.0
-// @description REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, setup/migrations, and optional S3-backed image uploads.
+// @description REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, setup status, bundled SQL migrations on boot, and optional S3-backed image uploads.
 // @host localhost:8080
 // @BasePath /
 
@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/boxingoctopus/kurator/api/internal/config"
@@ -24,6 +26,8 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/migrate"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
+	"github.com/getsentry/sentry-go"
+	sentryfiber "github.com/getsentry/sentry-go/fiber"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -32,7 +36,6 @@ import (
 )
 
 func main() {
-	migrateOnly := flag.Bool("migrate", false, "apply bundled SQL migrations using DATABASE_URL, then exit (same migrations as POST /api/v1/setup/migrate)")
 	var opts config.LoadOptions
 	config.RegisterFlags(flag.CommandLine, &opts)
 	flag.Parse()
@@ -42,37 +45,83 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	if *migrateOnly {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		applied, err := migrate.Up(ctx, cfg.DatabaseURL)
-		if err != nil {
-			log.Fatalf("migrate: %v", err)
-		}
-		if len(applied) == 0 {
-			fmt.Fprintln(os.Stderr, "No new migrations (already up to date).")
-			return
-		}
-		fmt.Printf("Applied migrations: %v\n", applied)
-		return
-	}
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer startupCancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	pool, err := connectPostgres(ctx, cfg.DatabaseURL)
+	pool, err := connectPostgres(startupCtx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("postgres: %v", err)
 	}
 	defer pool.Close()
 
+	applied, err := migrate.UpWithExistingPool(startupCtx, pool)
+	if err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+	if len(applied) == 0 {
+		logStartup("migrations", "no pending migrations")
+	} else {
+		logStartup("migrations", "applied "+strings.Join(applied, ", "))
+	}
+
 	var indexer service.SearchIndexer
-	if cfg.MeilisearchHost != "" {
+	if strings.TrimSpace(cfg.MeilisearchHost) == "" {
+		logStartup("meilisearch", "skipped (not configured)")
+	} else {
 		idx := service.NewMeilisearchIndexer(cfg.MeilisearchHost, cfg.MeilisearchKey, cfg.MeilisearchIndex)
+		pingCtx, pingCancel := context.WithTimeout(startupCtx, 10*time.Second)
+		meiliErr := idx.Ping(pingCtx)
+		pingCancel()
+		if meiliErr != nil {
+			logStartup("meilisearch", "failed: "+meiliErr.Error())
+		} else {
+			logStartup("meilisearch", "ok")
+		}
 		if err := idx.EnsureIndex(context.Background()); err != nil {
 			log.Printf("meilisearch ensure index: %v (search may fail until Meilisearch is ready)", err)
 		}
 		indexer = idx
+	}
+
+	var imgSvc *service.ImageService
+	if cfg.S3Bucket == "" {
+		logStartup("s3", "skipped (not configured)")
+	} else {
+		if cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
+			log.Fatalf("S3_BUCKET is set: provide S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY")
+		}
+		imgSvc, err = service.NewImageService(
+			cfg.S3Bucket,
+			cfg.S3Region,
+			cfg.S3Endpoint,
+			cfg.S3AccessKey,
+			cfg.S3SecretKey,
+			cfg.S3PublicBaseURL,
+			cfg.S3KeyPrefix,
+		)
+		if err != nil {
+			log.Fatalf("image storage: %v", err)
+		}
+		s3PingCtx, s3PingCancel := context.WithTimeout(startupCtx, 15*time.Second)
+		s3Err := imgSvc.Ping(s3PingCtx)
+		s3PingCancel()
+		if s3Err != nil {
+			log.Fatalf("startup: s3: failed: %v", s3Err)
+		}
+		logStartup("s3", "ok (bucket="+cfg.S3Bucket+")")
+		log.Printf("S3 image uploads enabled (bucket=%s)", cfg.S3Bucket)
+	}
+
+	sentryEnabled := initSentry(cfg)
+	if strings.TrimSpace(cfg.SentryDSN) == "" {
+		logStartup("sentry", "skipped (not configured)")
+	} else if sentryEnabled {
+		logStartup("sentry", "ok")
+	} else {
+		logStartup("sentry", "failed (initialization error; see log above)")
+	}
+	if sentryEnabled {
+		defer sentry.Flush(2 * time.Second)
 	}
 
 	itemRepo := repository.NewPostgresItemRepository(pool)
@@ -89,12 +138,12 @@ func main() {
 	wishSvc := service.NewWishlistService(wishRepo, collRepo, indexer)
 	searchSvc := service.NewSearchService(indexer)
 	metaSvc := service.NewMetadataService(service.MetadataConfig{
-		UserAgent:         cfg.MetadataUserAgent,
-		DiscogsToken:      cfg.DiscogsPersonalToken,
-		TheGamesDBAPIKey:  cfg.TheGamesDBAPIKey,
-		GoogleBooksKey:    cfg.GoogleBooksAPIKey,
-		TMDBAPIKey:        cfg.TMDBAPIKey,
-		ComicVineAPIKey:   cfg.ComicVineAPIKey,
+		UserAgent:        cfg.MetadataUserAgent,
+		DiscogsToken:     cfg.DiscogsPersonalToken,
+		TheGamesDBAPIKey: cfg.TheGamesDBAPIKey,
+		GoogleBooksKey:   cfg.GoogleBooksAPIKey,
+		TMDBAPIKey:       cfg.TMDBAPIKey,
+		ComicVineAPIKey:  cfg.ComicVineAPIKey,
 	})
 	authSvc := service.NewAuthService(userRepo, sessionRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge)
 	socialSvc := service.NewSocialService(userRepo, followRepo)
@@ -110,26 +159,6 @@ func main() {
 	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	requireAuth := middleware.RequireAuth(authSvc)
 
-	var imgSvc *service.ImageService
-	if cfg.S3Bucket != "" {
-		if cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
-			log.Fatal("S3_BUCKET is set: provide S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY")
-		}
-		var err error
-		imgSvc, err = service.NewImageService(
-			cfg.S3Bucket,
-			cfg.S3Region,
-			cfg.S3Endpoint,
-			cfg.S3AccessKey,
-			cfg.S3SecretKey,
-			cfg.S3PublicBaseURL,
-			cfg.S3KeyPrefix,
-		)
-		if err != nil {
-			log.Fatalf("image storage: %v", err)
-		}
-		log.Printf("S3 image uploads enabled (bucket=%s)", cfg.S3Bucket)
-	}
 	imgH := handler.NewImageHandler(imgSvc)
 
 	app := fiber.New(fiber.Config{
@@ -140,6 +169,12 @@ func main() {
 	})
 
 	app.Use(recover.New())
+	if sentryEnabled {
+		app.Use(sentryfiber.New(sentryfiber.Options{
+			Repanic:         true,
+			WaitForDelivery: false,
+		}))
+	}
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     joinOrigins(cfg.CORSOrigins),
@@ -196,9 +231,9 @@ func main() {
 	v1.Get("/items", itemH.List)
 	v1.Get("/items/:id/enrichment", itemH.Enrichment)
 	v1.Get("/items/:id", itemH.Get)
-	v1.Post("/items", itemH.Create)
-	v1.Put("/items/:id", itemH.Update)
-	v1.Delete("/items/:id", itemH.Delete)
+	v1.Post("/items", requireAuth, itemH.Create)
+	v1.Put("/items/:id", requireAuth, itemH.Update)
+	v1.Delete("/items/:id", requireAuth, itemH.Delete)
 	v1.Get("/search", searchH.Search)
 	v1.Get("/metadata/lookup", metaH.Lookup)
 
@@ -207,6 +242,37 @@ func main() {
 	if err := app.Listen(addr); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// initSentry configures the Sentry SDK when SENTRY_DSN / config [sentry] dsn is set.
+// Returns whether the sentryfiber middleware should be registered (requires successful Init).
+func initSentry(cfg config.Config) bool {
+	dsn := strings.TrimSpace(cfg.SentryDSN)
+	if dsn == "" {
+		return false
+	}
+
+	tracesSampleRate := 0.1
+	if v := strings.TrimSpace(os.Getenv("SENTRY_TRACES_SAMPLE_RATE")); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 && f <= 1 {
+			tracesSampleRate = f
+		}
+	}
+
+	opts := sentry.ClientOptions{
+		Dsn:              dsn,
+		EnableTracing:    true,
+		TracesSampleRate: tracesSampleRate,
+	}
+	if env := strings.TrimSpace(cfg.SentryEnvironment); env != "" {
+		opts.Environment = env
+	}
+
+	if err := sentry.Init(opts); err != nil {
+		log.Printf("sentry: initialization failed: %v", err)
+		return false
+	}
+	return true
 }
 
 func connectPostgres(ctx context.Context, url string) (*pgxpool.Pool, error) {
@@ -218,19 +284,26 @@ func connectPostgres(ctx context.Context, url string) (*pgxpool.Pool, error) {
 			err = pool.Ping(pingCtx)
 			cancel()
 			if err == nil {
+				logStartup("postgres", "ok")
 				return pool, nil
 			}
 			pool.Close()
 		}
 		last = err
-		log.Printf("waiting for postgres (%d/30): %v", i+1, err)
+		log.Printf("startup: postgres: waiting (attempt %d/30): %v", i+1, err)
 		select {
 		case <-ctx.Done():
+			logStartup("postgres", "failed: "+ctx.Err().Error())
 			return nil, fmt.Errorf("context done: %w", ctx.Err())
 		case <-time.After(2 * time.Second):
 		}
 	}
+	logStartup("postgres", "failed: "+last.Error())
 	return nil, fmt.Errorf("postgres unavailable: %w", last)
+}
+
+func logStartup(component, detail string) {
+	log.Printf("startup: %s: %s", component, detail)
 }
 
 // Health reports that the HTTP server is running.

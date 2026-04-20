@@ -69,7 +69,7 @@ func (s *stubItemRepo) GetByID(ctx context.Context, id int64) (*models.Item, err
 	return s.getItem, nil
 }
 
-func (s *stubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage) (*models.Item, error) {
+func (s *stubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage, rating *int) (*models.Item, error) {
 	s.lastCreateColl = collectionID
 	s.lastCreateTitle = title
 	s.lastCreateCat = category
@@ -79,7 +79,7 @@ func (s *stubItemRepo) Create(ctx context.Context, collectionID int64, title str
 	return s.createItem, nil
 }
 
-func (s *stubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage) (*models.Item, error) {
+func (s *stubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, newCollectionID *int64) (*models.Item, error) {
 	if s.updateErr != nil {
 		return nil, s.updateErr
 	}

@@ -31,8 +31,15 @@ type Item struct {
 	Title        string          `json:"title"`
 	Category     Category        `json:"category"`
 	Metadata     json.RawMessage `json:"metadata"`
+	Rating       *int            `json:"rating,omitempty"`
 	CreatedAt    time.Time       `json:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
+// RatingUpdate describes how to change items.rating on update. Nil means leave the DB value unchanged.
+type RatingUpdate struct {
+	SetNull bool // true: store NULL (unrated)
+	Stars   int  // 1–5 when SetNull is false
 }
 
 type Collection struct {

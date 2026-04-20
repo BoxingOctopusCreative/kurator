@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"strconv"
 
@@ -38,6 +39,16 @@ type searchDoc struct {
 	Title    string          `json:"title"`
 	Category string          `json:"category"`
 	Metadata json.RawMessage `json:"metadata"`
+	Rating   *int            `json:"rating,omitempty"`
+}
+
+// Ping checks that the Meilisearch server accepts requests (health endpoint).
+func (m *MeilisearchIndexer) Ping(ctx context.Context) error {
+	if m == nil {
+		return errors.New("nil indexer")
+	}
+	_, err := m.client.HealthWithContext(ctx)
+	return err
 }
 
 func (m *MeilisearchIndexer) EnsureIndex(ctx context.Context) error {
@@ -62,6 +73,7 @@ func (m *MeilisearchIndexer) UpsertItem(ctx context.Context, item models.Item) e
 		Title:    item.Title,
 		Category: string(item.Category),
 		Metadata: item.Metadata,
+		Rating:   item.Rating,
 	}
 	_, err := m.client.Index(m.index).AddDocuments([]searchDoc{doc}, "id")
 	_ = ctx

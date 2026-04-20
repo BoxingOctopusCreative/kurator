@@ -7,6 +7,7 @@ import {
   type CategoryFormSlice,
 } from "@/components/CategoryMetadataFields";
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
+import { ItemStarRating } from "@/components/ItemStarRating";
 import { createItem, fetchCollections, type Category } from "@/lib/api";
 import { buildItemMetadata } from "@/lib/itemMetadata";
 import { mergeCategoryFormSlice } from "@/lib/mergeCategoryFormSlice";
@@ -30,6 +31,7 @@ export default function AddItemPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [collections, setCollections] = useState<{ id: number; name: string }[]>([]);
   const [collectionId, setCollectionId] = useState<number | null>(null);
+  const [rating, setRating] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +69,13 @@ export default function AddItemPage() {
       const safeTitle = assertItemTitle(title);
       const metadata = buildItemMetadata(category, slice);
       const cid = collectionId;
-      await createItem({ title: safeTitle, category, collection_id: cid, metadata });
+      await createItem({
+        title: safeTitle,
+        category,
+        collection_id: cid,
+        metadata,
+        rating: rating ?? undefined,
+      });
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -128,6 +136,11 @@ export default function AddItemPage() {
             setSlice((prev) => mergeCategoryFormSlice(prev, slice));
           }}
         />
+
+        <div className="space-y-2">
+          <span className="block text-sm text-kurator-muted">Rating (optional)</span>
+          <ItemStarRating value={rating} onChange={setRating} />
+        </div>
 
         <label className="block text-sm">
           <span className="text-kurator-muted">Category</span>

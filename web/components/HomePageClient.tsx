@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { LandingPage } from "@/components/LandingPage";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { ItemStarRating } from "@/components/ItemStarRating";
 import { fetchItems, type Item } from "@/lib/api";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { getCoverArtUrl } from "@/lib/itemDisplay";
@@ -29,6 +30,9 @@ function ItemCard({ item }: { item: Item }) {
           <span className="inline-flex rounded-full bg-kurator-border/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
             {categoryLabel(item.category)}
           </span>
+          <div className="mt-1.5">
+            <ItemStarRating value={item.rating ?? null} size="sm" />
+          </div>
         </div>
         <div className="mt-auto flex flex-1 flex-col justify-end p-3 pt-2">
           <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">

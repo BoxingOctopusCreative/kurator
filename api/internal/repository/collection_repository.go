@@ -211,6 +211,9 @@ func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id int64, vi
 	return &c, nil
 }
 
+// LegacyDefaultCollectionID is the id from migration 001_init ("Default" shelf). It may still have user_id NULL.
+const LegacyDefaultCollectionID int64 = 1
+
 // IsUserOwnedCollection reports whether the collection exists and is owned by userID.
 // Legacy shared collections (user_id NULL) return (false, nil).
 func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context, collectionID, userID int64) (bool, error) {
@@ -226,6 +229,35 @@ func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context
 		return false, nil
 	}
 	return uid.Int64 == userID, nil
+}
+
+// UserMayMutateCollectionContent is true when userID may import/export items, PATCH the collection,
+// or create/update/delete items targeting this collection. Personal shelves use normal ownership.
+// The seed Default shelf (id=1) may still have user_id NULL; any signed-in user is allowed so
+// single-tenant and legacy databases keep working. UpdateByOwner assigns user_id on first PATCH.
+func (r *PostgresCollectionRepository) UserMayMutateCollectionContent(ctx context.Context, collectionID, userID int64) (bool, error) {
+	if userID < 1 {
+		return false, nil
+	}
+	owned, err := r.IsUserOwnedCollection(ctx, collectionID, userID)
+	if err != nil {
+		return false, err
+	}
+	if owned {
+		return true, nil
+	}
+	var uid sql.NullInt64
+	err = r.pool.QueryRow(ctx, `SELECT user_id FROM collections WHERE id = $1`, collectionID).Scan(&uid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrCollectionNotFound
+	}
+	if err != nil {
+		return false, fmt.Errorf("collection mutate check: %w", err)
+	}
+	if !uid.Valid && collectionID == LegacyDefaultCollectionID {
+		return true, nil
+	}
+	return false, nil
 }
 
 func scanCollectionRow(row pgx.Row) (models.Collection, error) {
@@ -312,13 +344,14 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 	var desc sql.NullString
 	err := r.pool.QueryRow(ctx, `
 		UPDATE collections SET
+			user_id = COALESCE(user_id, $2::bigint),
 			name = CASE WHEN $3::boolean THEN $4::text ELSE name END,
 			description = CASE WHEN $5::boolean THEN $6::text ELSE description END,
 			is_public = CASE WHEN $7::boolean THEN $8::bool ELSE is_public END,
 			updated_at = NOW()
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND (user_id = $2 OR (id = $9 AND user_id IS NULL))
 		RETURNING id, user_id, name, description, is_public, created_at, updated_at
-	`, id, ownerID, setName, nameVal, setDesc, descVal, setPublic, pubVal).Scan(
+	`, id, ownerID, setName, nameVal, setDesc, descVal, setPublic, pubVal, LegacyDefaultCollectionID).Scan(
 		&c.ID, &uid, &c.Name, &desc, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {

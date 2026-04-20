@@ -15,6 +15,8 @@ export type Item = {
   title: string;
   category: Category;
   metadata: Record<string, unknown>;
+  /** 1–5 stars, or null/omitted when not rated. */
+  rating?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -37,11 +39,20 @@ export type CollectionListResponse = {
   page_size: number;
 };
 
+function itemsListHttpError(res: Response): Error {
+  if (res.status >= 500) {
+    return new Error(
+      "Could not load items (server error). If you run the API yourself, apply the latest database migrations and restart."
+    );
+  }
+  return new Error(`Could not load items (${res.status}).`);
+}
+
 export async function fetchLatestItems(limit = 24): Promise<Item[]> {
   const res = await fetch(apiUrl(`/items?limit=${limit}`), {
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`items: ${res.status}`);
+  if (!res.ok) throw itemsListHttpError(res);
   const data: unknown = await res.json();
   return Array.isArray(data) ? data : [];
 }
@@ -58,7 +69,7 @@ export async function fetchItems(opts?: {
   const res = await fetch(apiUrl(`/items?${sp}`), {
     credentials: "include",
   });
-  if (!res.ok) throw new Error(`items: ${res.status}`);
+  if (!res.ok) throw itemsListHttpError(res);
   const data: unknown = await res.json();
   return Array.isArray(data) ? data : [];
 }
@@ -484,23 +495,85 @@ export async function createItem(body: {
   category: Category;
   collection_id?: number;
   metadata: Record<string, unknown>;
+  /** 1–5, or null to leave unrated. */
+  rating?: number | null;
 }): Promise<Item> {
+  const payload: Record<string, unknown> = {
+    title: body.title,
+    category: body.category,
+    collection_id: body.collection_id ?? 1,
+    metadata: body.metadata,
+  };
+  if (body.rating !== undefined) {
+    payload.rating = body.rating;
+  }
   const res = await fetch(apiUrl("/items"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: body.title,
-      category: body.category,
-      collection_id: body.collection_id ?? 1,
-      metadata: body.metadata,
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `create: ${res.status}`);
   }
   return res.json();
+}
+
+export async function updateItem(
+  id: number,
+  body: {
+    title: string;
+    category: Category;
+    metadata: Record<string, unknown>;
+    /** Set a number (1–5), or `null` to clear. Omit to leave the stored rating unchanged. */
+    rating?: number | null;
+    /** When set, moves the item to another collection you own (other fields still updated). */
+    collection_id?: number;
+  }
+): Promise<Item> {
+  const payload: Record<string, unknown> = {
+    title: body.title,
+    category: body.category,
+    metadata: body.metadata,
+  };
+  if (body.rating !== undefined) {
+    payload.rating = body.rating;
+  }
+  if (body.collection_id !== undefined) {
+    payload.collection_id = body.collection_id;
+  }
+  const res = await fetch(apiUrl(`/items/${id}`), {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `update item: ${res.status}`);
+  }
+  return res.json() as Promise<Item>;
+}
+
+export async function deleteItem(id: number): Promise<void> {
+  const res = await fetch(apiUrl(`/items/${id}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (res.status === 401) {
+    throw new Error("Sign in to delete this item.");
+  }
+  if (res.status === 403) {
+    throw new Error("You can only delete items from your own collections.");
+  }
+  if (res.status === 404) {
+    throw new Error("Item not found.");
+  }
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `delete item: ${res.status}`);
+  }
 }
 
 export async function searchItems(q: string, limit = 20): Promise<unknown> {

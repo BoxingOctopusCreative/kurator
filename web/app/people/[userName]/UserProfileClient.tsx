@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Layers } from "lucide-react";
 import type { CollectionListResponse, UserProfile } from "@/lib/api";
 import { fetchUserProfile, followUser, unfollowUser, publicLegalNameLine } from "@/lib/api";
+import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
+import { socialPlatformDisplayName } from "@/lib/socialPlatforms";
 import { useAuth } from "@/components/AuthProvider";
 
 type Props = {
@@ -118,16 +120,18 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
             </div>
           </div>
           {profile.social_links?.length ? (
-            <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+            <ul className="mt-4 flex flex-wrap gap-3">
               {profile.social_links.map((link, i) => (
                 <li key={`${link.url}-${i}`}>
                   <a
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-kurator-accent hover:underline"
+                    title={socialPlatformDisplayName(link.platform ?? "")}
+                    aria-label={socialPlatformDisplayName(link.platform ?? "")}
+                    className="inline-flex rounded-full border border-kurator-border/80 bg-kurator-surface/50 p-1.5 text-kurator-accent transition-colors hover:border-kurator-accent/50 hover:bg-kurator-surface"
                   >
-                    {link.label.trim() ? link.label : link.url}
+                    <SocialLinkDecorativeIcon url={link.url} platform={link.platform ?? undefined} />
                   </a>
                 </li>
               ))}

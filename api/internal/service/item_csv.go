@@ -30,7 +30,7 @@ type ImportItemRowErr struct {
 	Error string `json:"error"`
 }
 
-// ExportCollectionItemsCSV returns UTF-8 CSV bytes with header id,title,category,metadata.
+// ExportCollectionItemsCSV returns UTF-8 CSV bytes with header id,title,category,metadata,rating.
 func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID int64) ([]byte, error) {
 	items, err := s.repo.ListByCollectionExport(ctx, collectionID, 50000)
 	if err != nil {
@@ -38,7 +38,7 @@ func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID
 	}
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
-	if err := w.Write([]string{"id", "title", "category", "metadata"}); err != nil {
+	if err := w.Write([]string{"id", "title", "category", "metadata", "rating"}); err != nil {
 		return nil, err
 	}
 	for _, it := range items {
@@ -46,11 +46,16 @@ func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID
 		if meta == "" {
 			meta = "{}"
 		}
+		rating := ""
+		if it.Rating != nil {
+			rating = strconv.Itoa(*it.Rating)
+		}
 		if err := w.Write([]string{
 			strconv.FormatInt(it.ID, 10),
 			it.Title,
 			string(it.Category),
 			meta,
+			rating,
 		}); err != nil {
 			return nil, err
 		}
@@ -93,6 +98,7 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 	}
 	idIx, hasID := col["id"]
 	metaIx, hasMeta := col["metadata"]
+	ratingIx, hasRatingCol := col["rating"]
 
 	out := &ImportItemsResult{Errors: make([]ImportItemRowErr, 0)}
 	rowNum := 1 // header
@@ -148,6 +154,19 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 			continue
 		}
 
+		var parseRating *int
+		if hasRatingCol && ratingIx < len(rec) {
+			rStr := strings.TrimSpace(rec[ratingIx])
+			if rStr != "" {
+				n, perr := strconv.Atoi(rStr)
+				if perr != nil || n < 1 || n > 5 {
+					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "invalid rating"})
+					continue
+				}
+				parseRating = &n
+			}
+		}
+
 		if hasID && idIx < len(rec) {
 			idStr := strings.TrimSpace(rec[idIx])
 			if idStr != "" {
@@ -169,10 +188,19 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "item belongs to another collection"})
 					continue
 				}
+				var ru *models.RatingUpdate
+				if hasRatingCol && ratingIx < len(rec) {
+					if parseRating == nil {
+						ru = &models.RatingUpdate{SetNull: true}
+					} else {
+						ru = &models.RatingUpdate{SetNull: false, Stars: *parseRating}
+					}
+				}
 				_, uerr := s.Update(ctx, itemID, UpdateItemInput{
 					Title:    title2,
 					Category: category,
 					Metadata: meta2,
+					Rating:   ru,
 				})
 				if uerr != nil {
 					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: uerr.Error()})
@@ -188,6 +216,7 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 			Title:        title2,
 			Category:     category,
 			Metadata:     meta2,
+			Rating:       parseRating,
 		})
 		if cerr != nil {
 			out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: cerr.Error()})

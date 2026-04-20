@@ -3,6 +3,8 @@
  * React escapes text nodes by default; this adds defense in depth for stored JSON/metadata.
  */
 
+import { ALLOWED_SOCIAL_PLATFORM_IDS } from "./socialPlatforms";
+
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -232,9 +234,10 @@ export function normalizeProfileUrlSegment(raw: string): string | null {
   }
 }
 
-export type SocialLinkInput = { label: string; url: string };
+/** `platform` is required when saving; older API rows may omit it until the profile is saved again. */
+export type SocialLinkInput = { platform?: string; url: string };
 
-/** Normalizes and validates social link rows for PATCH /me (max 12, http(s) URLs). */
+/** Normalizes and validates social link rows for PATCH /me (max 12, known platform + http(s) URL). */
 export function assertSocialLinksPayload(raw: unknown): SocialLinkInput[] {
   if (!Array.isArray(raw)) {
     throw new ValidationError("Social links must be a list.");
@@ -246,15 +249,18 @@ export function assertSocialLinksPayload(raw: unknown): SocialLinkInput[] {
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
-    const label = typeof o.label === "string" ? o.label : "";
     const url = typeof o.url === "string" ? o.url.trim() : "";
     if (!url) continue;
     const u = assertHttpOrHttpsUrl(url, "Link URL");
-    const t = label.trim();
-    const lab = t
-      ? assertStrictPlainText(t, 64, "Label", { allowEmpty: false })
-      : "";
-    out.push({ label: lab, url: u });
+    const platformRaw = typeof o.platform === "string" ? o.platform.trim().toLowerCase() : "";
+    if (!platformRaw) {
+      throw new ValidationError("Each social link must include a platform.");
+    }
+    if (!ALLOWED_SOCIAL_PLATFORM_IDS.has(platformRaw)) {
+      throw new ValidationError(`Unknown social platform: ${platformRaw}.`);
+    }
+    const plat = assertStrictPlainText(platformRaw, 32, "Platform", { allowEmpty: false });
+    out.push({ platform: plat, url: u });
   }
   return out;
 }

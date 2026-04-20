@@ -15,7 +15,7 @@ GOFLAGS := -trimpath
 
 help:
 	@echo "Kurator API — targets:"
-	@echo "  After build: ./$(BIN_DIR)/$(BINARY_NAME) -migrate  — run SQL migrations (DATABASE_URL), then exit"
+	@echo "  Migrations: the API applies bundled SQL migrations on boot; use ./cmd/migrate for DATABASE_URL-only runs"
 	@echo "  Config: env vars > CLI flags (-config, -database-url, …) > kurator.toml (see kurator.example.toml)"
 	@echo "  build              — current OS/arch -> $(BIN_DIR)/$(BINARY_NAME)"
 	@echo "  build-macos-native — macOS: auto amd64 (Intel) or arm64 (Apple Silicon)"

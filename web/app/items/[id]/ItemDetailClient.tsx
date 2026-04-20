@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { Item, ItemEnrichment } from "@/lib/api";
-import { fetchItem, fetchItemEnrichment } from "@/lib/api";
+import { fetchItem, fetchItemEnrichment, updateItem } from "@/lib/api";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { getCoverArtUrl, getItemYear } from "@/lib/itemDisplay";
 
@@ -30,6 +31,8 @@ export function ItemDetailClient() {
   const [enrichment, setEnrichment] = useState<ItemEnrichment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(id) || id < 1) {
@@ -66,6 +69,29 @@ export function ItemDetailClient() {
       cancelled = true;
     };
   }, [id]);
+
+  async function saveRating(next: number | null) {
+    if (!item) return;
+    setRatingError(null);
+    setRatingBusy(true);
+    try {
+      const meta =
+        item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+          ? (item.metadata as Record<string, unknown>)
+          : {};
+      const updated = await updateItem(item.id, {
+        title: item.title,
+        category: item.category,
+        metadata: meta,
+        rating: next,
+      });
+      setItem(updated);
+    } catch (e: unknown) {
+      setRatingError(e instanceof Error ? e.message : "Could not save rating.");
+    } finally {
+      setRatingBusy(false);
+    }
+  }
 
   if (!Number.isFinite(id) || id < 1) {
     return (
@@ -135,6 +161,19 @@ export function ItemDetailClient() {
               <span className="text-sm text-kurator-muted">
                 Year <span className="text-kurator-fg">{year}</span>
               </span>
+            ) : null}
+          </div>
+          <div className="mt-4 flex flex-col items-center gap-1 sm:items-start">
+            <span className="text-xs font-medium uppercase tracking-wide text-kurator-muted">Rating</span>
+            <ItemStarRating
+              value={item.rating ?? null}
+              onChange={(n) => void saveRating(n)}
+              disabled={ratingBusy}
+            />
+            {ratingError ? (
+              <p className="text-xs text-red-400" role="alert">
+                {ratingError}
+              </p>
             ) : null}
           </div>
           <dl className="mt-4 grid gap-2 text-left text-xs text-kurator-muted sm:grid-cols-2">

@@ -298,6 +298,17 @@ func ItemTitle(s string) (string, error) {
 	return StrictPlainText(s, MaxTitle, "Title", false)
 }
 
+// OptionalItemRating validates an optional 1–5 star rating (nil = unrated).
+func OptionalItemRating(p *int) (*int, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if *p < 1 || *p > 5 {
+		return nil, fmt.Errorf("rating must be between 1 and 5")
+	}
+	return p, nil
+}
+
 // CollectionOrWishlistName validates a collection or wishlist name.
 func CollectionOrWishlistName(s string, field string) (string, error) {
 	return StrictPlainText(s, MaxName, field, false)

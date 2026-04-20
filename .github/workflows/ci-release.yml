@@ -194,6 +194,11 @@ jobs:
           build-args: |
             API_INTERNAL_URL=http://kurator-api:8080
             NEXT_PUBLIC_API_URL=http://localhost:8080
+            NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID=${{ secrets.LAUNCHDARKLY_CLIENT_SIDE_ID }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            SENTRY_ORG=${{ secrets.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ secrets.SENTRY_PROJECT }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
           tags: |
             ghcr.io/${{ steps.ns.outputs.owner_lc }}/kurator-web:${{ steps.tag_version.outputs.new_tag }}
             ghcr.io/${{ steps.ns.outputs.owner_lc }}/kurator-web:latest

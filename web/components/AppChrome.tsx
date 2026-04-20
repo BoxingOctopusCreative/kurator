@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,15 +15,17 @@ import {
 import { UserBar } from "@/components/UserBar";
 import Image from "next/image";
 import { Copyright } from "@/components/Copyright";
+import { useFeatureGates } from "@/components/LoggedInFeatureFlags";
 
-const mainNav = [
+const mainNavBase = [
   { href: "/", label: "Home", icon: LayoutGrid },
   { href: "/collections", label: "Collections", icon: Layers },
   { href: "/people", label: "People", icon: Users },
   { href: "/wishlists", label: "Wishlists", icon: Heart },
   { href: "/items/add", label: "Add", icon: PlusCircle },
-  { href: "/scan", label: "Scan", icon: ScanBarcode },
-];
+] as const;
+
+const scanNavItem = { href: "/scan", label: "Scan", icon: ScanBarcode } as const;
 
 const profileNavItem = {
   href: "/profile",
@@ -30,11 +33,17 @@ const profileNavItem = {
   icon: UserCircle,
 } as const;
 
-/** Bottom tab bar (mobile): profile stays last but grouped with the rest for layout. */
-const nav = [...mainNav, profileNavItem];
-
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { showBarcodeScanNav } = useFeatureGates();
+
+  const mainNav = useMemo(
+    () => (showBarcodeScanNav ? [...mainNavBase, scanNavItem] : [...mainNavBase]),
+    [showBarcodeScanNav]
+  );
+
+  /** Bottom tab bar (mobile): profile stays last but grouped with the rest for layout. */
+  const nav = useMemo(() => [...mainNav, profileNavItem], [mainNav]);
 
   const profileActive =
     pathname === profileNavItem.href || pathname.startsWith(`${profileNavItem.href}/`);
@@ -44,18 +53,21 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="hidden w-56 shrink-0 border-r border-kurator-border bg-kurator-surface md:flex md:h-dvh md:max-h-dvh md:flex-col md:overflow-y-auto md:self-start md:py-6 md:sticky md:top-0">
-        <div className="px-5 pb-6">
-          <Link href="/" className="mb-4 flex justify-center">
-            <Image
-              src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
-              alt="Kurator"
-              width={256}
-              height={128}
-              className="h-auto w-32 invert dark:invert-0"
-              loading="eager"
-            />
-          </Link>
-          <p className="mt-1 text-center text-sm text-kurator-muted">Collection tracker</p>
+        <div className="mb-4 mt-2 px-3 pb-2">
+          <div className="border-b border-kurator-border pb-3">
+            <div className="px-2">
+              <Link href="/" className="flex justify-center">
+                <Image
+                  src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
+                  alt="Kurator"
+                  width={256}
+                  height={128}
+                  className="h-auto w-48 invert dark:invert-0"
+                  loading="eager"
+                />
+              </Link>
+            </div>
+          </div>
         </div>
         <div className="px-5 pb-4">
           <UserBar centered />
