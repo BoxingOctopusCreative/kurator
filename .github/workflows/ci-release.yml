@@ -69,7 +69,7 @@ jobs:
         id: ns
         run: echo "owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Bump SemVer tag (MAJOR:/MINOR:/PATCH: or conventional commits; default patch)
+      - name: "Bump SemVer tag (MAJOR:/MINOR:/PATCH: or conventional commits; default patch)"
         id: tag_version
         uses: mathieudutour/github-tag-action@v6.2
         with:
