@@ -1,0 +1,72 @@
+# Snyk dependency and static-code scans. Add org/repo secret SNYK_TOKEN (snyk.io account → Settings → Auth).
+#
+# Retests: pull_request / push, manual (Actions → Snyk Security → Run workflow), and weekly schedule
+# (new advisories and Snyk rules without a code change).
+
+name: Snyk Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * 1"
+
+concurrency:
+  group: snyk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    # Fork PRs cannot use this repo’s secrets; skip instead of failing with a missing-token error.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: snyk/actions/setup@v1
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      - name: Snyk test (API — Go)
+        working-directory: api
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --project-name=kurator-api
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies for Snyk
+        working-directory: web
+        run: npm ci
+
+      - name: Snyk test (Web — npm)
+        working-directory: web
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --project-name=kurator-web
+
+      - name: Snyk Code (repo)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk code test
+
+      - name: Snyk monitor (main only — refresh Snyk UI projects)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          (cd api && snyk monitor --project-name=kurator-api)
+          (cd web && snyk monitor --project-name=kurator-web)
