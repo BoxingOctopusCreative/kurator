@@ -84,7 +84,7 @@ export function BarcodeScannerPlaceholder() {
           onClick={() => void start()}
           className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90"
         >
-          Start camera
+          Start Camera
         </button>
         <button
           type="button"

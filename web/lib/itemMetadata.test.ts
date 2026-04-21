@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CategoryFormSlice } from "@/components/CategoryMetadataFields";
-import { buildItemMetadata } from "./itemMetadata";
+import { buildItemMetadata, metadataToCategoryFormSlice } from "./itemMetadata";
 import { ValidationError } from "./validation";
 
 describe("buildItemMetadata", () => {
@@ -39,7 +39,7 @@ describe("buildItemMetadata", () => {
     expect(out).not.toHaveProperty("format");
   });
 
-  it("builds video fields", () => {
+  it("builds movies / TMDB-style fields", () => {
     const slice: CategoryFormSlice = {
       format: "dvd",
       video_type: "movie",
@@ -47,7 +47,7 @@ describe("buildItemMetadata", () => {
       year: "1999",
       cover_art: "https://example/p.jpg",
     };
-    expect(buildItemMetadata("video", slice)).toMatchObject({
+    expect(buildItemMetadata("movies", slice)).toMatchObject({
       format: "dvd",
       video_type: "movie",
       genre: "Sci-fi",
@@ -126,5 +126,34 @@ describe("buildItemMetadata", () => {
     expect(
       buildItemMetadata("comic_book", { writer: "W", single_issue: false })
     ).toMatchObject({ writer: "W", single_issue: false });
+  });
+});
+
+describe("metadataToCategoryFormSlice", () => {
+  it("round-trips music including vinyl and custom format", () => {
+    const built = buildItemMetadata("music", {
+      artist: "A",
+      format: "vinyl",
+      album: "L",
+      year: "1974",
+    });
+    const slice = metadataToCategoryFormSlice("music", built);
+    expect(buildItemMetadata("music", slice)).toEqual(built);
+    const customMeta = buildItemMetadata("music", { format: "other", format_custom: "MiniDisc" });
+    const slice2 = metadataToCategoryFormSlice("music", customMeta);
+    expect(buildItemMetadata("music", slice2)).toEqual(customMeta);
+  });
+
+  it("round-trips comic book single_issue and issue number", () => {
+    const built = buildItemMetadata("comic_book", {
+      writer: "W",
+      artist: "Art",
+      publisher: "Pub",
+      year: "1987",
+      single_issue: true,
+      issue_number: "12",
+    });
+    const slice = metadataToCategoryFormSlice("comic_book", built);
+    expect(buildItemMetadata("comic_book", slice)).toEqual(built);
   });
 });

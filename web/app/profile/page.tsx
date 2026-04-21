@@ -530,7 +530,7 @@ export default function ProfilePage() {
               className="rounded-lg border border-kurator-border px-3 py-1.5 text-xs text-kurator-muted hover:text-kurator-fg"
               onClick={() => setSocialRows([...socialRows, { platform: "github", handle: "" }])}
             >
-              Add link
+              Add Link
             </button>
           ) : null}
         </div>
@@ -571,7 +571,7 @@ export default function ProfilePage() {
               htmlFor="profile-banner-file"
               className={`inline-flex cursor-pointer rounded-lg border border-kurator-border bg-kurator-bg px-3 py-1.5 text-xs font-medium text-kurator-fg hover:bg-kurator-surface ${bannerBusy || busy ? "pointer-events-none opacity-50" : ""}`}
             >
-              {bannerBusy ? "Uploading…" : "Upload banner"}
+              {bannerBusy ? "Uploading…" : "Upload Banner"}
             </label>
             {bannerUrl ? (
               <button
@@ -580,7 +580,7 @@ export default function ProfilePage() {
                 onClick={() => void onClearBanner()}
                 className="rounded-lg border border-kurator-border px-3 py-1.5 text-xs text-kurator-muted hover:text-kurator-fg disabled:opacity-50"
               >
-                Remove banner
+                Remove Banner
               </button>
             ) : null}
           </div>
@@ -623,7 +623,7 @@ export default function ProfilePage() {
                   htmlFor="profile-avatar-file"
                   className={`inline-flex cursor-pointer rounded-lg border border-kurator-border bg-kurator-bg px-3 py-1.5 text-xs font-medium text-kurator-fg hover:bg-kurator-surface ${avatarBusy || busy ? "pointer-events-none opacity-50" : ""}`}
                 >
-                  {avatarBusy ? "Uploading…" : "Upload photo"}
+                  {avatarBusy ? "Uploading…" : "Upload Photo"}
                 </label>
                 {avatarUrl ? (
                   <button
@@ -632,7 +632,7 @@ export default function ProfilePage() {
                     onClick={() => void onClearAvatar()}
                     className="rounded-lg border border-kurator-border px-3 py-1.5 text-xs text-kurator-muted hover:text-kurator-fg disabled:opacity-50"
                   >
-                    Remove photo
+                    Remove Photo
                   </button>
                 ) : null}
               </div>
@@ -658,7 +658,7 @@ export default function ProfilePage() {
           disabled={busy}
           className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Save profile"}
+          {busy ? "Saving…" : "Save Profile"}
         </button>
       </form>
 
@@ -686,7 +686,7 @@ export default function ProfilePage() {
               disabled={busy}
               className="rounded-lg border border-red-500/50 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-950/50 disabled:opacity-50"
             >
-              Turn off 2FA
+              Turn Off 2FA
             </button>
           </form>
         ) : twoFASetup ? (
@@ -716,7 +716,7 @@ export default function ProfilePage() {
                 disabled={busy}
                 className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent disabled:opacity-50"
               >
-                Confirm and enable
+                Confirm and Enable
               </button>
               <button
                 type="button"
@@ -737,7 +737,7 @@ export default function ProfilePage() {
             onClick={() => void onBegin2FA()}
             className="rounded-lg border border-kurator-border px-4 py-2 text-sm font-medium text-kurator-fg hover:bg-kurator-border/40 disabled:opacity-50"
           >
-            Set up authenticator
+            Set Up Authenticator
           </button>
         )}
       </section>
@@ -754,10 +754,10 @@ export default function ProfilePage() {
           onClick={() => void onLogout()}
           className="rounded-lg border border-kurator-border px-4 py-2 text-sm text-kurator-muted hover:text-kurator-fg"
         >
-          Log out
+          Log Out
         </button>
         <Link href="/" className="rounded-lg px-4 py-2 text-sm text-kurator-accent hover:underline">
-          Back to dashboard
+          Back to Dashboard
         </Link>
       </div>
     </div>

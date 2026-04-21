@@ -5,27 +5,38 @@ export type Category =
   | "game"
   | "music"
   | "book"
-  | "video"
+  | "movies"
+  | "tv"
+  | "anime"
   | "comic_book"
   | "manga";
 
+/** Whether the item is still queued vs finished for its category (wording depends on category). */
+export type ConsumptionStatus = "pending" | "done";
+
 export type Item = {
-  id: number;
-  collection_id: number;
+  id: string;
+  collection_id: string;
   title: string;
   category: Category;
   metadata: Record<string, unknown>;
   /** 1–5 stars, or null/omitted when not rated. */
   rating?: number | null;
+  /** Omitted on older API databases; treat missing as `"pending"`. */
+  consumption_status?: ConsumptionStatus;
   created_at: string;
   updated_at: string;
 };
 
 export type Collection = {
-  id: number;
+  id: string;
   user_id?: number | null;
   name: string;
   description?: string | null;
+  /** When set, items on this shelf must use this category. */
+  category?: Category | null;
+  /** Absolute image URL or same-origin path from upload. */
+  cover_art_url?: string | null;
   is_public: boolean;
   item_count: number;
   created_at: string;
@@ -59,12 +70,17 @@ export async function fetchLatestItems(limit = 24): Promise<Item[]> {
 
 export async function fetchItems(opts?: {
   limit?: number;
-  collectionId?: number;
+  collectionId?: string;
+  /** When loading a collection: filter by consumption (server-side when supported). */
+  consumptionStatus?: ConsumptionStatus | "all";
   /** Requires login. Ignored when collectionId is set. */
   scope?: "mine" | "following";
 }): Promise<Item[]> {
   const sp = new URLSearchParams({ limit: String(opts?.limit ?? 48) });
   if (opts?.collectionId != null) sp.set("collection_id", String(opts.collectionId));
+  if (opts?.consumptionStatus && opts?.consumptionStatus !== "all" && opts.collectionId != null) {
+    sp.set("consumption_status", opts.consumptionStatus);
+  }
   if (opts?.scope && opts.collectionId == null) sp.set("scope", opts.scope);
   const res = await fetch(apiUrl(`/items?${sp}`), {
     credentials: "include",
@@ -74,7 +90,7 @@ export async function fetchItems(opts?: {
   return Array.isArray(data) ? data : [];
 }
 
-export async function fetchItem(id: number): Promise<Item> {
+export async function fetchItem(id: string): Promise<Item> {
   const res = await fetch(apiUrl(`/items/${id}`), {
     credentials: "include",
     cache: "no-store",
@@ -82,6 +98,20 @@ export async function fetchItem(id: number): Promise<Item> {
   if (res.status === 404) throw new Error("Item not found.");
   if (!res.ok) throw new Error(`item: ${res.status}`);
   return res.json() as Promise<Item>;
+}
+
+/** Lists visible to the viewer that include this item (same visibility as the item itself). */
+export type ItemListRef = { id: string; name: string; cover_art_url?: string | null };
+
+export async function fetchItemLists(id: string): Promise<ItemListRef[]> {
+  const res = await fetch(apiUrl(`/items/${id}/lists`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new Error("Item not found.");
+  if (!res.ok) throw new Error(`item lists: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as ItemListRef[]) : [];
 }
 
 export type ItemEnrichment = {
@@ -92,7 +122,7 @@ export type ItemEnrichment = {
 };
 
 /** Plot or summary text when available for this item. */
-export async function fetchItemEnrichment(id: number): Promise<ItemEnrichment> {
+export async function fetchItemEnrichment(id: string): Promise<ItemEnrichment> {
   const res = await fetch(apiUrl(`/items/${id}/enrichment`), {
     credentials: "include",
     cache: "no-store",
@@ -134,7 +164,7 @@ export async function fetchCollections(params: {
   return data;
 }
 
-export async function fetchCollection(id: number): Promise<Collection> {
+export async function fetchCollection(id: string): Promise<Collection> {
   const res = await fetch(apiUrl(`/collections/${id}`), { credentials: "include" });
   if (res.status === 404) throw new Error("Collection not found.");
   if (!res.ok) throw new Error(`collection: ${res.status}`);
@@ -145,12 +175,15 @@ export async function createCollection(body: {
   name: string;
   description?: string;
   is_public?: boolean;
+  /** Pins the new shelf to one item type; omit for a flex shelf until the first item pins it. */
+  category?: Category;
 }): Promise<Collection> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
     description: body.description?.trim() ?? "",
   };
   if (body.is_public !== undefined) payload.is_public = body.is_public;
+  if (body.category !== undefined) payload.category = body.category;
   const res = await fetch(apiUrl("/collections"), {
     method: "POST",
     credentials: "include",
@@ -168,8 +201,8 @@ export async function createCollection(body: {
 }
 
 export async function patchCollection(
-  id: number,
-  body: { name?: string; description?: string; is_public?: boolean }
+  id: string,
+  body: { name?: string; description?: string; is_public?: boolean; cover_art_url?: string }
 ): Promise<Collection> {
   const res = await fetch(apiUrl(`/collections/${id}`), {
     method: "PATCH",
@@ -187,8 +220,59 @@ export async function patchCollection(
   return res.json();
 }
 
-/** CSV columns: id, title, category, metadata (JSON). Owner-only. */
-export async function exportCollectionItemsCsv(collectionId: number): Promise<Blob> {
+export type CollectionDeleteMoveTarget = {
+  id: string;
+  name: string;
+  category?: Category;
+};
+
+export type CollectionDeleteConflictPayload = {
+  item_count: number;
+  eligible_move_targets: CollectionDeleteMoveTarget[];
+};
+
+export type DeleteCollectionOutcome =
+  | { ok: true }
+  | { ok: false; conflict: CollectionDeleteConflictPayload }
+  | { ok: false; message: string };
+
+/** Delete a collection you own. Call with no options first when the shelf may have items: a 409 returns eligible shelves to move into. */
+export async function deleteCollection(
+  id: string,
+  opts?: { move_items_to?: string; delete_items?: boolean }
+): Promise<DeleteCollectionOutcome> {
+  const body: Record<string, unknown> = {};
+  if (opts?.move_items_to) body.move_items_to = opts.move_items_to;
+  if (opts?.delete_items) body.delete_items = true;
+  const res = await fetch(apiUrl(`/collections/${id}`), {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 204) return { ok: true };
+  if (res.status === 401) {
+    return { ok: false, message: "Sign in to delete a collection." };
+  }
+  if (res.status === 409) {
+    const j = (await res.json()) as {
+      item_count?: number;
+      eligible_move_targets?: CollectionDeleteMoveTarget[];
+    };
+    return {
+      ok: false,
+      conflict: {
+        item_count: Number(j.item_count ?? 0),
+        eligible_move_targets: Array.isArray(j.eligible_move_targets) ? j.eligible_move_targets : [],
+      },
+    };
+  }
+  const t = await res.text();
+  return { ok: false, message: t || `delete collection: ${res.status}` };
+}
+
+/** CSV columns: id, title, category, metadata (JSON), optional rating, optional consumption_status. Owner-only. */
+export async function exportCollectionItemsCsv(collectionId: string): Promise<Blob> {
   const res = await fetch(apiUrl(`/collections/${collectionId}/items.csv`), {
     credentials: "include",
   });
@@ -205,7 +289,7 @@ export type ImportItemsResult = {
 };
 
 export async function importCollectionItemsCsv(
-  collectionId: number,
+  collectionId: string,
   file: File
 ): Promise<ImportItemsResult> {
   const fd = new FormData();
@@ -332,11 +416,12 @@ export async function unfollowUser(userRef: string): Promise<void> {
 }
 
 export type Wishlist = {
-  id: number;
+  id: string;
   user_id: number;
   name: string;
   description?: string | null;
-  target_collection_id?: number | null;
+  cover_art_url?: string | null;
+  target_collection_id?: string | null;
   is_public: boolean;
   entry_count: number;
   created_at: string;
@@ -344,8 +429,8 @@ export type Wishlist = {
 };
 
 export type WishlistEntry = {
-  id: number;
-  wishlist_id: number;
+  id: string;
+  wishlist_id: string;
   title: string;
   category: Category;
   metadata: Record<string, unknown>;
@@ -361,7 +446,7 @@ export async function fetchWishlists(): Promise<Wishlist[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function fetchWishlist(id: number): Promise<Wishlist> {
+export async function fetchWishlist(id: string): Promise<Wishlist> {
   const res = await fetch(apiUrl(`/wishlists/${id}`), { credentials: "include" });
   if (res.status === 404) throw new Error("Wishlist not found.");
   if (!res.ok) throw new Error(`wishlist: ${res.status}`);
@@ -371,7 +456,7 @@ export async function fetchWishlist(id: number): Promise<Wishlist> {
 export async function createWishlist(body: {
   name: string;
   description?: string;
-  target_collection_id?: number | null;
+  target_collection_id?: string | null;
   is_public?: boolean;
 }): Promise<Wishlist> {
   const payload: Record<string, unknown> = {
@@ -395,12 +480,14 @@ export async function createWishlist(body: {
 }
 
 export async function updateWishlist(
-  id: number,
+  id: string,
   body: {
     name: string;
     description?: string;
-    target_collection_id?: number | null;
+    target_collection_id?: string | null;
     is_public?: boolean;
+    /** Omit to leave unchanged; empty string clears the cover. */
+    cover_art_url?: string;
   }
 ): Promise<Wishlist> {
   const payload: Record<string, unknown> = {
@@ -408,6 +495,7 @@ export async function updateWishlist(
     description: body.description?.trim() ?? "",
   };
   if (body.is_public !== undefined) payload.is_public = body.is_public;
+  if (body.cover_art_url !== undefined) payload.cover_art_url = body.cover_art_url;
   if (body.target_collection_id === null || body.target_collection_id === undefined) {
     payload.target_collection_id = null;
   } else {
@@ -426,15 +514,52 @@ export async function updateWishlist(
   return res.json();
 }
 
-export async function deleteWishlist(id: number): Promise<void> {
+export type EntryDeleteMoveTarget = { id: string; name: string };
+
+export type EntryDeleteConflictPayload = {
+  entry_count: number;
+  eligible_move_targets: EntryDeleteMoveTarget[];
+};
+
+export type DeleteWishlistOutcome =
+  | { ok: true }
+  | { ok: false; conflict: EntryDeleteConflictPayload }
+  | { ok: false; message: string };
+
+/** Delete a wishlist you own. Call with no options first when entries may exist to receive 409 + eligible targets. */
+export async function deleteWishlist(
+  id: string,
+  opts?: { move_entries_to?: string; discard_entries?: boolean }
+): Promise<DeleteWishlistOutcome> {
+  const body: Record<string, unknown> = {};
+  if (opts?.move_entries_to) body.move_entries_to = opts.move_entries_to;
+  if (opts?.discard_entries) body.discard_entries = true;
   const res = await fetch(apiUrl(`/wishlists/${id}`), {
     method: "DELETE",
     credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`delete wishlist: ${res.status}`);
+  if (res.status === 204) return { ok: true };
+  if (res.status === 401) return { ok: false, message: "Sign in to delete a wishlist." };
+  if (res.status === 409) {
+    const j = (await res.json()) as {
+      entry_count?: number;
+      eligible_move_targets?: EntryDeleteMoveTarget[];
+    };
+    return {
+      ok: false,
+      conflict: {
+        entry_count: Number(j.entry_count ?? 0),
+        eligible_move_targets: Array.isArray(j.eligible_move_targets) ? j.eligible_move_targets : [],
+      },
+    };
+  }
+  const t = await res.text();
+  return { ok: false, message: t || `delete wishlist: ${res.status}` };
 }
 
-export async function fetchWishlistEntries(wishlistId: number): Promise<WishlistEntry[]> {
+export async function fetchWishlistEntries(wishlistId: string): Promise<WishlistEntry[]> {
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries`), { credentials: "include" });
   if (!res.ok) throw new Error(`wishlist entries: ${res.status}`);
   const data: unknown = await res.json();
@@ -442,7 +567,7 @@ export async function fetchWishlistEntries(wishlistId: number): Promise<Wishlist
 }
 
 export async function createWishlistEntry(
-  wishlistId: number,
+  wishlistId: string,
   body: { title: string; category: Category; metadata: Record<string, unknown> }
 ): Promise<WishlistEntry> {
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries`), {
@@ -462,7 +587,7 @@ export async function createWishlistEntry(
   return res.json();
 }
 
-export async function deleteWishlistEntry(wishlistId: number, entryId: number): Promise<void> {
+export async function deleteWishlistEntry(wishlistId: string, entryId: string): Promise<void> {
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries/${entryId}`), {
     method: "DELETE",
     credentials: "include",
@@ -470,17 +595,48 @@ export async function deleteWishlistEntry(wishlistId: number, entryId: number): 
   if (!res.ok) throw new Error(`delete entry: ${res.status}`);
 }
 
+/** CSV columns: id, title, category, metadata (JSON). Owner-only. */
+export async function exportWishlistEntriesCsv(wishlistId: string): Promise<Blob> {
+  const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries.csv`), {
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in to export.");
+  if (res.status === 403) throw new Error("Only the wishlist owner can export entries.");
+  if (!res.ok) throw new Error(`export: ${res.status}`);
+  return res.blob();
+}
+
+export async function importWishlistEntriesCsv(
+  wishlistId: string,
+  file: File
+): Promise<ImportItemsResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries/import`), {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  });
+  if (res.status === 401) throw new Error("Sign in to import.");
+  if (res.status === 403) throw new Error("Only the wishlist owner can import entries.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `import: ${res.status}`);
+  }
+  return res.json() as Promise<ImportItemsResult>;
+}
+
 export async function obtainWishlistEntry(
-  wishlistId: number,
-  entryId: number,
-  collectionId?: number
+  wishlistId: string,
+  entryId: string,
+  collectionId?: string
 ): Promise<Item> {
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries/${entryId}/obtain`), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(
-      collectionId != null && collectionId > 0 ? { collection_id: collectionId } : {}
+      collectionId != null && collectionId.trim() !== "" ? { collection_id: collectionId } : {}
     ),
   });
   if (!res.ok) {
@@ -490,22 +646,173 @@ export async function obtainWishlistEntry(
   return res.json();
 }
 
+export type List = {
+  id: string;
+  user_id: number;
+  name: string;
+  description?: string | null;
+  cover_art_url?: string | null;
+  is_public: boolean;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchLists(): Promise<List[]> {
+  const res = await fetch(apiUrl("/lists"), { credentials: "include" });
+  if (res.status === 401) throw new Error("Sign in to view lists.");
+  if (!res.ok) throw new Error(`lists: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchList(id: string): Promise<List> {
+  const res = await fetch(apiUrl(`/lists/${id}`), { credentials: "include" });
+  if (res.status === 404) throw new Error("List not found.");
+  if (!res.ok) throw new Error(`list: ${res.status}`);
+  return res.json();
+}
+
+export async function createList(body: {
+  name: string;
+  description?: string;
+  is_public?: boolean;
+}): Promise<List> {
+  const payload: Record<string, unknown> = {
+    name: body.name.trim(),
+    description: body.description?.trim() ?? "",
+  };
+  if (body.is_public !== undefined) payload.is_public = body.is_public;
+  const res = await fetch(apiUrl("/lists"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 401) throw new Error("Sign in to create a list.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `create list: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateList(
+  id: string,
+  body: { name: string; description?: string; is_public?: boolean; cover_art_url?: string }
+): Promise<List> {
+  const payload: Record<string, unknown> = {
+    name: body.name.trim(),
+    description: body.description?.trim() ?? "",
+  };
+  if (body.is_public !== undefined) payload.is_public = body.is_public;
+  if (body.cover_art_url !== undefined) payload.cover_art_url = body.cover_art_url;
+  const res = await fetch(apiUrl(`/lists/${id}`), {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `update list: ${res.status}`);
+  }
+  return res.json();
+}
+
+export type DeleteListOutcome =
+  | { ok: true }
+  | { ok: false; conflict: EntryDeleteConflictPayload }
+  | { ok: false; message: string };
+
+/** Delete a list you own. Call with no options first when the list has item links to receive 409 + eligible targets. */
+export async function deleteList(
+  id: string,
+  opts?: { move_entries_to?: string; discard_entries?: boolean }
+): Promise<DeleteListOutcome> {
+  const body: Record<string, unknown> = {};
+  if (opts?.move_entries_to) body.move_entries_to = opts.move_entries_to;
+  if (opts?.discard_entries) body.discard_entries = true;
+  const res = await fetch(apiUrl(`/lists/${id}`), {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 204) return { ok: true };
+  if (res.status === 401) return { ok: false, message: "Sign in to delete a list." };
+  if (res.status === 409) {
+    const j = (await res.json()) as {
+      entry_count?: number;
+      eligible_move_targets?: EntryDeleteMoveTarget[];
+    };
+    return {
+      ok: false,
+      conflict: {
+        entry_count: Number(j.entry_count ?? 0),
+        eligible_move_targets: Array.isArray(j.eligible_move_targets) ? j.eligible_move_targets : [],
+      },
+    };
+  }
+  const t = await res.text();
+  return { ok: false, message: t || `delete list: ${res.status}` };
+}
+
+export async function fetchListItems(listId: string): Promise<Item[]> {
+  const res = await fetch(apiUrl(`/lists/${listId}/items`), { credentials: "include" });
+  if (!res.ok) throw new Error(`list items: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+export async function addListItem(listId: string, itemId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/lists/${listId}/items`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_id: itemId }),
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (res.status === 404) throw new Error("Item not found.");
+  if (res.status === 403) throw new Error("You can only add items from shelves you can edit.");
+  if (res.status === 409) throw new Error("That item is already on this list.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `add to list: ${res.status}`);
+  }
+}
+
+export async function removeListItem(listId: string, itemId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/lists/${listId}/items/${itemId}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`remove from list: ${res.status}`);
+}
+
 export async function createItem(body: {
   title: string;
   category: Category;
-  collection_id?: number;
+  /** Omit to let the API use your oldest shelf (requires at least one collection). */
+  collection_id?: string;
   metadata: Record<string, unknown>;
   /** 1–5, or null to leave unrated. */
   rating?: number | null;
+  consumption_status?: ConsumptionStatus;
 }): Promise<Item> {
   const payload: Record<string, unknown> = {
     title: body.title,
     category: body.category,
-    collection_id: body.collection_id ?? 1,
     metadata: body.metadata,
   };
+  if (body.collection_id !== undefined) {
+    payload.collection_id = body.collection_id;
+  }
   if (body.rating !== undefined) {
     payload.rating = body.rating;
+  }
+  if (body.consumption_status !== undefined) {
+    payload.consumption_status = body.consumption_status;
   }
   const res = await fetch(apiUrl("/items"), {
     method: "POST",
@@ -521,15 +828,17 @@ export async function createItem(body: {
 }
 
 export async function updateItem(
-  id: number,
+  id: string,
   body: {
     title: string;
     category: Category;
     metadata: Record<string, unknown>;
     /** Set a number (1–5), or `null` to clear. Omit to leave the stored rating unchanged. */
     rating?: number | null;
+    /** Omit to leave consumption unchanged. */
+    consumption_status?: ConsumptionStatus;
     /** When set, moves the item to another collection you own (other fields still updated). */
-    collection_id?: number;
+    collection_id?: string;
   }
 ): Promise<Item> {
   const payload: Record<string, unknown> = {
@@ -539,6 +848,9 @@ export async function updateItem(
   };
   if (body.rating !== undefined) {
     payload.rating = body.rating;
+  }
+  if (body.consumption_status !== undefined) {
+    payload.consumption_status = body.consumption_status;
   }
   if (body.collection_id !== undefined) {
     payload.collection_id = body.collection_id;
@@ -556,7 +868,7 @@ export async function updateItem(
   return res.json() as Promise<Item>;
 }
 
-export async function deleteItem(id: number): Promise<void> {
+export async function deleteItem(id: string): Promise<void> {
   const res = await fetch(apiUrl(`/items/${id}`), {
     method: "DELETE",
     credentials: "include",

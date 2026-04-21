@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 
+	"github.com/boxingoctopus/kurator/api/internal/httpx"
 	"github.com/boxingoctopus/kurator/api/internal/middleware"
+	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/gofiber/fiber/v2"
@@ -27,7 +31,7 @@ func NewCollectionHandler(
 	return &CollectionHandler{svc: svc, auth: auth, items: items, coll: coll}
 }
 
-func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID int64) (int64, error) {
+func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID string) (int64, error) {
 	uid, ok := c.Locals("userID").(int64)
 	if !ok || uid < 1 {
 		return 0, fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
@@ -56,8 +60,8 @@ func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID int
 // @Failure 404 {object} map[string]string
 // @Router /api/v1/collections/{id}/items.csv [get]
 func (h *CollectionHandler) ExportItemsCSV(c *fiber.Ctx) error {
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	if _, err := h.assertCollectionOwner(c, id); err != nil {
@@ -68,7 +72,7 @@ func (h *CollectionHandler) ExportItemsCSV(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	c.Set("Content-Type", "text/csv; charset=utf-8")
-	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="collection-%d-items.csv"`, id))
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="collection-%s-items.csv"`, id))
 	return c.Send(b)
 }
 
@@ -85,8 +89,8 @@ func (h *CollectionHandler) ExportItemsCSV(c *fiber.Ctx) error {
 // @Failure 403 {object} map[string]string
 // @Router /api/v1/collections/{id}/items/import [post]
 func (h *CollectionHandler) ImportItemsCSV(c *fiber.Ctx) error {
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	if _, err := h.assertCollectionOwner(c, id); err != nil {
@@ -109,8 +113,7 @@ func (h *CollectionHandler) ImportItemsCSV(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// List supports optional auth. Visibility rules use legacy shared collections (user_id NULL),
-// public user collections, and private collections visible only to the owner.
+// List supports optional auth. Public shelves are visible to everyone; private shelves only to their owner.
 // @Summary List collections
 // @Tags collections
 // @Produce json
@@ -173,8 +176,8 @@ func (h *CollectionHandler) List(c *fiber.Ctx) error {
 // @Failure 500 {object} map[string]string
 // @Router /api/v1/collections/{id} [get]
 func (h *CollectionHandler) Get(c *fiber.Ctx) error {
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var viewer *int64
@@ -200,6 +203,8 @@ type CreateCollectionBody struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	IsPublic    *bool  `json:"is_public"`
+	// Category optionally pins this shelf to one item type (e.g. "movies"). Omit for a flex shelf until the first item pins it.
+	Category *models.Category `json:"category"`
 }
 
 // Create adds a collection for the signed-in user (requires session).
@@ -221,7 +226,7 @@ func (h *CollectionHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	col, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.IsPublic)
+	col, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.IsPublic, body.Category)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -230,9 +235,10 @@ func (h *CollectionHandler) Create(c *fiber.Ctx) error {
 
 // PatchCollectionBody is the JSON body for PATCH /collections/:id.
 type PatchCollectionBody struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
-	IsPublic    *bool   `json:"is_public"`
+	Name         *string `json:"name"`
+	Description  *string `json:"description"`
+	IsPublic     *bool   `json:"is_public"`
+	CoverArtURL  *string `json:"cover_art_url"`
 }
 
 // Patch updates a collection owned by the signed-in user.
@@ -241,15 +247,15 @@ func (h *CollectionHandler) Patch(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var body PatchCollectionBody
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	col, err := h.svc.Patch(c.Context(), uid, id, body.Name, body.Description, body.IsPublic)
+	col, err := h.svc.Patch(c.Context(), uid, id, body.Name, body.Description, body.IsPublic, body.CoverArtURL)
 	if errors.Is(err, repository.ErrCollectionNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
@@ -257,4 +263,46 @@ func (h *CollectionHandler) Patch(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	return c.JSON(col)
+}
+
+// DeleteCollectionBody is optional JSON on DELETE /collections/:id.
+type DeleteCollectionBody struct {
+	MoveItemsTo *string `json:"move_items_to"`
+	DeleteItems bool    `json:"delete_items"`
+}
+
+// Delete removes a collection owned by the signed-in user. Shelves with items require either
+// move_items_to (another owned shelf that accepts those categories) or delete_items: true.
+func (h *CollectionHandler) Delete(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
+	}
+	var body DeleteCollectionBody
+	raw := c.Body()
+	if len(bytes.TrimSpace(raw)) > 0 {
+		if err := json.Unmarshal(raw, &body); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+		}
+	}
+	err = h.svc.Delete(c.Context(), uid, id, body.MoveItemsTo, body.DeleteItems)
+	var conflict *service.CollectionDeleteConflict
+	if errors.As(err, &conflict) && conflict != nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":                   "collection_has_items",
+			"item_count":              conflict.ItemCount,
+			"eligible_move_targets":   conflict.EligibleMoveTargets,
+		})
+	}
+	if errors.Is(err, repository.ErrCollectionNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }

@@ -1,5 +1,36 @@
-import type { Item } from "@/lib/api";
+import type { Category, Item } from "@/lib/api";
 import { categoryLabel } from "@/lib/categoryLabels";
+
+const MUSIC_FORMAT_LABELS: Record<string, string> = {
+  vinyl: "Vinyl",
+  cd: "CD",
+  tape: "Tape",
+  other: "Other",
+};
+
+const VIDEO_FORMAT_LABELS: Record<string, string> = {
+  vhs: "VHS",
+  dvd: "DVD",
+  blu_ray: "Blu-ray",
+};
+
+/** User-visible format from metadata (music / video categories); empty when unset. */
+export function getItemFormatLabel(item: Item): string {
+  const meta = item.metadata;
+  if (!meta || typeof meta !== "object") return "";
+  const raw = (meta as Record<string, unknown>).format;
+  if (typeof raw !== "string") return "";
+  const t = raw.trim();
+  if (!t) return "";
+  const cat = item.category;
+  if (cat === "music") {
+    return MUSIC_FORMAT_LABELS[t] ?? t;
+  }
+  if (cat === "movies" || cat === "tv" || cat === "anime") {
+    return VIDEO_FORMAT_LABELS[t] ?? t.replace(/_/g, " ");
+  }
+  return t;
+}
 
 /** Returns cover image URL from item metadata when present. */
 export function getCoverArtUrl(metadata: Record<string, unknown> | undefined): string | null {

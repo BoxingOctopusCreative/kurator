@@ -152,7 +152,7 @@ func enrichFallback(s *MetadataService, ctx context.Context, category models.Cat
 					tmp["catalog_open_library_key"] = k
 				}
 			}
-		case models.CategoryVideo:
+		case models.CategoryMovies, models.CategoryTV, models.CategoryAnime:
 			tmp["catalog_tmdb_id"] = h.ExternalID
 			if mt, ok := h.Extra["media_type"].(string); ok {
 				tmp["catalog_tmdb_media_type"] = mt
@@ -170,7 +170,7 @@ func metadataProviderForCategory(c models.Category) string {
 		return "thegamesdb"
 	case models.CategoryBook:
 		return "book"
-	case models.CategoryVideo:
+	case models.CategoryMovies, models.CategoryTV, models.CategoryAnime:
 		return "tmdb"
 	case models.CategoryComicBook:
 		return "comic"
@@ -186,7 +186,7 @@ func (s *MetadataService) enrichFromCatalog(ctx context.Context, category models
 		return ItemEnrichment{}
 	}
 	switch category {
-	case models.CategoryVideo:
+	case models.CategoryMovies, models.CategoryTV, models.CategoryAnime:
 		return s.enrichTMDBDetail(ctx, metaStr(m, "catalog_tmdb_id"), metaStr(m, "catalog_tmdb_media_type"))
 	case models.CategoryGame:
 		return s.enrichTheGamesDBDetail(ctx, metaStr(m, "catalog_gamesdb_id"))

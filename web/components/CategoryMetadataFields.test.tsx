@@ -45,11 +45,12 @@ describe("CategoryMetadataFields", () => {
     expect(within(root).getByTestId("artist-out")).toHaveTextContent("ab");
   });
 
-  it("renders video format options", () => {
-    render(<CategoryMetadataFields category="video" values={{}} onChange={() => {}} />);
+  it("renders movies / screen media format options", () => {
+    render(<CategoryMetadataFields category="movies" values={{}} onChange={() => {}} />);
     expect(screen.getByRole("option", { name: "VHS" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Blu-Ray" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Movie" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Anime" })).toBeInTheDocument();
   });
 
   it("renders game platform field", () => {

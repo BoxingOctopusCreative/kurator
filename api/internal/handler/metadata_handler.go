@@ -22,7 +22,7 @@ func NewMetadataHandler(svc *service.MetadataService) *MetadataHandler {
 // @Produce json
 // @Param q query string false "Search text (alias: query)"
 // @Param query query string false "Alias for q"
-// @Param category query string false "music, game, book, video, comic_book, manga"
+// @Param category query string false "music, game, book, movies, tv, anime, comic_book, manga"
 // @Param provider query string false "discogs, thegamesdb, book, tmdb, comic, comicvine, jikan, auto"
 // @Success 200 {object} service.MetadataLookupResult
 // @Router /api/v1/metadata/lookup [get]
@@ -58,7 +58,7 @@ func resolveMetadataProvider(category, provider string) string {
 		return "thegamesdb"
 	case "book":
 		return "book"
-	case "video":
+	case "movies", "tv", "anime":
 		return "tmdb"
 	case "comic_book":
 		return "comic"

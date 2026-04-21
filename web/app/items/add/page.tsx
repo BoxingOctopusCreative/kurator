@@ -1,14 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   CategoryMetadataFields,
   type CategoryFormSlice,
 } from "@/components/CategoryMetadataFields";
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
 import { ItemStarRating } from "@/components/ItemStarRating";
-import { createItem, fetchCollections, type Category } from "@/lib/api";
+import { createItem, fetchCollections, type Category, type Collection, type ConsumptionStatus } from "@/lib/api";
+import { consumptionDoneLabel, consumptionPendingLabel } from "@/lib/consumptionLabels";
 import { buildItemMetadata } from "@/lib/itemMetadata";
 import { mergeCategoryFormSlice } from "@/lib/mergeCategoryFormSlice";
 import { assertItemTitle } from "@/lib/validation";
@@ -17,64 +18,81 @@ const categories: { value: Category; label: string }[] = [
   { value: "game", label: "Game" },
   { value: "music", label: "Music" },
   { value: "book", label: "Book" },
-  { value: "video", label: "Video" },
+  { value: "movies", label: "Movies" },
+  { value: "tv", label: "TV" },
+  { value: "anime", label: "Anime" },
   { value: "comic_book", label: "Comic book" },
   { value: "manga", label: "Manga" },
 ];
 
 export default function AddItemPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const collectionParam = searchParams.get("collection");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("game");
   const [slice, setSlice] = useState<CategoryFormSlice>({});
   const [status, setStatus] = useState<"idle" | "saving">("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const [collections, setCollections] = useState<{ id: number; name: string }[]>([]);
-  const [collectionId, setCollectionId] = useState<number | null>(null);
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
+  const [collectionId, setCollectionId] = useState<string | null>(null);
   const [rating, setRating] = useState<number | null>(null);
+  const [consumption, setConsumption] = useState<ConsumptionStatus>("pending");
 
   useEffect(() => {
     let cancelled = false;
     fetchCollections({ limit: 100, sort: "name_asc" })
       .then((res) => {
         if (cancelled) return;
-        const items = res.items.map((c) => ({ id: c.id, name: c.name }));
-        setCollections(items);
-        setCollectionId((prev) => {
-          if (prev != null) return prev;
-          if (items.length > 0) return items[0].id;
-          return 1;
-        });
+        setAllCollections(res.items);
       })
       .catch(() => {
-        if (!cancelled) {
-          setCollectionId((prev) => (prev != null ? prev : 1));
-        }
+        if (!cancelled) setAllCollections([]);
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const visibleCollections = useMemo(
+    () => allCollections.filter((c) => !c.category || c.category === category),
+    [allCollections, category]
+  );
+
+  useEffect(() => {
+    const fromUrl =
+      collectionParam?.trim() &&
+      visibleCollections.some((c) => c.id === collectionParam.trim())
+        ? collectionParam.trim()
+        : null;
+    setCollectionId((prev) => {
+      if (visibleCollections.length === 0) return null;
+      if (fromUrl) return fromUrl;
+      if (prev != null && visibleCollections.some((c) => c.id === prev)) return prev;
+      return visibleCollections[0].id;
+    });
+  }, [visibleCollections, collectionParam]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
     setStatus("saving");
     try {
-      if (collectionId == null || collectionId < 1) {
+      if (collectionId == null || collectionId.trim() === "") {
         setMessage("Choose a collection.");
         setStatus("idle");
         return;
       }
       const safeTitle = assertItemTitle(title);
       const metadata = buildItemMetadata(category, slice);
-      const cid = collectionId;
+      const cid = collectionId.trim();
       await createItem({
         title: safeTitle,
         category,
         collection_id: cid,
         metadata,
         rating: rating ?? undefined,
+        consumption_status: consumption,
       });
       router.push("/");
       router.refresh();
@@ -94,20 +112,47 @@ export default function AddItemPage() {
 
       <form onSubmit={onSubmit} className="mt-8 space-y-6">
         <label className="block text-sm">
+          <span className="text-kurator-muted">Category</span>
+          <select
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value as Category);
+              setSlice({});
+            }}
+          >
+            {categories.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-kurator-muted">
+            Shelves pinned to another type are hidden from this picker.
+          </span>
+        </label>
+
+        <label className="block text-sm">
           <span className="text-kurator-muted">Collection</span>
           <select
             className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
             value={collectionId ?? ""}
-            onChange={(e) => setCollectionId(Number(e.target.value))}
-            disabled={collections.length === 0}
+            onChange={(e) => {
+              const v = e.target.value;
+              setCollectionId(v === "" ? null : v);
+            }}
+            disabled={visibleCollections.length === 0}
             required
           >
-            {collections.length === 0 ? (
+            {allCollections.length === 0 ? (
               <option value="">Loading collections…</option>
+            ) : visibleCollections.length === 0 ? (
+              <option value="">No shelf for this category — create one on Collections</option>
             ) : (
-              collections.map((c) => (
+              visibleCollections.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                  {!c.category ? " (any type)" : ""}
                 </option>
               ))
             )}
@@ -143,20 +188,14 @@ export default function AddItemPage() {
         </div>
 
         <label className="block text-sm">
-          <span className="text-kurator-muted">Category</span>
+          <span className="text-kurator-muted">Status</span>
           <select
             className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-            value={category}
-            onChange={(e) => {
-              setCategory(e.target.value as Category);
-              setSlice({});
-            }}
+            value={consumption}
+            onChange={(e) => setConsumption(e.target.value as ConsumptionStatus)}
           >
-            {categories.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
+            <option value="pending">{consumptionPendingLabel(category)}</option>
+            <option value="done">{consumptionDoneLabel(category)}</option>
           </select>
         </label>
 
@@ -176,7 +215,7 @@ export default function AddItemPage() {
           disabled={status === "saving"}
           className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
         >
-          {status === "saving" ? "Saving…" : "Save item"}
+          {status === "saving" ? "Saving…" : "Save Item"}
         </button>
       </form>
     </div>

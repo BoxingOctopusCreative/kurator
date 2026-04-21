@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { WishlistsBrowser } from "@/components/WishlistsBrowser";
 
 export const metadata: Metadata = {
@@ -7,9 +6,5 @@ export const metadata: Metadata = {
 };
 
 export default function WishlistsPage() {
-  return (
-    <Suspense fallback={<p className="text-sm text-kurator-muted">Loading…</p>}>
-      <WishlistsBrowser />
-    </Suspense>
-  );
+  return <WishlistsBrowser />;
 }

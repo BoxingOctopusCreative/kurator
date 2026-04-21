@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
-	"strconv"
+	"fmt"
 
+	"github.com/boxingoctopus/kurator/api/internal/httpx"
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
@@ -33,10 +35,10 @@ func (h *WishlistHandler) List(c *fiber.Ctx) error {
 }
 
 type createWishlistBody struct {
-	Name               string `json:"name"`
-	Description        string `json:"description"`
-	TargetCollectionID *int64 `json:"target_collection_id"`
-	IsPublic           *bool  `json:"is_public"`
+	Name               string  `json:"name"`
+	Description        string  `json:"description"`
+	TargetCollectionID *string `json:"target_collection_id"`
+	IsPublic           *bool   `json:"is_public"`
 }
 
 func (h *WishlistHandler) Create(c *fiber.Ctx) error {
@@ -56,10 +58,11 @@ func (h *WishlistHandler) Create(c *fiber.Ctx) error {
 }
 
 type updateWishlistBody struct {
-	Name               string `json:"name"`
-	Description        string `json:"description"`
-	TargetCollectionID *int64 `json:"target_collection_id"`
-	IsPublic           *bool  `json:"is_public"`
+	Name               string  `json:"name"`
+	Description        string  `json:"description"`
+	TargetCollectionID *string `json:"target_collection_id"`
+	IsPublic           *bool   `json:"is_public"`
+	CoverArtURL        *string `json:"cover_art_url"`
 }
 
 func (h *WishlistHandler) Update(c *fiber.Ctx) error {
@@ -67,15 +70,15 @@ func (h *WishlistHandler) Update(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var body updateWishlistBody
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	wl, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.TargetCollectionID, body.IsPublic)
+	wl, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.TargetCollectionID, body.IsPublic, body.CoverArtURL)
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
@@ -85,22 +88,113 @@ func (h *WishlistHandler) Update(c *fiber.Ctx) error {
 	return c.JSON(wl)
 }
 
+// DeleteWishlistBody is optional JSON on DELETE /wishlists/:id.
+type DeleteWishlistBody struct {
+	MoveEntriesTo  *string `json:"move_entries_to"`
+	DiscardEntries bool    `json:"discard_entries"`
+}
+
 func (h *WishlistHandler) Delete(c *fiber.Ctx) error {
 	uid, ok := c.Locals("userID").(int64)
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	if err := h.svc.Delete(c.Context(), id, uid); err != nil {
+	var body DeleteWishlistBody
+	raw := c.Body()
+	if len(bytes.TrimSpace(raw)) > 0 {
+		if err := json.Unmarshal(raw, &body); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+		}
+	}
+	err = h.svc.Delete(c.Context(), id, uid, body.MoveEntriesTo, body.DiscardEntries)
+	var conflict *service.WishlistDeleteConflict
+	if errors.As(err, &conflict) && conflict != nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error":                 "wishlist_has_entries",
+			"entry_count":           conflict.EntryCount,
+			"eligible_move_targets": conflict.EligibleMoveTargets,
+		})
+	}
+	if errors.Is(err, repository.ErrWishlistNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ExportEntriesCSV returns wishlist entries as CSV (owner only).
+func (h *WishlistHandler) ExportEntriesCSV(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
+	}
+	wl, err := h.svc.Get(c.Context(), wid, uid)
+	if errors.Is(err, repository.ErrWishlistNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	if wl.UserID != uid {
+		return fiber.NewError(fiber.StatusForbidden, "only the wishlist owner can export entries")
+	}
+	b, err := h.svc.ExportWishlistEntriesCSV(c.Context(), wid, uid)
+	if err != nil {
 		if errors.Is(err, repository.ErrWishlistNotFound) {
 			return fiber.NewError(fiber.StatusNotFound, "not found")
 		}
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
-	return c.SendStatus(fiber.StatusNoContent)
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="wishlist-%s-entries.csv"`, wid))
+	return c.Send(b)
+}
+
+// ImportEntriesCSV accepts multipart form field "file" (CSV). Creates rows; non-empty id updates that entry on this wishlist.
+func (h *WishlistHandler) ImportEntriesCSV(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
+	}
+	wl, err := h.svc.Get(c.Context(), wid, uid)
+	if errors.Is(err, repository.ErrWishlistNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	if wl.UserID != uid {
+		return fiber.NewError(fiber.StatusForbidden, "only the wishlist owner can import entries")
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, `multipart form field "file" with CSV is required`)
+	}
+	fh, err := file.Open()
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "could not read upload")
+	}
+	defer fh.Close()
+
+	res, err := h.svc.ImportWishlistEntriesFromCSV(c.Context(), wid, uid, fh)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(res)
 }
 
 func (h *WishlistHandler) Get(c *fiber.Ctx) error {
@@ -108,8 +202,8 @@ func (h *WishlistHandler) Get(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || id < 1 {
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	wl, err := h.svc.Get(c.Context(), id, uid)
@@ -127,8 +221,8 @@ func (h *WishlistHandler) ListEntries(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	wid, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || wid < 1 {
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
 	}
 	entries, err := h.svc.ListEntries(c.Context(), wid, uid)
@@ -152,8 +246,8 @@ func (h *WishlistHandler) CreateEntry(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	wid, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || wid < 1 {
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
 	}
 	var body createWishlistEntryBody
@@ -175,12 +269,12 @@ func (h *WishlistHandler) DeleteEntry(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	wid, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || wid < 1 {
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
 	}
-	eid, err := strconv.ParseInt(c.Params("entryId"), 10, 64)
-	if err != nil || eid < 1 {
+	eid, err := httpx.PathUUID(c.Params("entryId"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid entry id")
 	}
 	if err := h.svc.DeleteEntry(c.Context(), wid, eid, uid); err != nil {
@@ -193,7 +287,7 @@ func (h *WishlistHandler) DeleteEntry(c *fiber.Ctx) error {
 }
 
 type obtainBody struct {
-	CollectionID *int64 `json:"collection_id"`
+	CollectionID *string `json:"collection_id"`
 }
 
 func (h *WishlistHandler) Obtain(c *fiber.Ctx) error {
@@ -201,12 +295,12 @@ func (h *WishlistHandler) Obtain(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	wid, err := strconv.ParseInt(c.Params("id"), 10, 64)
-	if err != nil || wid < 1 {
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
 	}
-	eid, err := strconv.ParseInt(c.Params("entryId"), 10, 64)
-	if err != nil || eid < 1 {
+	eid, err := httpx.PathUUID(c.Params("entryId"))
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid entry id")
 	}
 	var body obtainBody

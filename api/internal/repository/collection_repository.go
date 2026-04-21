@@ -21,11 +21,11 @@ type CollectionListParams struct {
 	FollowingOnly bool
 	// OwnerUserID when set lists only that user's collections (subject to visibility rules).
 	OwnerUserID *int64
-	Q            string // search name / description
-	Sort         string // name_asc, name_desc, updated_desc, created_desc, items_desc
-	HasDesc      string // "", "yes", "no"
-	Limit        int
-	Offset       int
+	Q           string // search name / description
+	Sort        string // name_asc, name_desc, updated_desc, created_desc, items_desc
+	HasDesc     string // "", "yes", "no"
+	Limit       int
+	Offset      int
 }
 
 type PostgresCollectionRepository struct {
@@ -34,6 +34,11 @@ type PostgresCollectionRepository struct {
 
 func NewPostgresCollectionRepository(pool *pgxpool.Pool) *PostgresCollectionRepository {
 	return &PostgresCollectionRepository{pool: pool}
+}
+
+// BeginTx starts a transaction for category-safe item operations.
+func (r *PostgresCollectionRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return r.pool.Begin(ctx)
 }
 
 // List builds dynamic WHERE clauses using only fixed SQL fragments and pgx placeholders ($n).
@@ -63,12 +68,11 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 		viewerArg = addArg(*p.ViewerUserID)
 	}
 
-	// Legacy shared collections (user_id NULL) are always visible.
-	// User-owned: visible if public, or viewer is the owner.
+	// User-owned shelves: visible if public, or the viewer is the owner.
 	if p.ViewerUserID == nil {
-		where = append(where, "(c.user_id IS NULL OR c.is_public)")
+		where = append(where, "c.is_public")
 	} else {
-		where = append(where, fmt.Sprintf("(c.user_id IS NULL OR c.is_public OR c.user_id = $%d)", viewerArg))
+		where = append(where, fmt.Sprintf("(c.is_public OR c.user_id = $%d)", viewerArg))
 	}
 
 	if p.FollowingOnly {
@@ -125,12 +129,12 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 	offsetArg := addArg(p.Offset)
 
 	listSQL := fmt.Sprintf(`
-		SELECT c.id, c.user_id, c.name, c.description, c.is_public, c.created_at, c.updated_at,
+		SELECT c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at,
 		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
 		FROM collections c
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
-		GROUP BY c.id, c.user_id, c.name, c.description, c.is_public, c.created_at, c.updated_at
+		GROUP BY c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
 	`, whereSQL, order, limitArg, offsetArg)
@@ -153,7 +157,7 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 }
 
 // GetByID returns one collection if visible to the viewer (same rules as List).
-func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id int64, viewer *int64) (*models.Collection, error) {
+func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id string, viewer *int64) (*models.Collection, error) {
 	var args []interface{}
 	n := 1
 	addArg := func(v interface{}) int {
@@ -173,50 +177,34 @@ func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id int64, vi
 	}
 
 	if viewer == nil {
-		where = append(where, "(c.user_id IS NULL OR c.is_public)")
+		where = append(where, "c.is_public")
 	} else {
-		where = append(where, fmt.Sprintf("(c.user_id IS NULL OR c.is_public OR c.user_id = $%d)", viewerArg))
+		where = append(where, fmt.Sprintf("(c.is_public OR c.user_id = $%d)", viewerArg))
 	}
 
 	whereSQL := strings.Join(where, " AND ")
 	q := fmt.Sprintf(`
-		SELECT c.id, c.user_id, c.name, c.description, c.is_public, c.created_at, c.updated_at,
+		SELECT c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at,
 		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
 		FROM collections c
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
-		GROUP BY c.id, c.user_id, c.name, c.description, c.is_public, c.created_at, c.updated_at
+		GROUP BY c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at
 	`, whereSQL)
 
-	var c models.Collection
-	var uid sql.NullInt64
-	var desc sql.NullString
-	err := r.pool.QueryRow(ctx, q, args...).Scan(
-		&c.ID, &uid, &c.Name, &desc, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt, &c.ItemCount,
-	)
+	c, err := scanCollectionRow(r.pool.QueryRow(ctx, q, args...))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrCollectionNotFound
 		}
 		return nil, fmt.Errorf("get collection: %w", err)
 	}
-	if uid.Valid {
-		v := uid.Int64
-		c.UserID = &v
-	}
-	if desc.Valid {
-		s := desc.String
-		c.Description = &s
-	}
 	return &c, nil
 }
 
-// LegacyDefaultCollectionID is the id from migration 001_init ("Default" shelf). It may still have user_id NULL.
-const LegacyDefaultCollectionID int64 = 1
-
 // IsUserOwnedCollection reports whether the collection exists and is owned by userID.
-// Legacy shared collections (user_id NULL) return (false, nil).
-func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context, collectionID, userID int64) (bool, error) {
+// Collections with no owner (user_id NULL) return (false, nil).
+func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context, collectionID string, userID int64) (bool, error) {
 	var uid sql.NullInt64
 	err := r.pool.QueryRow(ctx, `SELECT user_id FROM collections WHERE id = $1`, collectionID).Scan(&uid)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -232,10 +220,8 @@ func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context
 }
 
 // UserMayMutateCollectionContent is true when userID may import/export items, PATCH the collection,
-// or create/update/delete items targeting this collection. Personal shelves use normal ownership.
-// The seed Default shelf (id=1) may still have user_id NULL; any signed-in user is allowed so
-// single-tenant and legacy databases keep working. UpdateByOwner assigns user_id on first PATCH.
-func (r *PostgresCollectionRepository) UserMayMutateCollectionContent(ctx context.Context, collectionID, userID int64) (bool, error) {
+// or create/update/delete items targeting this collection (owner-only).
+func (r *PostgresCollectionRepository) UserMayMutateCollectionContent(ctx context.Context, collectionID string, userID int64) (bool, error) {
 	if userID < 1 {
 		return false, nil
 	}
@@ -243,29 +229,17 @@ func (r *PostgresCollectionRepository) UserMayMutateCollectionContent(ctx contex
 	if err != nil {
 		return false, err
 	}
-	if owned {
-		return true, nil
-	}
-	var uid sql.NullInt64
-	err = r.pool.QueryRow(ctx, `SELECT user_id FROM collections WHERE id = $1`, collectionID).Scan(&uid)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, ErrCollectionNotFound
-	}
-	if err != nil {
-		return false, fmt.Errorf("collection mutate check: %w", err)
-	}
-	if !uid.Valid && collectionID == LegacyDefaultCollectionID {
-		return true, nil
-	}
-	return false, nil
+	return owned, nil
 }
 
 func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 	var c models.Collection
 	var uid sql.NullInt64
 	var desc sql.NullString
+	var cat sql.NullString
+	var cover sql.NullString
 	if err := row.Scan(
-		&c.ID, &uid, &c.Name, &desc, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt, &c.ItemCount,
+		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt, &c.ItemCount,
 	); err != nil {
 		return c, fmt.Errorf("scan collection: %w", err)
 	}
@@ -277,11 +251,21 @@ func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 		s := desc.String
 		c.Description = &s
 	}
+	if cat.Valid && strings.TrimSpace(cat.String) != "" {
+		cc := models.Category(strings.TrimSpace(cat.String))
+		if cc.Valid() {
+			c.Category = &cc
+		}
+	}
+	if cover.Valid && strings.TrimSpace(cover.String) != "" {
+		s := strings.TrimSpace(cover.String)
+		c.CoverArtURL = &s
+	}
 	return c, nil
 }
 
-// Create inserts a collection owned by userID (personal shelf).
-func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64, name string, description *string, isPublic bool) (*models.Collection, error) {
+// Create inserts a collection owned by userID (personal shelf). category may be nil (flex shelf until first item pins it).
+func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64, name string, description *string, isPublic bool, category *models.Category) (*models.Collection, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("name required")
@@ -290,15 +274,21 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 	if description != nil && strings.TrimSpace(*description) != "" {
 		descVal = strings.TrimSpace(*description)
 	}
+	var catVal interface{}
+	if category != nil && category.Valid() {
+		catVal = string(*category)
+	}
 	var c models.Collection
 	var uid sql.NullInt64
 	var desc sql.NullString
+	var cat sql.NullString
+	var cover sql.NullString
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO collections (user_id, name, description, is_public)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, user_id, name, description, is_public, created_at, updated_at
-	`, userID, name, descVal, isPublic).Scan(
-		&c.ID, &uid, &c.Name, &desc, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
+		INSERT INTO collections (user_id, name, description, is_public, category)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, user_id, name, description, category, cover_art_url, is_public, created_at, updated_at
+	`, userID, name, descVal, isPublic, catVal).Scan(
+		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create collection: %w", err)
@@ -311,15 +301,26 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 		s := desc.String
 		c.Description = &s
 	}
+	if cat.Valid && strings.TrimSpace(cat.String) != "" {
+		cc := models.Category(strings.TrimSpace(cat.String))
+		if cc.Valid() {
+			c.Category = &cc
+		}
+	}
+	if cover.Valid && strings.TrimSpace(cover.String) != "" {
+		s := strings.TrimSpace(cover.String)
+		c.CoverArtURL = &s
+	}
 	c.ItemCount = 0
 	return &c, nil
 }
 
-// UpdateByOwner updates name, description, and/or visibility for a collection owned by ownerID.
-func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerID, id int64, name *string, description *string, isPublic *bool) (*models.Collection, error) {
+// UpdateByOwner updates name, description, visibility, and/or cover art for a collection owned by ownerID.
+func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerID int64, id string, name *string, description *string, isPublic *bool, coverArt *string) (*models.Collection, error) {
 	setName := name != nil
 	setDesc := description != nil
 	setPublic := isPublic != nil
+	setCover := coverArt != nil
 
 	var nameVal interface{}
 	if setName {
@@ -338,21 +339,31 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 	if setPublic {
 		pubVal = *isPublic
 	}
+	var coverVal interface{}
+	if setCover {
+		if strings.TrimSpace(*coverArt) == "" {
+			coverVal = nil
+		} else {
+			coverVal = strings.TrimSpace(*coverArt)
+		}
+	}
 
 	var c models.Collection
 	var uid sql.NullInt64
 	var desc sql.NullString
+	var cat sql.NullString
+	var cover sql.NullString
 	err := r.pool.QueryRow(ctx, `
 		UPDATE collections SET
-			user_id = COALESCE(user_id, $2::bigint),
 			name = CASE WHEN $3::boolean THEN $4::text ELSE name END,
 			description = CASE WHEN $5::boolean THEN $6::text ELSE description END,
 			is_public = CASE WHEN $7::boolean THEN $8::bool ELSE is_public END,
+			cover_art_url = CASE WHEN $9::boolean THEN $10::text ELSE cover_art_url END,
 			updated_at = NOW()
-		WHERE id = $1 AND (user_id = $2 OR (id = $9 AND user_id IS NULL))
-		RETURNING id, user_id, name, description, is_public, created_at, updated_at
-	`, id, ownerID, setName, nameVal, setDesc, descVal, setPublic, pubVal, LegacyDefaultCollectionID).Scan(
-		&c.ID, &uid, &c.Name, &desc, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, name, description, category, cover_art_url, is_public, created_at, updated_at
+	`, id, ownerID, setName, nameVal, setDesc, descVal, setPublic, pubVal, setCover, coverVal).Scan(
+		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -368,10 +379,70 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 		s := desc.String
 		c.Description = &s
 	}
+	if cat.Valid && strings.TrimSpace(cat.String) != "" {
+		cc := models.Category(strings.TrimSpace(cat.String))
+		if cc.Valid() {
+			c.Category = &cc
+		}
+	}
+	if cover.Valid && strings.TrimSpace(cover.String) != "" {
+		s := strings.TrimSpace(cover.String)
+		c.CoverArtURL = &s
+	}
 	var cnt int64
 	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM items WHERE collection_id = $1`, id).Scan(&cnt); err != nil {
 		return nil, fmt.Errorf("count items: %w", err)
 	}
 	c.ItemCount = cnt
 	return &c, nil
+}
+
+// ResolveDefaultCollectionForItemCreate picks the viewer's oldest owned shelf when the client omits collection_id.
+// ListOwnerCollectionsExcept returns the signed-in user's other collections (for move targets when deleting a shelf).
+func (r *PostgresCollectionRepository) ListOwnerCollectionsExcept(ctx context.Context, ownerID int64, excludeID string) ([]models.Collection, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id, name, description, category, cover_art_url, is_public, created_at, updated_at, 0::bigint AS item_count
+		FROM collections
+		WHERE user_id = $1 AND id <> $2::uuid
+		ORDER BY name ASC
+	`, ownerID, excludeID)
+	if err != nil {
+		return nil, fmt.Errorf("list owner collections: %w", err)
+	}
+	defer rows.Close()
+	out := make([]models.Collection, 0)
+	for rows.Next() {
+		c, err := scanCollectionRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// DeleteOwnedCollectionTx deletes a row owned by ownerID. Caller must ensure items are gone or moved first.
+func (r *PostgresCollectionRepository) DeleteOwnedCollectionTx(ctx context.Context, tx pgx.Tx, ownerID int64, collectionID string) error {
+	tag, err := tx.Exec(ctx, `DELETE FROM collections WHERE id = $1 AND user_id = $2`, collectionID, ownerID)
+	if err != nil {
+		return fmt.Errorf("delete collection: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrCollectionNotFound
+	}
+	return nil
+}
+
+func (r *PostgresCollectionRepository) ResolveDefaultCollectionForItemCreate(ctx context.Context, userID int64) (string, error) {
+	var id string
+	err := r.pool.QueryRow(ctx, `
+		SELECT id::text FROM collections WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1
+	`, userID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("no collection available for this account")
+	}
+	if err != nil {
+		return "", fmt.Errorf("resolve default collection: %w", err)
+	}
+	return id, nil
 }

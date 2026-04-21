@@ -52,7 +52,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgres://kurator:kurator@postgres:5432/kurator?sslmode=disable
+      # For managed Postgres (Aiven/Neon), set DATABASE_URL with sslmode=verify-full (or verify-ca)
+      # and use PGSSLROOTCERT to point at the mounted CA file.
+      DATABASE_URL: ${DATABASE_URL:-postgres://kurator:kurator@postgres:5432/kurator?sslmode=disable}
+      PGSSLROOTCERT: ${PGSSLROOTCERT:-}
+      SSL_CERT_FILE: ${SSL_CERT_FILE:-}
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:-dev_master_key}
       MEILISEARCH_INDEX: kurator_items
@@ -79,9 +83,10 @@ services:
       SETUP_ENABLED: ${SETUP_ENABLED:-true}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+    volumes:
+      # Optional: mount managed-DB CA certs (e.g. Aiven CA) and set PGSSLROOTCERT to a file in this path.
+      - ./infra/certs:/opt/kurator/certs:ro
     depends_on:
-      postgres:
-        condition: service_healthy
       meilisearch:
         condition: service_started
       minio-init:
@@ -122,6 +127,8 @@ services:
   postgres:
     image: postgres:latest
     container_name: kurator-postgres
+    profiles:
+      - local-db
     environment:
       POSTGRES_USER: kurator
       POSTGRES_PASSWORD: kurator

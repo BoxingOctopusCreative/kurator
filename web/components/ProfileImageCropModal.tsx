@@ -215,7 +215,7 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
               disabled={busy}
               className="rounded-lg bg-kurator-accent px-3 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
             >
-              {busy ? "Preparing…" : "Apply & upload"}
+              {busy ? "Preparing…" : "Apply & Upload"}
             </button>
           </div>
         </div>

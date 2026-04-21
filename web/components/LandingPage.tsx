@@ -32,7 +32,7 @@ export function LandingPage({ initialBackground = null }: Props) {
 
         <div className="space-y-4 text-center">
           <p className="text-lg text-kurator-fg">
-            Kurator is your personal collection tracker — organize games, music, books, video, comics, and
+            Kurator is your personal collection tracker — organize games, music, books, movies, TV, anime, comics, and
             manga in one place.
           </p>
           <p className="text-sm leading-relaxed text-kurator-muted">

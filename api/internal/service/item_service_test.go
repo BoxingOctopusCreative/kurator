@@ -8,7 +8,11 @@ import (
 
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
+	"github.com/jackc/pgx/v5"
 )
+
+const testCollUUID = "22222222-2222-2222-2222-222222222222"
+const testItemUUID = "11111111-1111-1111-1111-111111111111"
 
 type stubItemRepo struct {
 	list    []models.Item
@@ -17,7 +21,7 @@ type stubItemRepo struct {
 	getItem *models.Item
 	getErr  error
 
-	lastCreateColl  int64
+	lastCreateColl  string
 	lastCreateTitle string
 	lastCreateCat   models.Category
 	createItem      *models.Item
@@ -26,7 +30,7 @@ type stubItemRepo struct {
 	updateItem *models.Item
 	updateErr  error
 
-	deletedIDs []int64
+	deletedIDs []string
 	deleteErr  error
 }
 
@@ -37,15 +41,15 @@ func (s *stubItemRepo) ListLatest(ctx context.Context, limit int) ([]models.Item
 	return s.list, nil
 }
 
-func (s *stubItemRepo) ListByCollection(ctx context.Context, collectionID int64, limit int) ([]models.Item, error) {
+func (s *stubItemRepo) ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
 	return s.list, nil
 }
 
-func (s *stubItemRepo) ListByCollectionExport(ctx context.Context, collectionID int64, max int) ([]models.Item, error) {
-	return s.ListByCollection(ctx, collectionID, max)
+func (s *stubItemRepo) ListByCollectionExport(ctx context.Context, collectionID string, max int) ([]models.Item, error) {
+	return s.ListByCollection(ctx, collectionID, max, "")
 }
 
 func (s *stubItemRepo) ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error) {
@@ -62,14 +66,14 @@ func (s *stubItemRepo) ListRecentFromFollowedUsers(ctx context.Context, follower
 	return s.list, nil
 }
 
-func (s *stubItemRepo) GetByID(ctx context.Context, id int64) (*models.Item, error) {
+func (s *stubItemRepo) GetByID(ctx context.Context, id string) (*models.Item, error) {
 	if s.getErr != nil {
 		return nil, s.getErr
 	}
 	return s.getItem, nil
 }
 
-func (s *stubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage, rating *int) (*models.Item, error) {
+func (s *stubItemRepo) Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
 	s.lastCreateColl = collectionID
 	s.lastCreateTitle = title
 	s.lastCreateCat = category
@@ -79,14 +83,24 @@ func (s *stubItemRepo) Create(ctx context.Context, collectionID int64, title str
 	return s.createItem, nil
 }
 
-func (s *stubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, newCollectionID *int64) (*models.Item, error) {
+func (s *stubItemRepo) CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+	_ = tx
+	return s.Create(ctx, collectionID, title, category, metadata, rating, consumption)
+}
+
+func (s *stubItemRepo) UpdateTx(ctx context.Context, tx pgx.Tx, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
+	_ = tx
+	return s.Update(ctx, id, title, category, metadata, rating, consumption, newCollectionID)
+}
+
+func (s *stubItemRepo) Update(ctx context.Context, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
 	if s.updateErr != nil {
 		return nil, s.updateErr
 	}
 	return s.updateItem, nil
 }
 
-func (s *stubItemRepo) Delete(ctx context.Context, id int64) error {
+func (s *stubItemRepo) Delete(ctx context.Context, id string) error {
 	s.deletedIDs = append(s.deletedIDs, id)
 	return s.deleteErr
 }
@@ -94,33 +108,44 @@ func (s *stubItemRepo) Delete(ctx context.Context, id int64) error {
 func TestItemService_Create_validation(t *testing.T) {
 	ctx := context.Background()
 	repo := &stubItemRepo{}
-	svc := NewItemService(repo, nil)
+	svc := NewItemService(repo, nil, nil)
 
 	_, err := svc.Create(ctx, CreateItemInput{
-		Title:    "",
-		Category: models.CategoryGame,
-		Metadata: json.RawMessage(`{}`),
+		CollectionID: testCollUUID,
+		Title:        "",
+		Category:     models.CategoryGame,
+		Metadata:     json.RawMessage(`{}`),
 	})
 	if err == nil || err.Error() != "Title is required" {
 		t.Fatalf("Create empty title: got err %v", err)
 	}
 
 	_, err = svc.Create(ctx, CreateItemInput{
-		Title:    "Ok",
-		Category: "nope",
-		Metadata: json.RawMessage(`{}`),
+		CollectionID: testCollUUID,
+		Title:        "Ok",
+		Category:     "nope",
+		Metadata:     json.RawMessage(`{}`),
 	})
 	if err == nil || err.Error() != "invalid category" {
 		t.Fatalf("Create bad category: got err %v", err)
 	}
+
+	_, err = svc.Create(ctx, CreateItemInput{
+		Title:    "Ok",
+		Category: models.CategoryGame,
+		Metadata: json.RawMessage(`{}`),
+	})
+	if err == nil || err.Error() != "collection_id is required" {
+		t.Fatalf("Create missing collection: got err %v", err)
+	}
 }
 
-func TestItemService_Create_defaultCollection(t *testing.T) {
+func TestItemService_Create_passesCollectionID(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	want := &models.Item{
-		ID:           42,
-		CollectionID: 1,
+		ID:           testItemUUID,
+		CollectionID: testCollUUID,
 		Title:        "Chrono Trigger",
 		Category:     models.CategoryGame,
 		Metadata:     json.RawMessage(`{}`),
@@ -128,10 +153,10 @@ func TestItemService_Create_defaultCollection(t *testing.T) {
 		UpdatedAt:    now,
 	}
 	repo := &stubItemRepo{createItem: want}
-	svc := NewItemService(repo, nil)
+	svc := NewItemService(repo, nil, nil)
 
 	got, err := svc.Create(ctx, CreateItemInput{
-		CollectionID: 0,
+		CollectionID: testCollUUID,
 		Title:        "Chrono Trigger",
 		Category:     models.CategoryGame,
 		Metadata:     json.RawMessage(`{}`),
@@ -140,10 +165,10 @@ func TestItemService_Create_defaultCollection(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.ID != want.ID {
-		t.Fatalf("item id: got %d", got.ID)
+		t.Fatalf("item id: got %q", got.ID)
 	}
-	if repo.lastCreateColl != 1 {
-		t.Fatalf("expected collection 1, got %d", repo.lastCreateColl)
+	if repo.lastCreateColl != testCollUUID {
+		t.Fatalf("expected collection %q, got %q", testCollUUID, repo.lastCreateColl)
 	}
 	if repo.lastCreateTitle != "Chrono Trigger" {
 		t.Fatalf("title: got %q", repo.lastCreateTitle)
@@ -152,9 +177,18 @@ func TestItemService_Create_defaultCollection(t *testing.T) {
 
 func TestItemService_Update_validation(t *testing.T) {
 	ctx := context.Background()
-	svc := NewItemService(&stubItemRepo{}, nil)
+	repo := &stubItemRepo{
+		getItem: &models.Item{
+			ID:           testItemUUID,
+			CollectionID: testCollUUID,
+			Title:        "x",
+			Category:     models.CategoryBook,
+			Metadata:     json.RawMessage(`{}`),
+		},
+	}
+	svc := NewItemService(repo, nil, nil)
 
-	_, err := svc.Update(ctx, 1, UpdateItemInput{
+	_, err := svc.Update(ctx, testItemUUID, UpdateItemInput{
 		Title:    "",
 		Category: models.CategoryBook,
 		Metadata: json.RawMessage(`{}`),
@@ -163,7 +197,7 @@ func TestItemService_Update_validation(t *testing.T) {
 		t.Fatalf("Update empty title: got %v", err)
 	}
 
-	_, err = svc.Update(ctx, 1, UpdateItemInput{
+	_, err = svc.Update(ctx, testItemUUID, UpdateItemInput{
 		Title:    "x",
 		Category: "bad",
 		Metadata: json.RawMessage(`{}`),
@@ -176,9 +210,9 @@ func TestItemService_Update_validation(t *testing.T) {
 func TestItemService_Get_notFound(t *testing.T) {
 	ctx := context.Background()
 	repo := &stubItemRepo{getErr: repository.ErrItemNotFound}
-	svc := NewItemService(repo, nil)
+	svc := NewItemService(repo, nil, nil)
 
-	_, err := svc.Get(ctx, 99)
+	_, err := svc.Get(ctx, "99999999-9999-9999-9999-999999999999")
 	if err != repository.ErrItemNotFound {
 		t.Fatalf("got %v want ErrItemNotFound", err)
 	}
@@ -187,9 +221,9 @@ func TestItemService_Get_notFound(t *testing.T) {
 func TestItemService_Delete_propagatesNotFound(t *testing.T) {
 	ctx := context.Background()
 	repo := &stubItemRepo{deleteErr: repository.ErrItemNotFound}
-	svc := NewItemService(repo, nil)
+	svc := NewItemService(repo, nil, nil)
 
-	err := svc.Delete(ctx, 5)
+	err := svc.Delete(ctx, "55555555-5555-5555-5555-555555555555")
 	if err != repository.ErrItemNotFound {
 		t.Fatalf("got %v", err)
 	}

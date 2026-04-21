@@ -11,7 +11,7 @@ import {
 
 const MUSIC_FORMAT = new Set(["vinyl", "cd", "tape", "other"]);
 const VIDEO_FORMAT = new Set(["vhs", "dvd", "blu_ray"]);
-const VIDEO_TYPE = new Set(["series", "movie"]);
+const VIDEO_TYPE = new Set(["series", "movie", "anime"]);
 
 function yearFromString(s: string | undefined, field: string): number | undefined {
   const t = s?.trim();
@@ -71,7 +71,7 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
     if (cgid) out.catalog_gamesdb_id = cgid;
   }
 
-  if (category === "video") {
+  if (category === "movies" || category === "tv" || category === "anime") {
     const vf = slice.format?.trim();
     if (vf) {
       if (!VIDEO_FORMAT.has(vf)) {
@@ -163,4 +163,120 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
   }
 
   return out;
+}
+
+function metaPlainString(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return t ? t : undefined;
+}
+
+function metaYearString(v: unknown): string | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const s = String(Math.trunc(v));
+    return /^\d{4}$/.test(s) ? s : undefined;
+  }
+  if (typeof v === "string" && /^\d{4}$/.test(v.trim())) return v.trim();
+  return undefined;
+}
+
+/**
+ * Best-effort inverse of {@link buildItemMetadata} for editing: maps stored metadata into form slice fields.
+ */
+export function metadataToCategoryFormSlice(category: Category, metadata: unknown): CategoryFormSlice {
+  const m =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const slice: CategoryFormSlice = {};
+
+  const cover = metaPlainString(m.cover_art);
+  if (cover) slice.cover_art = cover;
+  const notes = metaPlainString(m.notes);
+  if (notes) slice.notes = notes;
+
+  const y = metaYearString(m.year);
+  if (y) slice.year = y;
+
+  if (category === "music") {
+    const artist = metaPlainString(m.artist);
+    if (artist) slice.artist = artist;
+    const album = metaPlainString(m.album);
+    if (album) slice.album = album;
+    const genre = metaPlainString(m.genre);
+    if (genre) slice.genre = genre;
+    const fmt = metaPlainString(m.format);
+    if (fmt) {
+      if (MUSIC_FORMAT.has(fmt)) {
+        slice.format = fmt;
+      } else {
+        slice.format = "other";
+        slice.format_custom = fmt;
+      }
+    }
+  }
+
+  if (category === "game") {
+    const platform = metaPlainString(m.platform);
+    if (platform) slice.platform = platform;
+    const serial = metaPlainString(m.serial_number);
+    if (serial) slice.serial_number = serial;
+    const cgid = metaPlainString(m.catalog_gamesdb_id);
+    if (cgid) slice.catalog_gamesdb_id = cgid;
+  }
+
+  if (category === "movies" || category === "tv" || category === "anime") {
+    const vf = metaPlainString(m.format);
+    if (vf && VIDEO_FORMAT.has(vf)) slice.format = vf;
+    const vt = metaPlainString(m.video_type);
+    if (vt && VIDEO_TYPE.has(vt)) slice.video_type = vt;
+    const genre = metaPlainString(m.genre);
+    if (genre) slice.genre = genre;
+    const tid = metaPlainString(m.catalog_tmdb_id);
+    if (tid) slice.catalog_tmdb_id = tid;
+    const tmt = metaPlainString(m.catalog_tmdb_media_type);
+    if (tmt === "movie" || tmt === "tv") slice.catalog_tmdb_media_type = tmt;
+  }
+
+  if (category === "book" || category === "manga") {
+    const author = metaPlainString(m.author);
+    if (author) slice.author = author;
+    const publisher = metaPlainString(m.publisher);
+    if (publisher) slice.publisher = publisher;
+    const isbn = metaPlainString(m.isbn);
+    if (isbn) slice.isbn = isbn;
+    const gb = metaPlainString(m.catalog_google_books_id);
+    if (gb) slice.catalog_google_books_id = gb;
+    const olk = metaPlainString(m.catalog_open_library_key);
+    if (olk) slice.catalog_open_library_key = olk;
+  }
+
+  if (category === "manga") {
+    const mal = metaPlainString(m.catalog_mal_id);
+    if (mal) slice.catalog_mal_id = mal;
+  }
+
+  if (category === "comic_book") {
+    const writer = metaPlainString(m.writer);
+    if (writer) slice.writer = writer;
+    const comicArtist = metaPlainString(m.artist);
+    if (comicArtist) slice.artist = comicArtist;
+    const publisher = metaPlainString(m.publisher);
+    if (publisher) slice.publisher = publisher;
+    const issueNum = metaPlainString(m.issue_number);
+    if (issueNum) slice.issue_number = issueNum;
+    if (typeof m.single_issue === "boolean") {
+      slice.single_issue = m.single_issue;
+    }
+    const cvid = metaPlainString(m.catalog_comicvine_id);
+    if (cvid) slice.catalog_comicvine_id = cvid;
+    const cvr = metaPlainString(m.catalog_comicvine_resource);
+    if (cvr === "issue" || cvr === "volume") slice.catalog_comicvine_resource = cvr;
+    const gb = metaPlainString(m.catalog_google_books_id);
+    if (gb) slice.catalog_google_books_id = gb;
+    const olk = metaPlainString(m.catalog_open_library_key);
+    if (olk) slice.catalog_open_library_key = olk;
+  }
+
+  return slice;
 }

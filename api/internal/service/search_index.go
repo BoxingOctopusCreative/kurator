@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"strconv"
 
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/meilisearch/meilisearch-go"
@@ -14,7 +13,7 @@ import (
 type SearchIndexer interface {
 	EnsureIndex(ctx context.Context) error
 	UpsertItem(ctx context.Context, item models.Item) error
-	RemoveItem(ctx context.Context, id int64) error
+	RemoveItem(ctx context.Context, id string) error
 	Search(ctx context.Context, q string, limit int64) (*meilisearch.SearchResponse, error)
 }
 
@@ -35,11 +34,12 @@ func NewMeilisearchIndexer(host, apiKey, index string) *MeilisearchIndexer {
 }
 
 type searchDoc struct {
-	ID       string          `json:"id"`
-	Title    string          `json:"title"`
-	Category string          `json:"category"`
-	Metadata json.RawMessage `json:"metadata"`
-	Rating   *int            `json:"rating,omitempty"`
+	ID                 string          `json:"id"`
+	Title              string          `json:"title"`
+	Category           string          `json:"category"`
+	Metadata           json.RawMessage `json:"metadata"`
+	Rating             *int            `json:"rating,omitempty"`
+	ConsumptionStatus  string          `json:"consumption_status,omitempty"`
 }
 
 // Ping checks that the Meilisearch server accepts requests (health endpoint).
@@ -69,19 +69,20 @@ func (m *MeilisearchIndexer) EnsureIndex(ctx context.Context) error {
 
 func (m *MeilisearchIndexer) UpsertItem(ctx context.Context, item models.Item) error {
 	doc := searchDoc{
-		ID:       strconv.FormatInt(item.ID, 10),
-		Title:    item.Title,
-		Category: string(item.Category),
-		Metadata: item.Metadata,
-		Rating:   item.Rating,
+		ID:                item.ID,
+		Title:             item.Title,
+		Category:          string(item.Category),
+		Metadata:          item.Metadata,
+		Rating:            item.Rating,
+		ConsumptionStatus: string(item.ConsumptionStatus),
 	}
 	_, err := m.client.Index(m.index).AddDocuments([]searchDoc{doc}, "id")
 	_ = ctx
 	return err
 }
 
-func (m *MeilisearchIndexer) RemoveItem(ctx context.Context, id int64) error {
-	_, err := m.client.Index(m.index).DeleteDocument(strconv.FormatInt(id, 10))
+func (m *MeilisearchIndexer) RemoveItem(ctx context.Context, id string) error {
+	_, err := m.client.Index(m.index).DeleteDocument(id)
 	_ = ctx
 	return err
 }

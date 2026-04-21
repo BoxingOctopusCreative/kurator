@@ -2,13 +2,20 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import type { Item, ItemEnrichment } from "@/lib/api";
-import { fetchItem, fetchItemEnrichment, updateItem } from "@/lib/api";
+import type { Collection, ConsumptionStatus, Item, ItemEnrichment, ItemListRef } from "@/lib/api";
+import { fetchCollection, fetchCollections, fetchItem, fetchItemEnrichment, fetchItemLists, updateItem } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
+import {
+  consumptionDoneLabel,
+  consumptionPendingLabel,
+  normalizeConsumptionStatus,
+} from "@/lib/consumptionLabels";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
+import { isEntityUuid } from "@/lib/entityId";
 import { getCoverArtUrl, getItemYear } from "@/lib/itemDisplay";
 import { safeHttpUrl } from "@/lib/safeUrl";
 
@@ -25,8 +32,9 @@ function formatMetaValue(value: unknown): string {
 
 export function ItemDetailClient() {
   const params = useParams();
+  const { user } = useAuth();
   const idRaw = params.id;
-  const id = typeof idRaw === "string" ? Number(idRaw) : NaN;
+  const id = typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
 
   const [item, setItem] = useState<Item | null>(null);
   const [enrichment, setEnrichment] = useState<ItemEnrichment | null>(null);
@@ -34,9 +42,16 @@ export function ItemDetailClient() {
   const [error, setError] = useState<string | null>(null);
   const [ratingBusy, setRatingBusy] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
+  const [consumptionBusy, setConsumptionBusy] = useState(false);
+  const [consumptionError, setConsumptionError] = useState<string | null>(null);
+  const [collectionName, setCollectionName] = useState<string | null>(null);
+  const [itemLists, setItemLists] = useState<ItemListRef[]>([]);
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
+  const [collectionMoveBusy, setCollectionMoveBusy] = useState(false);
+  const [collectionMoveError, setCollectionMoveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!Number.isFinite(id) || id < 1) {
+    if (!id) {
       setError("Invalid item.");
       setLoading(false);
       return;
@@ -45,10 +60,26 @@ export function ItemDetailClient() {
     setLoading(true);
     setError(null);
     setEnrichment(null);
+    setCollectionName(null);
+    setItemLists([]);
     fetchItem(id)
       .then(async (data) => {
         if (cancelled) return;
         setItem(data);
+        void fetchItemLists(id)
+          .then((lists) => {
+            if (!cancelled) setItemLists(lists);
+          })
+          .catch(() => {
+            if (!cancelled) setItemLists([]);
+          });
+        void fetchCollection(data.collection_id)
+          .then((col) => {
+            if (!cancelled) setCollectionName(col.name.trim() || null);
+          })
+          .catch(() => {
+            if (!cancelled) setCollectionName(null);
+          });
         try {
           const e = await fetchItemEnrichment(id);
           if (!cancelled) setEnrichment(e);
@@ -71,6 +102,39 @@ export function ItemDetailClient() {
     };
   }, [id]);
 
+  useEffect(() => {
+    const itemId = item?.id;
+    if (!itemId || !user) {
+      setAllCollections([]);
+      return;
+    }
+    let cancelled = false;
+    fetchCollections({ limit: 100, sort: "name_asc" })
+      .then((res) => {
+        if (!cancelled) setAllCollections(res.items);
+      })
+      .catch(() => {
+        if (!cancelled) setAllCollections([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.id, item?.category, user]);
+
+  const moveTargetCollections = useMemo(() => {
+    if (!item || !user) return [];
+    return allCollections.filter((c) => {
+      const categoryOk = !c.category || c.category === item.category;
+      if (!categoryOk) return false;
+      return c.user_id != null && c.user_id === user.id;
+    });
+  }, [allCollections, item, user]);
+
+  const canEditCollectionLocation = useMemo(
+    () => !!item && !!user && moveTargetCollections.some((c) => c.id === item.collection_id),
+    [item, user, moveTargetCollections],
+  );
+
   async function saveRating(next: number | null) {
     if (!item) return;
     setRatingError(null);
@@ -85,6 +149,7 @@ export function ItemDetailClient() {
         category: item.category,
         metadata: meta,
         rating: next,
+        consumption_status: normalizeConsumptionStatus(item),
       });
       setItem(updated);
     } catch (e: unknown) {
@@ -94,7 +159,57 @@ export function ItemDetailClient() {
     }
   }
 
-  if (!Number.isFinite(id) || id < 1) {
+  async function saveConsumption(next: ConsumptionStatus) {
+    if (!item) return;
+    setConsumptionError(null);
+    setConsumptionBusy(true);
+    try {
+      const meta =
+        item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+          ? (item.metadata as Record<string, unknown>)
+          : {};
+      const updated = await updateItem(item.id, {
+        title: item.title,
+        category: item.category,
+        metadata: meta,
+        consumption_status: next,
+      });
+      setItem(updated);
+    } catch (e: unknown) {
+      setConsumptionError(e instanceof Error ? e.message : "Could not save status.");
+    } finally {
+      setConsumptionBusy(false);
+    }
+  }
+
+  async function saveCollectionMove(nextCollectionId: string) {
+    if (!item || nextCollectionId === item.collection_id) return;
+    setCollectionMoveError(null);
+    setCollectionMoveBusy(true);
+    try {
+      const meta =
+        item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+          ? (item.metadata as Record<string, unknown>)
+          : {};
+      const updated = await updateItem(item.id, {
+        title: item.title,
+        category: item.category,
+        metadata: meta,
+        consumption_status: normalizeConsumptionStatus(item),
+        collection_id: nextCollectionId,
+      });
+      setItem(updated);
+      void fetchCollection(updated.collection_id)
+        .then((col) => setCollectionName(col.name.trim() || null))
+        .catch(() => setCollectionName(null));
+    } catch (e: unknown) {
+      setCollectionMoveError(e instanceof Error ? e.message : "Could not move item.");
+    } finally {
+      setCollectionMoveBusy(false);
+    }
+  }
+
+  if (!id) {
     return (
       <p className="text-sm text-red-400" role="alert">
         Invalid item.
@@ -127,12 +242,8 @@ export function ItemDetailClient() {
   const cover = getCoverArtUrl(metaObj);
   const year = getItemYear(metaObj);
   const metaKeysAll = Object.keys(metaObj).sort((a, b) => a.localeCompare(b));
-  const catalogKeys = metaKeysAll.filter((k) => k.startsWith("catalog_"));
-  const showLinkedLookups = item.category !== "book" && catalogKeys.length > 0;
-  const metaKeys = metaKeysAll.filter(
-    (k) => !k.startsWith("catalog_") && k !== "cover_art"
-  );
-  const hasDetailRows = metaKeys.length > 0 || showLinkedLookups;
+  const metaKeys = metaKeysAll.filter((k) => k !== "cover_art" && !k.startsWith("catalog_"));
+  const hasDetailRows = metaKeys.length > 0;
 
   const enrichmentMoreHref =
     enrichment?.synopsis && enrichment.source && enrichment.source_url
@@ -146,7 +257,7 @@ export function ItemDetailClient() {
         className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Back to collection
+        {collectionName ? `Back to ${collectionName}` : "Back to Collection"}
       </Link>
 
       <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start">
@@ -182,20 +293,65 @@ export function ItemDetailClient() {
               </p>
             ) : null}
           </div>
+          <div className="mt-4 flex w-full max-w-xs flex-col gap-1 sm:max-w-none">
+            <label htmlFor="item-consumption" className="text-xs font-medium uppercase tracking-wide text-kurator-muted">
+              Status
+            </label>
+            <select
+              id="item-consumption"
+              value={normalizeConsumptionStatus(item)}
+              disabled={consumptionBusy}
+              onChange={(e) => void saveConsumption(e.target.value as ConsumptionStatus)}
+              className="rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+            >
+              <option value="pending">{consumptionPendingLabel(item.category)}</option>
+              <option value="done">{consumptionDoneLabel(item.category)}</option>
+            </select>
+            {consumptionError ? (
+              <p className="text-xs text-red-400" role="alert">
+                {consumptionError}
+              </p>
+            ) : null}
+          </div>
           <dl className="mt-4 grid gap-2 text-left text-xs text-kurator-muted sm:grid-cols-2">
-            <div>
-              <dt className="font-medium uppercase tracking-wide">Item ID</dt>
-              <dd className="mt-0.5 font-mono text-sm text-kurator-fg">{item.id}</dd>
-            </div>
             <div>
               <dt className="font-medium uppercase tracking-wide">Collection</dt>
               <dd className="mt-0.5">
-                <Link
-                  href={`/collections/${item.collection_id}`}
-                  className="text-sm text-kurator-accent hover:underline"
-                >
-                  Open collection #{item.collection_id}
-                </Link>
+                {canEditCollectionLocation ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                    <select
+                      aria-label="Shelf for this item"
+                      value={item.collection_id}
+                      disabled={collectionMoveBusy}
+                      onChange={(e) => void saveCollectionMove(e.target.value)}
+                      className="max-w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 sm:max-w-xs"
+                    >
+                      {moveTargetCollections.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {(c.name || "").trim() || "Untitled shelf"}
+                        </option>
+                      ))}
+                    </select>
+                    <Link
+                      href={`/collections/${item.collection_id}`}
+                      className="shrink-0 text-sm text-kurator-accent hover:underline"
+                    >
+                      Open shelf
+                    </Link>
+                  </div>
+                ) : (
+                  <Link
+                    href={`/collections/${item.collection_id}`}
+                    className="text-sm text-kurator-accent hover:underline"
+                  >
+                    {collectionName ?? "Open collection"}
+                  </Link>
+                )}
+                {collectionMoveError ? (
+                  <p className="mt-1 text-xs text-red-400" role="alert">
+                    {collectionMoveError}
+                  </p>
+                ) : null}
               </dd>
             </div>
             <div>
@@ -219,6 +375,35 @@ export function ItemDetailClient() {
           </dl>
         </div>
       </header>
+
+      {itemLists.length > 0 ? (
+        <section className="mb-8" aria-labelledby="item-in-lists-heading">
+          <h2 id="item-in-lists-heading" className="text-sm font-semibold uppercase tracking-wide text-kurator-muted">
+            Lists
+          </h2>
+          <div className="mt-3 space-y-2">
+            {itemLists.map((list) => (
+              <h3
+                key={list.id}
+                className="flex items-center gap-3 text-lg font-semibold text-kurator-fg"
+              >
+                {list.cover_art_url ? (
+                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                    <ItemCoverImage
+                      url={list.cover_art_url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
+                ) : null}
+                <Link href={`/lists/${list.id}`} className="text-kurator-accent hover:underline">
+                  {list.name.trim() || "Untitled list"}
+                </Link>
+              </h3>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {(enrichment?.synopsis || enrichment?.note || enrichment?.source) && (
         <section className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 md:p-6">
@@ -271,21 +456,6 @@ export function ItemDetailClient() {
                 </dd>
               </div>
             ))}
-            {showLinkedLookups && (
-              <div className="border-t border-kurator-border/50 pt-4">
-                <dt className="text-xs font-medium uppercase tracking-wide text-kurator-muted">Linked lookups</dt>
-                <dd className="mt-2 space-y-3">
-                  {catalogKeys.map((key) => (
-                    <div key={key}>
-                      <span className="font-mono text-xs text-kurator-accent/90">{key}</span>
-                      <p className="mt-0.5 whitespace-pre-wrap wrap-break-word text-sm text-kurator-fg">
-                        {formatMetaValue(metaObj[key])}
-                      </p>
-                    </div>
-                  ))}
-                </dd>
-              </div>
-            )}
           </dl>
         )}
       </section>

@@ -102,7 +102,7 @@ func (s *MetadataService) Lookup(ctx context.Context, provider, q string) Metada
 		return s.lookupTheGamesDB(ctx, q)
 	case "book", "books", "goodreads", "openlibrary":
 		return s.lookupBooks(ctx, q)
-	case "tmdb", "video":
+	case "tmdb", "video", "movies", "tv", "anime":
 		return s.lookupTMDB(ctx, q)
 	case "comic", "comic_book":
 		return s.lookupComic(ctx, q)

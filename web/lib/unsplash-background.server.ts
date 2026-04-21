@@ -35,7 +35,7 @@ function shuffleCopy<T>(items: readonly T[]): T[] {
   return out;
 }
 
-function unsplashHeaders(key: string): Record<string, string> {
+export function unsplashHeaders(key: string): Record<string, string> {
   return {
     Authorization: `Client-ID ${key}`,
     "Accept-Version": "v1",

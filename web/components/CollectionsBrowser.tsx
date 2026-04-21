@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Layers, Lock } from "lucide-react";
-import type { CollectionListResponse } from "@/lib/api";
+import { CircleHelp, Layers, Lock, Trash2 } from "lucide-react";
+import type { Category, Collection, CollectionListResponse } from "@/lib/api";
 import { createCollection, fetchCollections } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { DeleteCollectionDialog, type DeleteCollectionSubject } from "@/components/DeleteCollectionDialog";
+import { ItemCoverImage } from "@/components/ItemCoverImage";
+import type { CollectionsListFilters } from "@/lib/collectionsListUrl";
+import {
+  parseCollectionsListSearchString,
+  stringifyCollectionsListFilters,
+} from "@/lib/collectionsListUrl";
 import {
   assertCollectionOrWishlistName,
   assertLooseMultilineText,
@@ -16,32 +22,38 @@ import {
 const sortOptions: { value: string; label: string }[] = [
   { value: "name_asc", label: "Name (A–Z)" },
   { value: "name_desc", label: "Name (Z–A)" },
-  { value: "updated_desc", label: "Recently updated" },
-  { value: "created_desc", label: "Recently created" },
-  { value: "items_desc", label: "Most items" },
+  { value: "updated_desc", label: "Recently Updated" },
+  { value: "created_desc", label: "Recently Created" },
+  { value: "items_desc", label: "Most Items" },
 ];
 
 const descFilterOptions: { value: string; label: string }[] = [
   { value: "", label: "Any" },
-  { value: "yes", label: "Has description" },
-  { value: "no", label: "No description" },
+  { value: "yes", label: "Has Description" },
+  { value: "no", label: "No Description" },
 ];
 
-export function CollectionsBrowser() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+const shelfCategoryOptions: { value: Category; label: string }[] = [
+  { value: "game", label: "Games" },
+  { value: "music", label: "Music" },
+  { value: "book", label: "Books" },
+  { value: "movies", label: "Movies" },
+  { value: "tv", label: "TV" },
+  { value: "anime", label: "Anime" },
+  { value: "comic_book", label: "Comic books" },
+  { value: "manga", label: "Manga" },
+];
+
+type Props = {
+  basePath: string;
+  initialFilters: CollectionsListFilters;
+};
+
+export function CollectionsBrowser({ basePath, initialFilters }: Props) {
   const { user } = useAuth();
 
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
-  const sort = searchParams.get("sort") ?? "name_asc";
-  const hasDesc = (searchParams.get("has_description") ?? "") as "" | "yes" | "no";
-  const qUrl = searchParams.get("q") ?? "";
-  const scopeRaw = searchParams.get("scope") ?? "all";
-  const scope: "all" | "following" =
-    scopeRaw === "following" && user ? "following" : "all";
-
-  const [qInput, setQInput] = useState(qUrl);
+  const [filters, setFilters] = useState<CollectionsListFilters>(initialFilters);
+  const [qInput, setQInput] = useState(initialFilters.q);
   const [data, setData] = useState<CollectionListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,51 +62,66 @@ export function CollectionsBrowser() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newPublic, setNewPublic] = useState(true);
+  const [newShelfCategory, setNewShelfCategory] = useState<Category>("game");
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
+  const [deleteSubject, setDeleteSubject] = useState<DeleteCollectionSubject | null>(null);
 
-  const replaceQuery = useCallback(
-    (updates: Record<string, string | null>) => {
-      const p = new URLSearchParams(searchParams.toString());
-      for (const [k, v] of Object.entries(updates)) {
-        if (v === null || v === "") p.delete(k);
-        else p.set(k, v);
-      }
-      router.replace(`${pathname}?${p.toString()}`);
+  const effectiveScope: "all" | "following" =
+    filters.scope === "following" && user ? "following" : "all";
+
+  const commitFilters = useCallback(
+    (next: CollectionsListFilters | ((prev: CollectionsListFilters) => CollectionsListFilters)) => {
+      setFilters((prev) => {
+        const resolved = typeof next === "function" ? next(prev) : next;
+        const qs = stringifyCollectionsListFilters(resolved);
+        const path = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
+        const url = qs ? `${path}?${qs}` : path;
+        window.history.replaceState(window.history.state, "", url);
+        return resolved;
+      });
     },
-    [pathname, router, searchParams]
+    [basePath]
   );
 
   useEffect(() => {
-    if (user === null && scopeRaw === "following") {
-      replaceQuery({ scope: null, page: "1" });
-    }
-  }, [user, scopeRaw, replaceQuery]);
+    const onPopState = () => {
+      const next = parseCollectionsListSearchString(window.location.search);
+      setFilters(next);
+      setQInput(next.q);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
-    setQInput(qUrl);
-  }, [qUrl]);
+    if (user === null && filters.scope === "following") {
+      commitFilters((f) => ({ ...f, scope: "all", page: 1 }));
+    }
+  }, [user, filters.scope, commitFilters]);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      if (qInput !== qUrl) {
-        replaceQuery({ q: qInput.trim() || null, page: "1" });
+      const trimmed = qInput.trim();
+      if (trimmed !== filters.q.trim()) {
+        commitFilters((f) => ({ ...f, q: trimmed, page: 1 }));
+        setQInput(trimmed);
       }
     }, 350);
     return () => clearTimeout(t);
-  }, [qInput, qUrl, replaceQuery]);
+  }, [qInput, filters.q, commitFilters]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     fetchCollections({
-      q: qUrl || undefined,
-      page,
+      q: filters.q.trim() || undefined,
+      page: filters.page,
       limit: 12,
-      sort,
-      has_description: hasDesc || undefined,
-      scope: scope === "following" ? "following" : "all",
+      sort: filters.sort,
+      has_description: filters.has_description || undefined,
+      scope: effectiveScope === "following" ? "following" : "all",
     })
       .then((res) => {
         if (!cancelled) setData(res);
@@ -108,7 +135,7 @@ export function CollectionsBrowser() {
     return () => {
       cancelled = true;
     };
-  }, [qUrl, page, sort, hasDesc, scope, listVersion]);
+  }, [filters.q, filters.page, filters.sort, filters.has_description, effectiveScope, listVersion]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
@@ -122,10 +149,11 @@ export function CollectionsBrowser() {
       const description = descRaw
         ? assertLooseMultilineText(newDesc, LIMITS.description, "Description")
         : undefined;
-      await createCollection({ name, description, is_public: newPublic });
+      await createCollection({ name, description, is_public: newPublic, category: newShelfCategory });
       setNewName("");
       setNewDesc("");
       setNewPublic(true);
+      setNewShelfCategory("game");
       setFormMsg("Collection created.");
       setListVersion((v) => v + 1);
     } catch (err) {
@@ -135,8 +163,23 @@ export function CollectionsBrowser() {
     }
   }
 
+  function isMyCollection(c: Collection): boolean {
+    return Boolean(user && c.user_id != null && Number(c.user_id) === Number(user.id));
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
+      <DeleteCollectionDialog
+        collection={deleteSubject}
+        open={deleteSubject != null}
+        onOpenChange={(v) => {
+          if (!v) setDeleteSubject(null);
+        }}
+        onDeleted={() => {
+          setDeleteSubject(null);
+          setListVersion((x) => x + 1);
+        }}
+      />
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Collections</h1>
@@ -151,10 +194,22 @@ export function CollectionsBrowser() {
         onSubmit={onCreateCollection}
         className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4"
       >
-        <h2 className="text-sm font-medium text-kurator-fg">New collection</h2>
-        <p className="mt-1 text-xs text-kurator-muted">
-          Sign in required. Your new shelf appears in this list and in Add item → Collection.
-        </p>
+        <div className="group relative inline-flex items-center gap-1.5">
+          <h2 className="text-sm font-medium text-kurator-fg">New Collection</h2>
+          <button
+            type="button"
+            className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+            aria-label="New collection shelves appear in this list and in Add item → Collection."
+          >
+            <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+          </button>
+          <span
+            role="tooltip"
+            className="pointer-events-none invisible absolute bottom-full left-0 z-50 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+          >
+            New collection shelves appear in this list and in Add item → Collection.
+          </span>
+        </div>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <label className="block min-w-[200px] flex-1 text-sm">
             <span className="text-kurator-muted">Name</span>
@@ -167,7 +222,7 @@ export function CollectionsBrowser() {
             />
           </label>
           <label className="block min-w-[220px] flex-2 text-sm">
-            <span className="text-kurator-muted">Description (optional)</span>
+            <span className="text-kurator-muted">Description (Optional)</span>
             <input
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
@@ -175,6 +230,35 @@ export function CollectionsBrowser() {
               className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               autoComplete="off"
             />
+          </label>
+          <label className="block min-w-[200px] text-sm">
+            <span className="group relative inline-flex items-center gap-1.5 text-kurator-muted">
+              <span>Shelf Type</span>
+              <button
+                type="button"
+                className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                aria-label="Items on this shelf use the category you select."
+              >
+                <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+              </button>
+              <span
+                role="tooltip"
+                className="pointer-events-none invisible absolute bottom-full left-0 z-50 mb-1.5 w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+              >
+                Items on this shelf use the category you select.
+              </span>
+            </span>
+            <select
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+              value={newShelfCategory}
+              onChange={(e) => setNewShelfCategory(e.target.value as Category)}
+            >
+              {shelfCategoryOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-kurator-muted">
             <input
@@ -204,14 +288,14 @@ export function CollectionsBrowser() {
       </form>
 
       {user && (
-        <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Collection source">
+        <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Collection Source">
           <button
             type="button"
             role="tab"
-            aria-selected={scope === "all"}
-            onClick={() => replaceQuery({ scope: null, page: "1" })}
+            aria-selected={effectiveScope === "all"}
+            onClick={() => commitFilters((f) => ({ ...f, scope: "all", page: 1 }))}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              scope === "all"
+              effectiveScope === "all"
                 ? "bg-kurator-accent text-kurator-onAccent"
                 : "border border-kurator-border text-kurator-muted hover:bg-kurator-border/40"
             }`}
@@ -221,10 +305,10 @@ export function CollectionsBrowser() {
           <button
             type="button"
             role="tab"
-            aria-selected={scope === "following"}
-            onClick={() => replaceQuery({ scope: "following", page: "1" })}
+            aria-selected={effectiveScope === "following"}
+            onClick={() => commitFilters((f) => ({ ...f, scope: "following", page: 1 }))}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              scope === "following"
+              effectiveScope === "following"
                 ? "bg-kurator-accent text-kurator-onAccent"
                 : "border border-kurator-border text-kurator-muted hover:bg-kurator-border/40"
             }`}
@@ -249,8 +333,8 @@ export function CollectionsBrowser() {
         <label className="block min-w-[160px] text-sm">
           <span className="text-kurator-muted">Sort</span>
           <select
-            value={sort}
-            onChange={(e) => replaceQuery({ sort: e.target.value, page: "1" })}
+            value={filters.sort}
+            onChange={(e) => commitFilters((f) => ({ ...f, sort: e.target.value, page: 1 }))}
             className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           >
             {sortOptions.map((o) => (
@@ -263,12 +347,13 @@ export function CollectionsBrowser() {
         <label className="block min-w-[180px] text-sm">
           <span className="text-kurator-muted">Description</span>
           <select
-            value={hasDesc}
+            value={filters.has_description}
             onChange={(e) =>
-              replaceQuery({
-                has_description: e.target.value || null,
-                page: "1",
-              })
+              commitFilters((f) => ({
+                ...f,
+                has_description: (e.target.value || "") as "" | "yes" | "no",
+                page: 1,
+              }))
             }
             className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           >
@@ -301,14 +386,34 @@ export function CollectionsBrowser() {
         <>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.items.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} className="relative">
+                {isMyCollection(c) && (
+                  <button
+                    type="button"
+                    aria-label={`Delete Collection ${c.name}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDeleteSubject({ id: c.id, name: c.name, item_count: c.item_count });
+                    }}
+                    className="absolute right-2 top-2 z-10 rounded-lg border border-kurator-border bg-kurator-bg/95 p-2 text-kurator-muted shadow-sm hover:border-red-500/50 hover:text-red-300"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
                 <Link
                   href={`/collections/${c.id}`}
                   className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
-                      <Layers className="h-5 w-5" aria-hidden />
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                      {c.cover_art_url ? (
+                        <ItemCoverImage url={c.cover_art_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                          <Layers className="h-5 w-5" aria-hidden />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <h2 className="font-medium text-kurator-fg">{c.name}</h2>
@@ -336,20 +441,20 @@ export function CollectionsBrowser() {
           <nav className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm" aria-label="Pagination">
             <button
               type="button"
-              disabled={page <= 1 || loading}
-              onClick={() => replaceQuery({ page: String(page - 1) })}
+              disabled={filters.page <= 1 || loading}
+              onClick={() => commitFilters((f) => ({ ...f, page: Math.max(1, f.page - 1) }))}
               className="rounded-lg border border-kurator-border px-3 py-1.5 text-kurator-muted hover:bg-kurator-border/40 disabled:opacity-40"
             >
               Previous
             </button>
             <span className="px-2 text-kurator-muted">
-              Page {page} of {totalPages}
+              Page {filters.page} of {totalPages}
               <span className="ml-2 text-kurator-muted/70">({data.total} total)</span>
             </span>
             <button
               type="button"
-              disabled={page >= totalPages || loading}
-              onClick={() => replaceQuery({ page: String(page + 1) })}
+              disabled={filters.page >= totalPages || loading}
+              onClick={() => commitFilters((f) => ({ ...f, page: f.page + 1 }))}
               className="rounded-lg border border-kurator-border px-3 py-1.5 text-kurator-muted hover:bg-kurator-border/40 disabled:opacity-40"
             >
               Next

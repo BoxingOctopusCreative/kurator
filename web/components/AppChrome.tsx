@@ -7,6 +7,7 @@ import {
   Heart,
   LayoutGrid,
   Layers,
+  ListOrdered,
   PlusCircle,
   ScanBarcode,
   UserCircle,
@@ -22,6 +23,7 @@ const mainNavBase = [
   { href: "/collections", label: "Collections", icon: Layers },
   { href: "/people", label: "People", icon: Users },
   { href: "/wishlists", label: "Wishlists", icon: Heart },
+  { href: "/lists", label: "Lists", icon: ListOrdered },
   { href: "/items/add", label: "Add", icon: PlusCircle },
 ] as const;
 

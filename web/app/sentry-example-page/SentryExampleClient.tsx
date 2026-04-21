@@ -34,7 +34,7 @@ export function SentryExampleClient() {
               throw new Error("Sentry example: uncaught client error");
             }}
           >
-            Throw uncaught error
+            Throw Uncaught Error
           </button>
           <button
             type="button"
@@ -43,7 +43,7 @@ export function SentryExampleClient() {
               Sentry.captureException(new Error("Sentry example: captureException"));
             }}
           >
-            captureException
+            Capture Exception
           </button>
         </div>
       </div>

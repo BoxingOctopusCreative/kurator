@@ -269,7 +269,7 @@ export default function SetupPage() {
             disabled={busy}
             className="rounded-lg bg-kurator-accent px-4 py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? "Running…" : "Run migrations"}
+            {busy ? "Running…" : "Run Migrations"}
           </button>
           <button
             type="button"
@@ -277,7 +277,7 @@ export default function SetupPage() {
             onClick={() => void migrateUsingServerDatabaseUrl()}
             className="rounded-lg border border-kurator-border px-4 py-2.5 text-sm font-medium text-kurator-fg hover:bg-kurator-border/40 disabled:opacity-50"
           >
-            Use server DATABASE_URL
+            Use Server DATABASE_URL
           </button>
         </div>
       </form>

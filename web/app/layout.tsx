@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     default: "Kurator",
     template: "Kurator - %s",
   },
-  description: "Collection tracker — games, music, books, and video.",
+  description: "Collection tracker — games, music, books, movies, TV, and anime.",
   icons: {
     icon: "https://assets.kuratorapp.cc/brand/PNG/kurator_favicon-white.png",
   },

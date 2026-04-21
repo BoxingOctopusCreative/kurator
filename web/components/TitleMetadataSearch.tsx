@@ -29,7 +29,9 @@ const lookupCategories: Category[] = [
   "music",
   "game",
   "book",
-  "video",
+  "movies",
+  "tv",
+  "anime",
   "comic_book",
   "manga",
 ];
@@ -123,11 +125,17 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
       });
       return;
     }
-    if (category === "video") {
+    if (category === "movies" || category === "tv" || category === "anime") {
       const mt = (hit.extra?.media_type as string) || "";
-      const videoType =
-        mt === "tv" ? "series" : mt === "movie" ? "movie" : undefined;
       const tmdbMedia = mt === "tv" ? "tv" : mt === "movie" ? "movie" : undefined;
+      const videoType =
+        category === "tv"
+          ? "series"
+          : category === "anime"
+            ? "anime"
+            : mt === "tv"
+              ? "series"
+              : "movie";
       onApply({
         title: hit.title || undefined,
         slice: {

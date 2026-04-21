@@ -165,7 +165,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
     );
   }
 
-  if (category === "video") {
+  if (category === "movies" || category === "tv" || category === "anime") {
     return (
       <div className="space-y-3">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -192,6 +192,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             <option value="">Select…</option>
             <option value="series">Series</option>
             <option value="movie">Movie</option>
+            <option value="anime">Anime</option>
           </select>
         </label>
         <label className="block text-sm">

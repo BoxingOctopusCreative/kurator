@@ -94,6 +94,26 @@ func LooseMultilineText(s string, maxLen int, field string, allowEmpty bool) (st
 	return t, nil
 }
 
+// NormalizeCoverArtURLPointer interprets an optional JSON field for shelf / list / wishlist cover images.
+// nil means the field was omitted (leave the DB value unchanged).
+// A non-nil pointer to an empty string (after trim) means clear (store NULL).
+// Otherwise returns a validated http(s) URL string pointer.
+func NormalizeCoverArtURLPointer(raw *string, field string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	s := strings.TrimSpace(*raw)
+	if s == "" {
+		out := ""
+		return &out, nil
+	}
+	u, err := HTTPOrHTTPSURL(s, field)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 // HTTPOrHTTPSURL validates a URL uses http or https.
 func HTTPOrHTTPSURL(s string, field string) (string, error) {
 	t := strings.TrimSpace(s)

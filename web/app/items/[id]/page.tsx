@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import { apiUrl } from "@/lib/apiUrl";
+import { isEntityUuid } from "@/lib/entityId";
 import { ItemDetailClient } from "./ItemDetailClient";
 
 const SESSION_COOKIE = "kurator_session";
@@ -11,8 +12,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const numericId = Number(id);
-  if (!Number.isFinite(numericId) || numericId < 1) {
+  const itemId = id.trim();
+  if (!isEntityUuid(itemId)) {
     return { title: "Item" };
   }
 
@@ -23,7 +24,7 @@ export async function generateMetadata({
   }
 
   try {
-    const res = await fetch(apiUrl(`/items/${numericId}`), {
+    const res = await fetch(apiUrl(`/items/${itemId}`), {
       headers: { Cookie: `${SESSION_COOKIE}=${session}` },
       cache: "no-store",
     });

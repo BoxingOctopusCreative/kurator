@@ -39,11 +39,11 @@ func TestSanitizeItemMetadata_rejectsScriptString(t *testing.T) {
 }
 
 func TestSanitizeItemMetadata_videoFormat(t *testing.T) {
-	_, err := SanitizeItemMetadata(models.CategoryVideo, []byte(`{"format":"dvd"}`))
+	_, err := SanitizeItemMetadata(models.CategoryMovies, []byte(`{"format":"dvd"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = SanitizeItemMetadata(models.CategoryVideo, []byte(`{"format":"bad"}`))
+	_, err = SanitizeItemMetadata(models.CategoryMovies, []byte(`{"format":"bad"}`))
 	if err == nil {
 		t.Fatal("expected error")
 	}

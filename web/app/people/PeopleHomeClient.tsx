@@ -55,7 +55,7 @@ export function PeopleHomeClient() {
           href="/login"
           className="mt-4 inline-block rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent"
         >
-          Sign in
+          Sign In
         </Link>
       </div>
     );

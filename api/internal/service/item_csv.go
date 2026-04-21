@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
@@ -30,15 +32,15 @@ type ImportItemRowErr struct {
 	Error string `json:"error"`
 }
 
-// ExportCollectionItemsCSV returns UTF-8 CSV bytes with header id,title,category,metadata,rating.
-func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID int64) ([]byte, error) {
+// ExportCollectionItemsCSV returns UTF-8 CSV bytes with header id,title,category,metadata,rating,consumption_status.
+func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID string) ([]byte, error) {
 	items, err := s.repo.ListByCollectionExport(ctx, collectionID, 50000)
 	if err != nil {
 		return nil, err
 	}
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
-	if err := w.Write([]string{"id", "title", "category", "metadata", "rating"}); err != nil {
+	if err := w.Write([]string{"id", "title", "category", "metadata", "rating", "consumption_status"}); err != nil {
 		return nil, err
 	}
 	for _, it := range items {
@@ -50,12 +52,17 @@ func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID
 		if it.Rating != nil {
 			rating = strconv.Itoa(*it.Rating)
 		}
+		consumption := ""
+		if it.ConsumptionStatus != "" {
+			consumption = string(it.ConsumptionStatus)
+		}
 		if err := w.Write([]string{
-			strconv.FormatInt(it.ID, 10),
+			it.ID,
 			it.Title,
 			string(it.Category),
 			meta,
 			rating,
+			consumption,
 		}); err != nil {
 			return nil, err
 		}
@@ -69,7 +76,7 @@ func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID
 
 // ImportCollectionItemsFromCSV parses CSV (header required) and creates or updates items in the collection.
 // Rows with an id update an existing item in this collection; rows without id create new items.
-func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collectionID int64, r io.Reader) (*ImportItemsResult, error) {
+func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collectionID string, r io.Reader) (*ImportItemsResult, error) {
 	cr := csv.NewReader(r)
 	cr.ReuseRecord = false
 	cr.LazyQuotes = true
@@ -99,6 +106,7 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 	idIx, hasID := col["id"]
 	metaIx, hasMeta := col["metadata"]
 	ratingIx, hasRatingCol := col["rating"]
+	consumptionIx, hasConsumptionCol := col["consumption_status"]
 
 	out := &ImportItemsResult{Errors: make([]ImportItemRowErr, 0)}
 	rowNum := 1 // header
@@ -167,14 +175,28 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 			}
 		}
 
+		var parseConsumption *models.ConsumptionStatus
+		if hasConsumptionCol && consumptionIx < len(rec) {
+			cs := strings.TrimSpace(strings.ToLower(rec[consumptionIx]))
+			if cs != "" {
+				st := models.ConsumptionStatus(cs)
+				if !st.Valid() {
+					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "invalid consumption_status"})
+					continue
+				}
+				parseConsumption = &st
+			}
+		}
+
 		if hasID && idIx < len(rec) {
 			idStr := strings.TrimSpace(rec[idIx])
 			if idStr != "" {
-				itemID, perr := strconv.ParseInt(idStr, 10, 64)
-				if perr != nil || itemID < 1 {
+				itemUUID, perr := uuid.Parse(strings.TrimSpace(idStr))
+				if perr != nil {
 					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "invalid id"})
 					continue
 				}
+				itemID := itemUUID.String()
 				existing, gerr := s.repo.GetByID(ctx, itemID)
 				if gerr != nil {
 					if errors.Is(gerr, repository.ErrItemNotFound) {
@@ -197,10 +219,11 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 					}
 				}
 				_, uerr := s.Update(ctx, itemID, UpdateItemInput{
-					Title:    title2,
-					Category: category,
-					Metadata: meta2,
-					Rating:   ru,
+					Title:       title2,
+					Category:    category,
+					Metadata:    meta2,
+					Rating:      ru,
+					Consumption: parseConsumption,
 				})
 				if uerr != nil {
 					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: uerr.Error()})
@@ -217,6 +240,7 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 			Category:     category,
 			Metadata:     meta2,
 			Rating:       parseRating,
+			Consumption:  parseConsumption,
 		})
 		if cerr != nil {
 			out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: cerr.Error()})

@@ -6,7 +6,7 @@ import "strings"
 func MetadataCategory(c string) (string, error) {
 	t := strings.ToLower(strings.TrimSpace(c))
 	switch t {
-	case "", "music", "game", "book", "video", "comic_book", "manga":
+	case "", "music", "game", "book", "movies", "tv", "anime", "comic_book", "manga":
 		return t, nil
 	default:
 		return "", Invalidf("invalid category")
@@ -28,6 +28,9 @@ var metadataProviders = map[string]struct{}{
 	"openlibrary": {},
 	"tmdb":        {},
 	"video":       {},
+	"movies":      {},
+	"tv":          {},
+	"anime":       {},
 	"comic":       {},
 	"comic_book":  {},
 	"comicvine":   {},

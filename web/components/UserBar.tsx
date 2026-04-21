@@ -62,7 +62,7 @@ export function UserBar({ centered = false }: Props) {
         onClick={() => void onLogout()}
         className="rounded-md px-2 py-1 text-kurator-muted hover:text-kurator-fg"
       >
-        Log out
+        Log Out
       </button>
     </>
   );

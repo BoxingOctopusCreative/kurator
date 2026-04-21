@@ -58,7 +58,7 @@ func validateCategoryMetadata(cat models.Category, m map[string]interface{}) err
 		return validateMusicMetadata(m)
 	case models.CategoryGame:
 		return validateGameMetadata(m)
-	case models.CategoryVideo:
+	case models.CategoryMovies, models.CategoryTV, models.CategoryAnime:
 		return validateVideoMetadata(m)
 	case models.CategoryBook, models.CategoryManga:
 		return validateBookMetadata(m)
@@ -216,7 +216,7 @@ func validateVideoType(v interface{}) error {
 	switch strings.TrimSpace(s) {
 	case "":
 		return nil
-	case "series", "movie":
+	case "series", "movie", "anime":
 		return nil
 	default:
 		return Invalidf("invalid video type")

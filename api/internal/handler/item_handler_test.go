@@ -13,12 +13,19 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	testCollID = "22222222-2222-2222-2222-222222222222"
+	testItemID = "11111111-1111-1111-1111-111111111111"
+	testItem2  = "77777777-7777-7777-7777-777777777777"
 )
 
 func newItemTestApp(t *testing.T, repo *handlerStubItemRepo) *fiber.App {
 	t.Helper()
-	svc := service.NewItemService(repo, nil)
-	h := NewItemHandler(svc, nil, nil, nil)
+	svc := service.NewItemService(repo, nil, nil)
+	h := NewItemHandler(svc, nil, nil, nil, nil)
 	app := fiber.New()
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals("userID", int64(1))
@@ -37,9 +44,9 @@ type handlerStubItemRepo struct {
 	getItem *models.Item
 	getErr  error
 
-	lastCreateColl int64
-	createItem     *models.Item
-	createErr      error
+	lastCreateColl string
+	createItem       *models.Item
+	createErr        error
 
 	updateItem *models.Item
 	updateErr  error
@@ -51,11 +58,11 @@ func (s *handlerStubItemRepo) ListLatest(ctx context.Context, limit int) ([]mode
 	return s.list, nil
 }
 
-func (s *handlerStubItemRepo) ListByCollection(ctx context.Context, collectionID int64, limit int) ([]models.Item, error) {
+func (s *handlerStubItemRepo) ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error) {
 	return s.list, nil
 }
 
-func (s *handlerStubItemRepo) ListByCollectionExport(ctx context.Context, collectionID int64, max int) ([]models.Item, error) {
+func (s *handlerStubItemRepo) ListByCollectionExport(ctx context.Context, collectionID string, max int) ([]models.Item, error) {
 	return s.list, nil
 }
 
@@ -67,14 +74,14 @@ func (s *handlerStubItemRepo) ListRecentFromFollowedUsers(ctx context.Context, f
 	return s.list, nil
 }
 
-func (s *handlerStubItemRepo) GetByID(ctx context.Context, id int64) (*models.Item, error) {
+func (s *handlerStubItemRepo) GetByID(ctx context.Context, id string) (*models.Item, error) {
 	if s.getErr != nil {
 		return nil, s.getErr
 	}
 	return s.getItem, nil
 }
 
-func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID int64, title string, category models.Category, metadata json.RawMessage, rating *int) (*models.Item, error) {
+func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
 	s.lastCreateColl = collectionID
 	if s.createErr != nil {
 		return nil, s.createErr
@@ -82,20 +89,30 @@ func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID int64, ti
 	return s.createItem, nil
 }
 
-func (s *handlerStubItemRepo) Update(ctx context.Context, id int64, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, newCollectionID *int64) (*models.Item, error) {
+func (s *handlerStubItemRepo) CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+	_ = tx
+	return s.Create(ctx, collectionID, title, category, metadata, rating, consumption)
+}
+
+func (s *handlerStubItemRepo) Update(ctx context.Context, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
 	if s.updateErr != nil {
 		return nil, s.updateErr
 	}
 	return s.updateItem, nil
 }
 
-func (s *handlerStubItemRepo) Delete(ctx context.Context, id int64) error {
+func (s *handlerStubItemRepo) UpdateTx(ctx context.Context, tx pgx.Tx, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
+	_ = tx
+	return s.Update(ctx, id, title, category, metadata, rating, consumption, newCollectionID)
+}
+
+func (s *handlerStubItemRepo) Delete(ctx context.Context, id string) error {
 	return s.deleteErr
 }
 
 func TestItemHandler_Get_invalidID(t *testing.T) {
 	app := newItemTestApp(t, &handlerStubItemRepo{})
-	for _, path := range []string{"/items/0", "/items/-1", "/items/abc"} {
+	for _, path := range []string{"/items/0", "/items/-1", "/items/abc", "/items/not-a-uuid"} {
 		req := httptest.NewRequest("GET", path, nil)
 		resp, err := app.Test(req, -1)
 		if err != nil {
@@ -111,7 +128,7 @@ func TestItemHandler_Get_invalidID(t *testing.T) {
 func TestItemHandler_Get_notFound(t *testing.T) {
 	repo := &handlerStubItemRepo{getErr: repository.ErrItemNotFound}
 	app := newItemTestApp(t, repo)
-	req := httptest.NewRequest("GET", "/items/99", nil)
+	req := httptest.NewRequest("GET", "/items/99999999-9999-9999-9999-999999999999", nil)
 	resp, err := app.Test(req, -1)
 	if err != nil {
 		t.Fatal(err)
@@ -125,8 +142,8 @@ func TestItemHandler_Get_notFound(t *testing.T) {
 func TestItemHandler_Get_ok(t *testing.T) {
 	now := time.Now().UTC()
 	item := &models.Item{
-		ID:           1,
-		CollectionID: 1,
+		ID:           testItemID,
+		CollectionID: testCollID,
 		Title:        "Test",
 		Category:     models.CategoryMusic,
 		Metadata:     json.RawMessage(`{"a":1}`),
@@ -134,7 +151,7 @@ func TestItemHandler_Get_ok(t *testing.T) {
 		UpdatedAt:    now,
 	}
 	app := newItemTestApp(t, &handlerStubItemRepo{getItem: item})
-	req := httptest.NewRequest("GET", "/items/1", nil)
+	req := httptest.NewRequest("GET", "/items/"+testItemID, nil)
 	resp, err := app.Test(req, -1)
 	if err != nil {
 		t.Fatal(err)
@@ -171,6 +188,7 @@ func TestItemHandler_Create_invalidCategory(t *testing.T) {
 	app := newItemTestApp(t, &handlerStubItemRepo{})
 	body := map[string]any{
 		"title": "x", "category": "invalid", "metadata": map[string]any{},
+		"collection_id": testCollID,
 	}
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest("POST", "/items", bytes.NewReader(raw))
@@ -188,8 +206,8 @@ func TestItemHandler_Create_invalidCategory(t *testing.T) {
 func TestItemHandler_Create_created(t *testing.T) {
 	now := time.Now().UTC()
 	created := &models.Item{
-		ID:           7,
-		CollectionID: 1,
+		ID:           testItem2,
+		CollectionID: testCollID,
 		Title:        "New",
 		Category:     models.CategoryBook,
 		Metadata:     json.RawMessage(`{}`),
@@ -200,6 +218,7 @@ func TestItemHandler_Create_created(t *testing.T) {
 	app := newItemTestApp(t, repo)
 	payload := map[string]any{
 		"title": "New", "category": "book", "metadata": map[string]any{},
+		"collection_id": testCollID,
 	}
 	raw, _ := json.Marshal(payload)
 	req := httptest.NewRequest("POST", "/items", bytes.NewReader(raw))
@@ -211,8 +230,8 @@ func TestItemHandler_Create_created(t *testing.T) {
 	if resp.StatusCode != 201 {
 		t.Fatalf("status %d want 201", resp.StatusCode)
 	}
-	if repo.lastCreateColl != 1 {
-		t.Fatalf("default collection: got %d", repo.lastCreateColl)
+	if repo.lastCreateColl != testCollID {
+		t.Fatalf("collection: got %q", repo.lastCreateColl)
 	}
 	_ = resp.Body.Close()
 }
@@ -221,7 +240,7 @@ func TestItemHandler_List(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &handlerStubItemRepo{
 		list: []models.Item{
-			{ID: 1, CollectionID: 1, Title: "A", Category: models.CategoryGame, Metadata: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now},
+			{ID: testItemID, CollectionID: testCollID, Title: "A", Category: models.CategoryGame, Metadata: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now},
 		},
 	}
 	app := newItemTestApp(t, repo)
@@ -248,8 +267,8 @@ func TestItemHandler_Delete_noContent(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &handlerStubItemRepo{
 		getItem: &models.Item{
-			ID:           1,
-			CollectionID: 1,
+			ID:           testItemID,
+			CollectionID: testCollID,
 			Title:        "X",
 			Category:     models.CategoryGame,
 			Metadata:     json.RawMessage(`{}`),
@@ -258,7 +277,7 @@ func TestItemHandler_Delete_noContent(t *testing.T) {
 		},
 	}
 	app := newItemTestApp(t, repo)
-	req := httptest.NewRequest("DELETE", "/items/1", nil)
+	req := httptest.NewRequest("DELETE", "/items/"+testItemID, nil)
 	resp, err := app.Test(req, -1)
 	if err != nil {
 		t.Fatal(err)

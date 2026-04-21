@@ -144,7 +144,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
             disabled={busy || (turnstileEnabled && !turnstileToken)}
             className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? "Creating…" : "Create account"}
+            {busy ? "Creating…" : "Create Account"}
           </button>
         </form>
 

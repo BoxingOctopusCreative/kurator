@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Heart, Lock } from "lucide-react";
+import { CircleHelp, Heart, Lock, Trash2 } from "lucide-react";
 import {
   createWishlist,
   fetchCollections,
@@ -10,6 +10,8 @@ import {
   type Wishlist,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { DeleteEntryBucketDialog, type EntryDeleteSubject } from "@/components/DeleteEntryBucketDialog";
+import { ItemCoverImage } from "@/components/ItemCoverImage";
 import {
   assertCollectionOrWishlistName,
   assertLooseMultilineText,
@@ -21,14 +23,15 @@ export function WishlistsBrowser() {
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [collections, setCollections] = useState<{ id: number; name: string }[]>([]);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
 
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const [targetCol, setTargetCol] = useState<number | "">("");
+  const [targetCol, setTargetCol] = useState<string>("");
   const [newPublic, setNewPublic] = useState(true);
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
+  const [deleteSubject, setDeleteSubject] = useState<EntryDeleteSubject | null>(null);
 
   function reload() {
     setLoading(true);
@@ -70,8 +73,7 @@ export function WishlistsBrowser() {
       await createWishlist({
         name,
         description,
-        target_collection_id:
-          targetCol === "" || targetCol === 0 ? undefined : Number(targetCol),
+        target_collection_id: targetCol.trim() === "" ? undefined : targetCol.trim(),
         is_public: newPublic,
       });
       setNewName("");
@@ -87,8 +89,24 @@ export function WishlistsBrowser() {
     }
   }
 
+  function isMyWishlist(w: Wishlist): boolean {
+    return Boolean(user && Number(w.user_id) === Number(user.id));
+  }
+
   return (
     <div className="mx-auto max-w-5xl">
+      <DeleteEntryBucketDialog
+        variant="wishlist"
+        subject={deleteSubject}
+        open={deleteSubject != null}
+        onOpenChange={(v) => {
+          if (!v) setDeleteSubject(null);
+        }}
+        onDeleted={() => {
+          setDeleteSubject(null);
+          reload();
+        }}
+      />
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Wishlists</h1>
         <p className="mt-1 text-sm text-kurator-muted">
@@ -101,7 +119,7 @@ export function WishlistsBrowser() {
         onSubmit={onCreate}
         className="mb-10 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 md:p-6"
       >
-        <h2 className="text-sm font-medium text-kurator-fg">New wishlist</h2>
+        <h2 className="text-sm font-medium text-kurator-fg">New Wishlist</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="block text-sm">
             <span className="text-kurator-muted">Name</span>
@@ -114,7 +132,7 @@ export function WishlistsBrowser() {
             />
           </label>
           <label className="block text-sm md:col-span-2">
-            <span className="text-kurator-muted">Description (optional)</span>
+            <span className="text-kurator-muted">Description (Optional)</span>
             <input
               className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={newDesc}
@@ -122,25 +140,36 @@ export function WishlistsBrowser() {
             />
           </label>
           <label className="block text-sm md:col-span-2">
-            <span className="text-kurator-muted">Link to collection (optional)</span>
-            <select
-              className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={targetCol === "" ? "" : String(targetCol)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setTargetCol(v === "" ? "" : Number(v));
-              }}
-            >
-              <option value="">None — choose when you obtain each item</option>
-              {collections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs text-kurator-muted">
-              When set, “Add to collection” defaults to this shelf unless you pick another.
-            </span>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+              <div className="group relative inline-flex shrink-0 items-center gap-1.5">
+                <span className="text-kurator-muted">Link to Collection (Optional)</span>
+                <button
+                  type="button"
+                  className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                  aria-label='When set, “Add to collection” defaults to this shelf unless you pick another.'
+                >
+                  <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+                </button>
+                <span
+                  role="tooltip"
+                  className="pointer-events-none invisible absolute bottom-full left-0 z-60 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                >
+                  When set, “Add to collection” defaults to this shelf unless you pick another.
+                </span>
+              </div>
+              <select
+                className="w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 sm:min-w-0 sm:flex-1"
+                value={targetCol}
+                onChange={(e) => setTargetCol(e.target.value)}
+              >
+                <option value="">None — choose when you obtain each item</option>
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-kurator-muted md:col-span-2">
             <input
@@ -158,7 +187,7 @@ export function WishlistsBrowser() {
             disabled={creating}
             className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
           >
-            {creating ? "Creating…" : "Create wishlist"}
+            {creating ? "Creating…" : "Create Wishlist"}
           </button>
           {formMsg && <p className="text-sm text-kurator-muted">{formMsg}</p>}
         </div>
@@ -180,14 +209,38 @@ export function WishlistsBrowser() {
       {!loading && !error && wishlists.length > 0 && (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {wishlists.map((w) => (
-            <li key={w.id}>
+            <li key={w.id} className="relative">
+              {isMyWishlist(w) && (
+                <button
+                  type="button"
+                  aria-label={`Delete Wishlist ${w.name}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDeleteSubject({
+                      id: w.id,
+                      name: w.name,
+                      entry_count: w.entry_count,
+                    });
+                  }}
+                  className="absolute right-2 top-2 z-10 rounded-lg border border-kurator-border bg-kurator-bg/95 p-2 text-kurator-muted shadow-sm hover:border-red-500/50 hover:text-red-300"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </button>
+              )}
               <Link
                 href={`/wishlists/${w.id}`}
                 className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
-                    <Heart className="h-5 w-5" aria-hidden />
+                  <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                    {w.cover_art_url ? (
+                      <ItemCoverImage url={w.cover_art_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                        <Heart className="h-5 w-5" aria-hidden />
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="font-medium text-kurator-fg">{w.name}</h2>

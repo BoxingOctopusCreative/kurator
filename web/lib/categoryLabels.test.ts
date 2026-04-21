@@ -6,7 +6,9 @@ describe("categoryLabel", () => {
     expect(categoryLabel("game")).toBe("Game");
     expect(categoryLabel("music")).toBe("Music");
     expect(categoryLabel("book")).toBe("Book");
-    expect(categoryLabel("video")).toBe("Video");
+    expect(categoryLabel("movies")).toBe("Movies");
+    expect(categoryLabel("tv")).toBe("TV");
+    expect(categoryLabel("anime")).toBe("Anime");
     expect(categoryLabel("comic_book")).toBe("Comic book");
     expect(categoryLabel("manga")).toBe("Manga");
   });
