@@ -1,6 +1,6 @@
 services:
   api:
-    image: ghcr.io/kuratorapp/kurator-api:latest
+    image: ghcr.io/boxingoctopuscreative/kurator-api:latest
     networks:
       shared-network:
         ipv4_address: 10.0.0.200
@@ -8,7 +8,7 @@ services:
       - "8080"
     environment:
       HTTP_ADDR: ":8080"
-      CORS_ORIGINS: https://kuratorapp.cc,https://www.kuratorapp.cc,https://swagger.kuratorapp.cc
+      CORS_ORIGINS: "https://kuratorapp.cc,https://www.kuratorapp.cc,https://swagger.kuratorapp.cc"
       # For managed Postgres (Aiven/Neon), set DATABASE_URL with sslmode=verify-full (or verify-ca)
       # and use PGSSLROOTCERT to point at the mounted CA file.
       DATABASE_URL: $DATABASE_URL
@@ -80,7 +80,7 @@ services:
       - traefik.http.middlewares.kurator-api.headers.STSPreload=true
 
   web:
-    image: ghcr.io/kuratorapp/kurator-web:latest
+    image: ghcr.io/boxingoctopuscreative/kurator-web:latest
     networks:
       shared-network:
         ipv4_address: 10.0.0.201
@@ -91,13 +91,10 @@ services:
       NEXT_PUBLIC_API_URL: http://10.0.0.200:8080
       NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID: $NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID
       NEXT_PUBLIC_SENTRY_DSN: $NEXT_PUBLIC_SENTRY_DSN
-      SENTRY_ORG: $SENTRY_ORG
-      SENTRY_PROJECT: $SENTRY_PROJECT
-      SENTRY_AUTH_TOKEN: $SENTRY_AUTH_TOKEN
       NODE_ENV: production
-      CLOUDFLARE_TURNSTILE_ENABLED: true
+      CLOUDFLARE_TURNSTILE_ENABLED: false
       CLOUDFLARE_TURNSTILE_SITEKEY: $CLOUDFLARE_TURNSTILE_SITEKEY
-      NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_ENABLED: true
+      NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_ENABLED: false
       NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY: $NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY
       # Landing page background (https://unsplash.com/oauth/applications)
       UNSPLASH_ACCESS_KEY: $UNSPLASH_ACCESS_KEY
