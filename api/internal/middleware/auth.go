@@ -11,6 +11,9 @@ import (
 // SessionCookieName is the HTTP cookie name for the session token.
 const SessionCookieName = "kurator_session"
 
+// BetaUnlockCookieName stores a signed JWT after POST /auth/beta/unlock (HTTP-only).
+const BetaUnlockCookieName = "kurator_beta_unlock"
+
 // RequireAuth loads the session cookie and sets c.Locals("userID", int64).
 func RequireAuth(auth *service.AuthService) fiber.Handler {
 	return func(c *fiber.Ctx) error {

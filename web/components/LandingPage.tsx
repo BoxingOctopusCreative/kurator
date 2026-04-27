@@ -10,10 +10,6 @@ type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
 };
 
-const showDatabaseSetupLink =
-  process.env.NEXT_PUBLIC_SHOW_DATABASE_SETUP === "true" ||
-  process.env.NEXT_PUBLIC_SHOW_DATABASE_SETUP === "1";
-
 export function LandingPage({ initialBackground = null }: Props) {
   return (
     <UnsplashMarketingShell initialBackground={initialBackground}>
@@ -62,14 +58,6 @@ export function LandingPage({ initialBackground = null }: Props) {
           </Link>
         </p>
 
-        {showDatabaseSetupLink && (
-          <p className="mt-4 text-center text-xs text-kurator-muted">
-            <Link href="/setup" className="text-kurator-accent/90 hover:underline">
-              Database setup
-            </Link>
-            <span className="text-kurator-muted/70"> — first-time install</span>
-          </p>
-        )}
       </div>
       <Copyright />
     </UnsplashMarketingShell>

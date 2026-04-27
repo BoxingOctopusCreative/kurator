@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
+import { AuthBetaGate } from "@/components/AuthBetaGate";
 import { LoginClient } from "./LoginClient";
 import { Copyright } from "@/components/Copyright";
 
@@ -24,21 +25,23 @@ function LoginFormFallback() {
 export function LoginPageInner({ initialBackground, turnstileSiteKey, turnstileEnabled }: Props) {
   return (
     <UnsplashMarketingShell initialBackground={initialBackground}>
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-4 py-12">
-        <div className="mb-4 flex justify-center">
-          <Image
-            src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
-            alt="Kurator"
-            width={600}
-            height={300}
-            className="mb-8 max-w-full h-auto w-auto filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
-            priority
-          />
+      <AuthBetaGate>
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-4 py-12">
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
+              alt="Kurator"
+              width={600}
+              height={300}
+              className="mb-8 max-w-full h-auto w-auto filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
+              priority
+            />
+          </div>
+          <Suspense fallback={<LoginFormFallback />}>
+            <LoginClient turnstileSiteKey={turnstileSiteKey} turnstileEnabled={turnstileEnabled} />
+          </Suspense>
         </div>
-        <Suspense fallback={<LoginFormFallback />}>
-          <LoginClient turnstileSiteKey={turnstileSiteKey} turnstileEnabled={turnstileEnabled} />
-        </Suspense>
-      </div>
+      </AuthBetaGate>
       <Copyright />
     </UnsplashMarketingShell>
   );

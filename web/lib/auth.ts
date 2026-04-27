@@ -118,6 +118,33 @@ export async function completeLogin2FA(pendingToken: string, code: string): Prom
   return data.user;
 }
 
+export type BetaAccessStatus = {
+  required: boolean;
+  unlocked: boolean;
+};
+
+export async function fetchBetaAccessStatus(): Promise<BetaAccessStatus> {
+  const res = await api("/auth/beta/status", { method: "GET" });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+  return (await res.json()) as BetaAccessStatus;
+}
+
+export async function unlockBetaAccess(key: string) {
+  const trimmed = key.trim();
+  if (trimmed.length < 8) {
+    throw new Error("Beta access key looks too short.");
+  }
+  const res = await api("/auth/beta/unlock", {
+    method: "POST",
+    body: JSON.stringify({ key: trimmed }),
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+}
+
 export async function register(
   email: string,
   password: string,

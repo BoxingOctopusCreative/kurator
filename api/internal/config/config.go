@@ -27,8 +27,8 @@ type Config struct {
 	GoogleBooksAPIKey    string
 	TMDBAPIKey           string
 	ComicVineAPIKey      string
-	// SetupEnabled allows GET/POST /api/v1/setup/* (run migrations from the API). Disable in production after bootstrap.
-	SetupEnabled bool
+	// BetaAccessRequired enforces POST /auth/beta/unlock (marks key claimed) before register; registration consumes the key row (env: BETA_ACCESS_REQUIRED, default false).
+	BetaAccessRequired bool
 	// TurnstileEnabled opts in to Cloudflare Turnstile on POST /auth/login and /auth/register (env: CLOUDFLARE_TURNSTILE_ENABLED, default false).
 	TurnstileEnabled bool
 	// TurnstileSecretKey is required when TurnstileEnabled is true (env: CLOUDFLARE_TURNSTILE_SECRETKEY).

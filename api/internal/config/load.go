@@ -115,7 +115,7 @@ func Load(opts *LoadOptions) (Config, error) {
 			fc.Metadata.ComicVineAPIKey,
 			"",
 		),
-		SetupEnabled: mergeBool("SETUP_ENABLED", opts.SetupEnabled, fc.Setup.Enabled, false),
+		BetaAccessRequired: mergeBool("BETA_ACCESS_REQUIRED", "", fc.Beta.AccessRequired, false),
 		TurnstileEnabled: mergeBool(
 			"CLOUDFLARE_TURNSTILE_ENABLED",
 			opts.TurnstileEnabled,

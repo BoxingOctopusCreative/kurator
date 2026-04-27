@@ -11,9 +11,6 @@ http_addr = ":8080"
 [database]
 url = "postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable"
 
-[setup]
-enabled = false
-
 [meilisearch]
 host = "http://localhost:7700"
 api_key = ""
@@ -26,6 +23,10 @@ origins = ["http://localhost:3000"]
 jwt_secret = "dev_only_change_me_in_production_use_long_random"
 session_max_age_seconds = 2592000
 cookie_secure = false
+
+# Private beta: set BETA_ACCESS_REQUIRED=true (or access_required below). Requires migrations through 024_beta_keys_key_hash.
+[beta]
+access_required = false
 
 # S3-compatible storage (MinIO, AWS S3, Cloudflare R2, etc.).
 # endpoint = S3 API URL for the server (e.g. R2 https://<id>.r2.cloudflarestorage.com or MinIO http://minio:9000).

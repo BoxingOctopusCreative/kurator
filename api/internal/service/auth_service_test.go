@@ -7,6 +7,7 @@ import (
 
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -15,6 +16,10 @@ type stubUserRepo struct {
 	createErr    error
 	byEmail      map[string]*models.User
 	byID         map[int64]*models.User
+}
+
+func (s *stubUserRepo) CreateTx(ctx context.Context, _ pgx.Tx, email, passwordHash, displayName, username string) (*models.User, error) {
+	return s.Create(ctx, email, passwordHash, displayName, username)
 }
 
 func (s *stubUserRepo) Create(ctx context.Context, email, passwordHash, displayName, username string) (*models.User, error) {
@@ -92,6 +97,10 @@ type stubSessionRepo struct {
 	createErr  error
 }
 
+func (s *stubSessionRepo) CreateTx(ctx context.Context, _ pgx.Tx, userID int64, tokenHash string, expiresAt time.Time) error {
+	return s.Create(ctx, userID, tokenHash, expiresAt)
+}
+
 func (s *stubSessionRepo) Create(ctx context.Context, userID int64, tokenHash string, expiresAt time.Time) error {
 	if s.createErr != nil {
 		return s.createErr
@@ -118,16 +127,16 @@ func (s *stubSessionRepo) PurgeExpired(ctx context.Context) error {
 }
 
 func TestAuthService_Register_invalidEmail(t *testing.T) {
-	auth := NewAuthService(&stubUserRepo{}, &stubSessionRepo{}, "test-secret-jwt-at-least-32-bytes!!", 3600)
-	_, _, err := auth.Register(context.Background(), "not-an-email", "password123", "", "")
+	auth := NewAuthService(nil, &stubUserRepo{}, &stubSessionRepo{}, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
+	_, _, err := auth.Register(context.Background(), "not-an-email", "password123", "", "", nil)
 	if err != ErrInvalidEmail {
 		t.Fatalf("got %v want ErrInvalidEmail", err)
 	}
 }
 
 func TestAuthService_Register_weakPassword(t *testing.T) {
-	auth := NewAuthService(&stubUserRepo{}, &stubSessionRepo{}, "test-secret-jwt-at-least-32-bytes!!", 3600)
-	_, _, err := auth.Register(context.Background(), "ok@example.com", "short", "", "")
+	auth := NewAuthService(nil, &stubUserRepo{}, &stubSessionRepo{}, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
+	_, _, err := auth.Register(context.Background(), "ok@example.com", "short", "", "", nil)
 	if err != ErrWeakPassword {
 		t.Fatalf("got %v want ErrWeakPassword", err)
 	}
@@ -136,8 +145,8 @@ func TestAuthService_Register_weakPassword(t *testing.T) {
 func TestAuthService_Register_createsSession(t *testing.T) {
 	users := &stubUserRepo{}
 	sessions := &stubSessionRepo{}
-	auth := NewAuthService(users, sessions, "test-secret-jwt-at-least-32-bytes!!", 3600)
-	u, raw, err := auth.Register(context.Background(), "new@example.com", "password123", "Nick", "")
+	auth := NewAuthService(nil, users, sessions, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
+	u, raw, err := auth.Register(context.Background(), "new@example.com", "password123", "Nick", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +171,7 @@ func TestAuthService_Login_badPassword(t *testing.T) {
 			"u@example.com": {ID: 1, Email: "u@example.com", PasswordHash: string(hash)},
 		},
 	}
-	auth := NewAuthService(users, &stubSessionRepo{}, "test-secret-jwt-at-least-32-bytes!!", 3600)
+	auth := NewAuthService(nil, users, &stubSessionRepo{}, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
 	_, err = auth.Login(context.Background(), "u@example.com", "wrong-pass")
 	if err != ErrInvalidCredentials {
 		t.Fatalf("got %v", err)
@@ -180,7 +189,7 @@ func TestAuthService_Login_successNo2FA(t *testing.T) {
 		},
 	}
 	sessions := &stubSessionRepo{}
-	auth := NewAuthService(users, sessions, "test-secret-jwt-at-least-32-bytes!!", 3600)
+	auth := NewAuthService(nil, users, sessions, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
 	res, err := auth.Login(context.Background(), "ok@example.com", "secret1234")
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +222,7 @@ func TestAuthService_Login_pending2FA(t *testing.T) {
 			},
 		},
 	}
-	auth := NewAuthService(users, &stubSessionRepo{}, "test-secret-jwt-at-least-32-bytes!!", 3600)
+	auth := NewAuthService(nil, users, &stubSessionRepo{}, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
 	res, err := auth.Login(context.Background(), "2fa@example.com", "pw12345678")
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +236,7 @@ func TestAuthService_Login_pending2FA(t *testing.T) {
 }
 
 func TestAuthService_UserIDFromSession_invalid(t *testing.T) {
-	auth := NewAuthService(&stubUserRepo{}, &stubSessionRepo{}, "test-secret-jwt-at-least-32-bytes!!", 3600)
+	auth := NewAuthService(nil, &stubUserRepo{}, &stubSessionRepo{}, nil, "test-secret-jwt-at-least-32-bytes!!", 3600, false)
 	_, err := auth.UserIDFromSession(context.Background(), "")
 	if err != repository.ErrSessionInvalid {
 		t.Fatalf("got %v", err)

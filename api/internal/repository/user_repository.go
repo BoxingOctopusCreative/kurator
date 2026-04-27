@@ -17,6 +17,7 @@ var ErrUsernameTaken = errors.New("username already taken")
 
 type UserRepository interface {
 	Create(ctx context.Context, email, passwordHash, displayName, username string) (*models.User, error)
+	CreateTx(ctx context.Context, tx pgx.Tx, email, passwordHash, displayName, username string) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
 	GetByID(ctx context.Context, id int64) (*models.User, error)
 	GetIDByUsernameCI(ctx context.Context, username string) (int64, error)
@@ -45,6 +46,31 @@ func (r *PostgresUserRepository) Create(ctx context.Context, email, passwordHash
 	var u models.User
 	var sl []byte
 	err := r.pool.QueryRow(ctx, `
+		INSERT INTO users (email, password_hash, display_name, username, username_locked)
+		VALUES ($1, $2, $3, $4, TRUE)
+		RETURNING `+userScanCols(),
+		email, passwordHash, displayName, username).Scan(
+		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(strings.ToLower(pgErr.ConstraintName), "username") || strings.Contains(strings.ToLower(pgErr.ConstraintName), "idx_users_username") {
+				return nil, ErrUsernameTaken
+			}
+			return nil, ErrEmailTaken
+		}
+		return nil, err
+	}
+	u.SocialLinks = sl
+	return &u, nil
+}
+
+func (r *PostgresUserRepository) CreateTx(ctx context.Context, tx pgx.Tx, email, passwordHash, displayName, username string) (*models.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	var u models.User
+	var sl []byte
+	err := tx.QueryRow(ctx, `
 		INSERT INTO users (email, password_hash, display_name, username, username_locked)
 		VALUES ($1, $2, $3, $4, TRUE)
 		RETURNING `+userScanCols(),

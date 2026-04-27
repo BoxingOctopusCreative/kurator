@@ -1,6 +1,6 @@
 // @title Kurator API
 // @version 1.0
-// @description REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, setup status, bundled SQL migrations on boot, and optional S3-backed image uploads.
+// @description REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads.
 // @host localhost:8080
 // @BasePath /
 
@@ -54,14 +54,23 @@ func main() {
 	}
 	defer pool.Close()
 
-	applied, err := migrate.UpWithExistingPool(startupCtx, pool)
+	applied, expected, err := migrate.StatusWithExistingPool(startupCtx, pool)
 	if err != nil {
 		log.Fatalf("migrations: %v", err)
 	}
-	if len(applied) == 0 {
-		logStartup("migrations", "no pending migrations")
+	if len(applied) < len(expected) {
+		logStartup("bootstrap", "database not fully populated; applying migrations")
+		appliedNow, err := migrate.UpWithExistingPool(startupCtx, pool)
+		if err != nil {
+			log.Fatalf("bootstrap: %v", err)
+		}
+		if len(appliedNow) == 0 {
+			logStartup("bootstrap", "no bootstrap migrations were needed")
+		} else {
+			logStartup("bootstrap", "applied "+strings.Join(appliedNow, ", "))
+		}
 	} else {
-		logStartup("migrations", "applied "+strings.Join(applied, ", "))
+		logStartup("bootstrap", "database already populated")
 	}
 
 	var indexer service.SearchIndexer
@@ -147,7 +156,8 @@ func main() {
 		TMDBAPIKey:       cfg.TMDBAPIKey,
 		ComicVineAPIKey:  cfg.ComicVineAPIKey,
 	})
-	authSvc := service.NewAuthService(userRepo, sessionRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge)
+	betaRepo := repository.NewPostgresBetaKeyRepository(pool)
+	authSvc := service.NewAuthService(pool, userRepo, sessionRepo, betaRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge, cfg.BetaAccessRequired)
 	socialSvc := service.NewSocialService(userRepo, followRepo)
 
 	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc)
@@ -157,8 +167,7 @@ func main() {
 	listH := handler.NewListHandler(listSvc)
 	searchH := handler.NewSearchHandler(searchSvc)
 	metaH := handler.NewMetadataHandler(metaSvc)
-	setupH := handler.NewSetupHandler(cfg)
-	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
+	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey, cfg.BetaAccessRequired)
 	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	requireAuth := middleware.RequireAuth(authSvc)
 
@@ -189,9 +198,8 @@ func main() {
 	app.Get("/health", health)
 
 	v1 := app.Group("/api/v1")
-	v1.Get("/setup", setupH.Info)
-	v1.Get("/setup/status", setupH.Status)
-	v1.Post("/setup/migrate", setupH.Migrate)
+	v1.Get("/auth/beta/status", authH.BetaAccessStatus)
+	v1.Post("/auth/beta/unlock", authH.BetaUnlock)
 	v1.Post("/auth/register", authH.Register)
 	v1.Post("/auth/login", authH.Login)
 	v1.Post("/auth/login/2fa", authH.Login2FA)

@@ -14,23 +14,28 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/turnstile"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
 	auth               *service.AuthService
 	cookieSecure       bool
 	sessionMaxAgeSec   int
+	betaUnlockMaxAge   int
 	turnstileEnabled   bool
 	turnstileSecretKey string
+	betaAccessRequired bool
 }
 
-func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeSec int, turnstileEnabled bool, turnstileSecretKey string) *AuthHandler {
+func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeSec int, turnstileEnabled bool, turnstileSecretKey string, betaAccessRequired bool) *AuthHandler {
 	return &AuthHandler{
 		auth:               auth,
 		cookieSecure:       cookieSecure,
 		sessionMaxAgeSec:   sessionMaxAgeSec,
+		betaUnlockMaxAge:   7 * 24 * 3600,
 		turnstileEnabled:   turnstileEnabled,
 		turnstileSecretKey: strings.TrimSpace(turnstileSecretKey),
+		betaAccessRequired: betaAccessRequired,
 	}
 }
 
@@ -61,7 +66,19 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if err := h.verifyTurnstile(c, body.TurnstileToken); err != nil {
 		return err
 	}
-	u, raw, err := h.auth.Register(c.Context(), body.Email, body.Password, body.DisplayName, body.Username)
+	var claimKeyID *uuid.UUID
+	if h.betaAccessRequired {
+		raw := c.Cookies(middleware.BetaUnlockCookieName)
+		if raw == "" {
+			return fiber.NewError(fiber.StatusForbidden, service.ErrBetaUnlockRequired.Error())
+		}
+		kid, err := h.auth.ParseBetaUnlockToken(raw)
+		if err != nil {
+			return fiber.NewError(fiber.StatusForbidden, service.ErrBetaUnlockRequired.Error())
+		}
+		claimKeyID = &kid
+	}
+	u, raw, err := h.auth.Register(c.Context(), body.Email, body.Password, body.DisplayName, body.Username, claimKeyID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUsernameTaken) {
 			return fiber.NewError(fiber.StatusConflict, "username already taken")
@@ -72,10 +89,80 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrWeakPassword) || errors.Is(err, service.ErrInvalidEmail) {
 			return fiber.NewError(fiber.StatusBadRequest, err.Error())
 		}
+		if errors.Is(err, service.ErrBetaUnlockRequired) {
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
+		if errors.Is(err, service.ErrBetaKeyClaimInvalid) {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	h.setSessionCookie(c, raw)
+	if h.betaAccessRequired {
+		h.clearBetaUnlockCookie(c)
+	}
 	return c.Status(fiber.StatusCreated).JSON(publicUser(u))
+}
+
+// BetaAccessStatus reports whether private beta enforcement is on and whether this browser has completed unlock.
+// @Summary Beta access status
+// @Tags auth
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/beta/status [get]
+func (h *AuthHandler) BetaAccessStatus(c *fiber.Ctx) error {
+	if !h.betaAccessRequired {
+		return c.JSON(fiber.Map{"required": false, "unlocked": true})
+	}
+	raw := c.Cookies(middleware.BetaUnlockCookieName)
+	if raw == "" {
+		return c.JSON(fiber.Map{"required": true, "unlocked": false})
+	}
+	if _, err := h.auth.ParseBetaUnlockToken(raw); err != nil {
+		return c.JSON(fiber.Map{"required": true, "unlocked": false})
+	}
+	return c.JSON(fiber.Map{"required": true, "unlocked": true})
+}
+
+// BetaUnlockBody is the JSON body for POST /api/v1/auth/beta/unlock.
+type BetaUnlockBody struct {
+	Key string `json:"key"`
+}
+
+// BetaUnlock validates a beta key and sets the kurator_beta_unlock cookie.
+// @Summary Unlock private beta (set cookie)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body BetaUnlockBody true "Beta access key"
+// @Success 200 {object} map[string]bool
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /api/v1/auth/beta/unlock [post]
+func (h *AuthHandler) BetaUnlock(c *fiber.Ctx) error {
+	if !h.betaAccessRequired {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	var body BetaUnlockBody
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	keyID, err := h.auth.ClaimBetaKeyForUnlock(c.Context(), body.Key)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidBetaKey) {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		if errors.Is(err, service.ErrBetaKeyClaimed) {
+			return fiber.NewError(fiber.StatusConflict, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	tok, err := h.auth.SignBetaUnlockToken(keyID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	h.setBetaUnlockCookie(c, tok)
+	return c.JSON(fiber.Map{"ok": true})
 }
 
 // LoginBody is the JSON body for POST /api/v1/auth/login.
@@ -525,6 +612,30 @@ func (h *AuthHandler) setSessionCookie(c *fiber.Ctx, raw string) {
 func (h *AuthHandler) clearSessionCookie(c *fiber.Ctx) {
 	c.Cookie(&fiber.Cookie{
 		Name:     middleware.SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HTTPOnly: true,
+		SameSite: "Lax",
+		Secure:   h.cookieSecure,
+		MaxAge:   -1,
+	})
+}
+
+func (h *AuthHandler) setBetaUnlockCookie(c *fiber.Ctx, raw string) {
+	c.Cookie(&fiber.Cookie{
+		Name:     middleware.BetaUnlockCookieName,
+		Value:    raw,
+		Path:     "/",
+		HTTPOnly: true,
+		SameSite: "Lax",
+		Secure:   h.cookieSecure,
+		MaxAge:   h.betaUnlockMaxAge,
+	})
+}
+
+func (h *AuthHandler) clearBetaUnlockCookie(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     middleware.BetaUnlockCookieName,
 		Value:    "",
 		Path:     "/",
 		HTTPOnly: true,

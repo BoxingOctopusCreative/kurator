@@ -13,6 +13,7 @@ var ErrSessionInvalid = errors.New("session invalid or expired")
 
 type SessionRepository interface {
 	Create(ctx context.Context, userID int64, tokenHash string, expiresAt time.Time) error
+	CreateTx(ctx context.Context, tx pgx.Tx, userID int64, tokenHash string, expiresAt time.Time) error
 	DeleteByTokenHash(ctx context.Context, tokenHash string) error
 	DeleteAllForUser(ctx context.Context, userID int64) error
 	FindUserByValidToken(ctx context.Context, tokenHash string) (int64, error)
@@ -29,6 +30,13 @@ func NewPostgresSessionRepository(pool *pgxpool.Pool) *PostgresSessionRepository
 
 func (r *PostgresSessionRepository) Create(ctx context.Context, userID int64, tokenHash string, expiresAt time.Time) error {
 	_, err := r.pool.Exec(ctx, `
+		INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)
+	`, userID, tokenHash, expiresAt)
+	return err
+}
+
+func (r *PostgresSessionRepository) CreateTx(ctx context.Context, tx pgx.Tx, userID int64, tokenHash string, expiresAt time.Time) error {
+	_, err := tx.Exec(ctx, `
 		INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)
 	`, userID, tokenHash, expiresAt)
 	return err

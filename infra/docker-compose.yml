@@ -1,5 +1,5 @@
 # Infrastructure-only stack (e.g. Postgres for local dev).
-# Apply schema via the API on boot, the web /setup page (SETUP_ENABLED), `go run ./cmd/migrate`, or DATABASE_URL + api/internal/migrate.
+# Apply schema via API startup bootstrap, `go run ./cmd/migrate`, or DATABASE_URL + api/internal/migrate.
 # Run from repo root: docker compose -f infra/docker-compose.yml up -d
 # Stop the root docker-compose postgres first if both map host port 5432.
 #

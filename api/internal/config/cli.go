@@ -29,7 +29,6 @@ type LoadOptions struct {
 	GoogleBooksAPIKey    string
 	TMDBAPIKey           string
 	ComicVineAPIKey      string
-	SetupEnabled         string
 	TurnstileEnabled     string
 	TurnstileSecretKey   string
 	MailgunAPIKey        string
@@ -63,7 +62,6 @@ func RegisterFlags(fs *flag.FlagSet, o *LoadOptions) {
 	fs.StringVar(&o.GoogleBooksAPIKey, "google-books-api-key", "", "env: GOOGLE_BOOKS_API_KEY")
 	fs.StringVar(&o.TMDBAPIKey, "tmdb-api-key", "", "env: TMDB_API_KEY")
 	fs.StringVar(&o.ComicVineAPIKey, "comicvine-api-key", "", "env: COMICVINE_API_KEY")
-	fs.StringVar(&o.SetupEnabled, "setup-enabled", "", "true|false (env: SETUP_ENABLED); empty uses file/default")
 	fs.StringVar(&o.TurnstileEnabled, "turnstile-enabled", "", "true|false (env: CLOUDFLARE_TURNSTILE_ENABLED); empty uses file/default")
 	fs.StringVar(&o.TurnstileSecretKey, "turnstile-secret-key", "", "env: CLOUDFLARE_TURNSTILE_SECRETKEY")
 	fs.StringVar(&o.MailgunAPIKey, "mailgun-api-key", "", "env: MAILGUN_API_KEY")

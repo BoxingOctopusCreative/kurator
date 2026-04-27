@@ -3,13 +3,13 @@ package config
 // fileConfig is the optional TOML file shape (sections and fields are all optional).
 type fileConfig struct {
 	Server      fileServer      `toml:"server"`
+	Beta        fileBeta        `toml:"beta"`
 	Database    fileDatabase    `toml:"database"`
 	Meilisearch fileMeilisearch `toml:"meilisearch"`
 	CORS        fileCORS        `toml:"cors"`
 	Auth        fileAuth        `toml:"auth"`
 	S3          fileS3          `toml:"s3"`
 	Metadata    fileMetadata    `toml:"metadata"`
-	Setup       fileSetup       `toml:"setup"`
 	Turnstile   fileTurnstile   `toml:"turnstile"`
 	Mailgun     fileMailgun     `toml:"mailgun"`
 	Sentry      fileSentry      `toml:"sentry"`
@@ -22,6 +22,10 @@ type fileSentry struct {
 
 type fileServer struct {
 	HTTPAddr string `toml:"http_addr"`
+}
+
+type fileBeta struct {
+	AccessRequired *bool `toml:"access_required"`
 }
 
 type fileDatabase struct {
@@ -61,10 +65,6 @@ type fileMetadata struct {
 	GoogleBooksAPIKey    string `toml:"google_books_api_key"`
 	TMDBAPIKey           string `toml:"tmdb_api_key"`
 	ComicVineAPIKey      string `toml:"comicvine_api_key"`
-}
-
-type fileSetup struct {
-	Enabled *bool `toml:"enabled"`
 }
 
 type fileTurnstile struct {

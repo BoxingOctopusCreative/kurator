@@ -14,6 +14,8 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -21,6 +23,7 @@ import (
 const bcryptCost = 12
 
 const twoFAPendingTyp = "2fa_pending"
+const betaUnlockTyp = "beta_unlock"
 
 var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
@@ -30,6 +33,10 @@ var (
 	ErrInvalidPending     = errors.New("invalid or expired login token")
 	ErrTwoFactorAlreadyOn = errors.New("two-factor authentication is already enabled")
 	ErrUsernameImmutable  = errors.New("username cannot be changed")
+	ErrInvalidBetaKey     = errors.New("invalid beta access key")
+	ErrBetaKeyClaimed     = errors.New("beta access key already claimed")
+	ErrBetaUnlockRequired   = errors.New("complete beta access unlock before registering")
+	ErrBetaKeyClaimInvalid  = errors.New("beta access key is invalid or no longer available")
 )
 
 type LoginStep1Result struct {
@@ -44,22 +51,45 @@ type TwoFASetupResult struct {
 }
 
 type AuthService struct {
-	users      repository.UserRepository
-	sessions   repository.SessionRepository
-	jwtSecret  []byte
-	sessionTTL time.Duration
+	users              repository.UserRepository
+	sessions           repository.SessionRepository
+	betaKeys           repository.BetaKeyRepository
+	pool               *pgxpool.Pool
+	betaAccessRequired bool
+	jwtSecret          []byte
+	sessionTTL         time.Duration
 }
 
-func NewAuthService(users repository.UserRepository, sessions repository.SessionRepository, jwtSecret string, sessionMaxAgeSeconds int) *AuthService {
+func NewAuthService(
+	pool *pgxpool.Pool,
+	users repository.UserRepository,
+	sessions repository.SessionRepository,
+	betaKeys repository.BetaKeyRepository,
+	jwtSecret string,
+	sessionMaxAgeSeconds int,
+	betaAccessRequired bool,
+) *AuthService {
 	if sessionMaxAgeSeconds < 300 {
 		sessionMaxAgeSeconds = 30 * 24 * 3600
 	}
-	return &AuthService{
-		users:      users,
-		sessions:   sessions,
-		jwtSecret:  []byte(jwtSecret),
-		sessionTTL: time.Duration(sessionMaxAgeSeconds) * time.Second,
+	if betaAccessRequired && (pool == nil || betaKeys == nil) {
+		panic("NewAuthService: beta access requires non-nil pool and BetaKeyRepository")
 	}
+	return &AuthService{
+		users:              users,
+		sessions:           sessions,
+		betaKeys:           betaKeys,
+		pool:               pool,
+		betaAccessRequired: betaAccessRequired,
+		jwtSecret:          []byte(jwtSecret),
+		sessionTTL:         time.Duration(sessionMaxAgeSeconds) * time.Second,
+	}
+}
+
+// BetaKeyHash returns the SHA-256 hex digest of the trimmed UTF-8 key (matches DB key_hash).
+func BetaKeyHash(plaintext string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(plaintext)))
+	return hex.EncodeToString(sum[:])
 }
 
 func registerUsernameCandidates(preferred, email string) ([]string, error) {
@@ -114,7 +144,14 @@ func registerUsernameCandidates(preferred, email string) ([]string, error) {
 	return out, nil
 }
 
-func (s *AuthService) Register(ctx context.Context, email, password, displayName, usernamePreferred string) (*models.User, string, error) {
+func (s *AuthService) Register(ctx context.Context, email, password, displayName, usernamePreferred string, claimKeyID *uuid.UUID) (*models.User, string, error) {
+	if s.betaAccessRequired {
+		if claimKeyID == nil || *claimKeyID == uuid.Nil {
+			return nil, "", ErrBetaUnlockRequired
+		}
+		return s.registerWithBetaPostUnlock(ctx, email, password, displayName, usernamePreferred, *claimKeyID)
+	}
+
 	em, err := validation.Email(email, "Email")
 	if err != nil {
 		return nil, "", ErrInvalidEmail
@@ -169,6 +206,141 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 		return nil, "", err
 	}
 	return u, raw, nil
+}
+
+func (s *AuthService) registerWithBetaPostUnlock(ctx context.Context, email, password, displayName, usernamePreferred string, claimKeyID uuid.UUID) (*models.User, string, error) {
+	em, err := validation.Email(email, "Email")
+	if err != nil {
+		return nil, "", ErrInvalidEmail
+	}
+	email = em
+	if len(password) < 8 {
+		return nil, "", ErrWeakPassword
+	}
+	if err := validation.Password(password, "Password"); err != nil {
+		return nil, "", err
+	}
+	ph, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return nil, "", err
+	}
+	dn := strings.TrimSpace(displayName)
+	if dn == "" {
+		dn = deriveDisplayName(email)
+	} else {
+		dn, err = validation.StrictPlainText(dn, validation.MaxName, "Display name", false)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	candidates, err := registerUsernameCandidates(usernamePreferred, email)
+	if err != nil {
+		return nil, "", err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := s.betaKeys.LockClaimedKeyTx(ctx, tx, claimKeyID); err != nil {
+		if errors.Is(err, repository.ErrBetaKeyNotFound) {
+			return nil, "", ErrBetaKeyClaimInvalid
+		}
+		return nil, "", err
+	}
+
+	var u *models.User
+	for _, cand := range candidates {
+		u, err = s.users.CreateTx(ctx, tx, email, string(ph), dn, cand)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, repository.ErrEmailTaken) {
+			return nil, "", err
+		}
+		if errors.Is(err, repository.ErrUsernameTaken) {
+			continue
+		}
+		return nil, "", err
+	}
+	if u == nil {
+		return nil, "", repository.ErrUsernameTaken
+	}
+	if err := s.betaKeys.DeleteClaimedKeyTx(ctx, tx, claimKeyID); err != nil {
+		return nil, "", ErrBetaKeyClaimInvalid
+	}
+	rawTok, h, err := s.newSessionToken()
+	if err != nil {
+		return nil, "", err
+	}
+	exp := time.Now().Add(s.sessionTTL)
+	if err := s.sessions.CreateTx(ctx, tx, u.ID, h, exp); err != nil {
+		return nil, "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, "", err
+	}
+	return u, rawTok, nil
+}
+
+// ClaimBetaKeyForUnlock marks the key claimed in the database and returns its id for the unlock cookie.
+func (s *AuthService) ClaimBetaKeyForUnlock(ctx context.Context, rawKey string) (uuid.UUID, error) {
+	if s.betaKeys == nil {
+		return uuid.Nil, errors.New("beta keys not configured")
+	}
+	rawKey = strings.TrimSpace(rawKey)
+	if len(rawKey) < 8 || len(rawKey) > 512 {
+		return uuid.Nil, ErrInvalidBetaKey
+	}
+	id, err := s.betaKeys.ClaimBetaKeyByHash(ctx, BetaKeyHash(rawKey))
+	if err != nil {
+		if errors.Is(err, repository.ErrBetaKeyNotFound) {
+			return uuid.Nil, ErrInvalidBetaKey
+		}
+		if errors.Is(err, repository.ErrBetaKeyAlreadyClaimed) {
+			return uuid.Nil, ErrBetaKeyClaimed
+		}
+		return uuid.Nil, err
+	}
+	return id, nil
+}
+
+// SignBetaUnlockToken issues a short-lived cookie value after a key was claimed at unlock.
+func (s *AuthService) SignBetaUnlockToken(keyID uuid.UUID) (string, error) {
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"typ": betaUnlockTyp,
+		"kid": keyID.String(),
+		"exp": time.Now().Add(7 * 24 * time.Hour).Unix(),
+	})
+	return tok.SignedString(s.jwtSecret)
+}
+
+// ParseBetaUnlockToken returns the beta_keys id from a signed unlock cookie.
+func (s *AuthService) ParseBetaUnlockToken(tokenStr string) (uuid.UUID, error) {
+	tok, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return s.jwtSecret, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+	if err != nil || !tok.Valid {
+		return uuid.Nil, ErrInvalidPending
+	}
+	claims, ok := tok.Claims.(jwt.MapClaims)
+	if !ok {
+		return uuid.Nil, ErrInvalidPending
+	}
+	if typ, _ := claims["typ"].(string); typ != betaUnlockTyp {
+		return uuid.Nil, ErrInvalidPending
+	}
+	kid, _ := claims["kid"].(string)
+	keyID, err := uuid.Parse(kid)
+	if err != nil || keyID == uuid.Nil {
+		return uuid.Nil, ErrInvalidPending
+	}
+	return keyID, nil
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*LoginStep1Result, error) {

@@ -1000,56 +1000,6 @@ export async function uploadBannerImage(file: File): Promise<string> {
   return data.url;
 }
 
-export type SetupInfo = {
-  setup_enabled: boolean;
-};
-
-export async function fetchSetupInfo(): Promise<SetupInfo> {
-  const res = await fetch(apiUrl("/setup"), { cache: "no-store" });
-  if (!res.ok) throw new Error(`setup: ${res.status}`);
-  return res.json() as Promise<SetupInfo>;
-}
-
-export type SetupStatus = {
-  setup_enabled: boolean;
-  connected?: boolean;
-  pending?: boolean;
-  applied?: string[];
-  expected?: string[];
-  applied_count?: number;
-  expected_count?: number;
-  message?: string;
-};
-
-export async function fetchSetupStatus(): Promise<SetupStatus> {
-  const res = await fetch(apiUrl("/setup/status"), { cache: "no-store" });
-  if (!res.ok) throw new Error(`setup status: ${res.status}`);
-  return res.json() as Promise<SetupStatus>;
-}
-
-export type SetupMigrateBody = {
-  database_url?: string;
-  host?: string;
-  port?: number;
-  user?: string;
-  password?: string;
-  database?: string;
-  sslmode?: string;
-};
-
-export async function runSetupMigrate(body: SetupMigrateBody): Promise<{ ok: boolean; applied: string[] }> {
-  const res = await fetch(apiUrl("/setup/migrate"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as { message?: string; ok?: boolean; applied?: string[] };
-  if (!res.ok) {
-    throw new Error(data.message || `setup migrate: ${res.status}`);
-  }
-  return { ok: !!data.ok, applied: data.applied ?? [] };
-}
-
 /** Server fetches a remote image and stores it in S3 (requires login). */
 export async function importCoverImageFromUrl(url: string): Promise<string> {
   const res = await fetch(apiUrl("/images"), {

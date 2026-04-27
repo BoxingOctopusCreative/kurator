@@ -117,27 +117,49 @@ func Status(ctx context.Context, databaseURL string) (applied []string, expected
 		return nil, expected, fmt.Errorf("ping: %w", err)
 	}
 
+	applied, err = statusAppliedFromPool(ctx, pool)
+	if err != nil {
+		return nil, expected, err
+	}
+	return applied, expected, nil
+}
+
+// StatusWithExistingPool returns applied migration versions and expected filenames using an existing pool.
+func StatusWithExistingPool(ctx context.Context, pool *pgxpool.Pool) (applied []string, expected []string, err error) {
+	expected, err = listMigrationFiles()
+	if err != nil {
+		return nil, nil, err
+	}
+	applied, err = statusAppliedFromPool(ctx, pool)
+	if err != nil {
+		return nil, expected, err
+	}
+	return applied, expected, nil
+}
+
+func statusAppliedFromPool(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	var exists bool
-	err = pool.QueryRow(ctx,
+	err := pool.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_migrations')`,
 	).Scan(&exists)
 	if err != nil || !exists {
-		return nil, expected, nil
+		return nil, nil
 	}
 
 	rows, err := pool.Query(ctx, `SELECT version FROM schema_migrations ORDER BY version`)
 	if err != nil {
-		return nil, expected, fmt.Errorf("list applied: %w", err)
+		return nil, fmt.Errorf("list applied: %w", err)
 	}
 	defer rows.Close()
+	var applied []string
 	for rows.Next() {
 		var v string
 		if err := rows.Scan(&v); err != nil {
-			return nil, expected, err
+			return nil, err
 		}
 		applied = append(applied, v)
 	}
-	return applied, expected, rows.Err()
+	return applied, rows.Err()
 }
 
 func listMigrationFiles() ([]string, error) {

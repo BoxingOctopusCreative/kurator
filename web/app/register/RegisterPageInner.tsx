@@ -7,6 +7,7 @@ import { useState } from "react";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
+import { AuthBetaGate } from "@/components/AuthBetaGate";
 import { register } from "@/lib/auth";
 import { Copyright } from "@/components/Copyright";
 
@@ -58,108 +59,110 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
 
   return (
     <UnsplashMarketingShell initialBackground={initialBackground}>
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
-        <div className="mb-4 flex justify-center">
-          <Image
-            src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
-            alt="Kurator"
-            width={600}
-            height={300}
-            className="mb-8 max-w-full h-auto w-auto filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
-            priority
-          />
-        </div>
-        <h1 className="text-2xl font-semibold text-kurator-fg">Create account</h1>
-        <p className="mt-1 text-sm text-kurator-muted">
-          Kurator stores credentials in your database — no external identity provider.
-        </p>
+      <AuthBetaGate>
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
+              alt="Kurator"
+              width={600}
+              height={300}
+              className="mb-8 max-w-full h-auto w-auto filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
+              priority
+            />
+          </div>
+          <h1 className="text-2xl font-semibold text-kurator-fg">Create account</h1>
+          <p className="mt-1 text-sm text-kurator-muted">
+            Kurator stores credentials in your database — no external identity provider.
+          </p>
 
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
-          <label className="block text-sm">
-            <span className="text-kurator-muted">Email</span>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-kurator-muted">Password</span>
-            <input
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <span className="mt-1 block text-xs text-kurator-muted">At least 8 characters.</span>
-          </label>
-          <label className="block text-sm">
-            <span className="text-kurator-muted">Display name (optional)</span>
-            <input
-              type="text"
-              autoComplete="nickname"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Defaults to the part before @ in your email"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-kurator-muted">Username (optional)</span>
-            <input
-              type="text"
-              autoComplete="username"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
-              placeholder="your-public-url — lowercase letters, digits, _ -"
-            />
-            <span className="mt-1 block text-xs text-kurator-muted">
-              Your profile will be at /people/your-username. Leave blank to pick one from your email.
-            </span>
-          </label>
-          {turnstileEnabled && (
-            <div className="flex min-h-[65px] justify-center">
-              <TurnstileWidget
-                key={turnstileMountKey}
-                siteKey={turnstileSiteKey.trim()}
-                onToken={setTurnstileToken}
-                theme="auto"
+          <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            <label className="block text-sm">
+              <span className="text-kurator-muted">Email</span>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
-            </div>
-          )}
-          {message && (
-            <p className="text-sm text-red-400" role="alert">
-              {message}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={busy || (turnstileEnabled && !turnstileToken)}
-            className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? "Creating…" : "Create Account"}
-          </button>
-        </form>
+            </label>
+            <label className="block text-sm">
+              <span className="text-kurator-muted">Password</span>
+              <input
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <span className="mt-1 block text-xs text-kurator-muted">At least 8 characters.</span>
+            </label>
+            <label className="block text-sm">
+              <span className="text-kurator-muted">Display name (optional)</span>
+              <input
+                type="text"
+                autoComplete="nickname"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Defaults to the part before @ in your email"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-kurator-muted">Username (optional)</span>
+              <input
+                type="text"
+                autoComplete="username"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                placeholder="your-public-url — lowercase letters, digits, _ -"
+              />
+              <span className="mt-1 block text-xs text-kurator-muted">
+                Your profile will be at /people/your-username. Leave blank to pick one from your email.
+              </span>
+            </label>
+            {turnstileEnabled && (
+              <div className="flex min-h-[65px] justify-center">
+                <TurnstileWidget
+                  key={turnstileMountKey}
+                  siteKey={turnstileSiteKey.trim()}
+                  onToken={setTurnstileToken}
+                  theme="auto"
+                />
+              </div>
+            )}
+            {message && (
+              <p className="text-sm text-red-400" role="alert">
+                {message}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={busy || (turnstileEnabled && !turnstileToken)}
+              className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? "Creating…" : "Create Account"}
+            </button>
+          </form>
 
-        <p className="mt-8 text-center text-sm text-kurator-muted">
-          Already have an account?{" "}
-          <Link href="/login" className="text-kurator-accent hover:underline">
-            Log in
-          </Link>
-        </p>
-        <p className="mt-4 text-center text-xs text-kurator-muted">
-          <Link href="/privacy" className="text-kurator-accent/90 hover:underline">
-            Privacy Policy
-          </Link>
-        </p>
-      </div>
+          <p className="mt-8 text-center text-sm text-kurator-muted">
+            Already have an account?{" "}
+            <Link href="/login" className="text-kurator-accent hover:underline">
+              Log in
+            </Link>
+          </p>
+          <p className="mt-4 text-center text-xs text-kurator-muted">
+            <Link href="/privacy" className="text-kurator-accent/90 hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
+        </div>
+      </AuthBetaGate>
       <Copyright />
     </UnsplashMarketingShell>
   );

@@ -11,7 +11,7 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/migrate"
 )
 
-// Standalone migrate command (same SQL bundle as API boot and POST /api/v1/setup/migrate).
+// Standalone migrate command (same SQL bundle as API startup bootstrap).
 func main() {
 	var opts config.LoadOptions
 	config.RegisterFlags(flag.CommandLine, &opts)

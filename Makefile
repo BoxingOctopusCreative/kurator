@@ -1,6 +1,7 @@
 # Kurator — convenience entrypoints (delegates to api/Makefile).
 
-.PHONY: help api-build api-build-macos api-build-linux api-build-all api-test api-clean web-test
+.PHONY: help api-build api-build-macos api-build-linux api-build-all api-test api-clean web-test \
+	api-build-betakeygen api-betakeygen
 
 help:
 	@echo "Kurator — common targets:"
@@ -9,6 +10,8 @@ help:
 	@echo "  make api-build-linux  — API for Linux amd64 + arm64 (two binaries)"
 	@echo "  make api-build-all    — API darwin amd64/arm64 + linux amd64/arm64"
 	@echo "  make api-test / api-clean"
+	@echo "  make api-build-betakeygen — build private beta key CLI -> api/bin/kurator-betakeygen"
+	@echo "  make api-betakeygen ARGS='-config api/kurator.toml' — go run betakeygen (prints key to stdout)"
 	@echo "  make web-test         — Vitest in web/ (UI unit tests)"
 	@echo "See api/Makefile for individual platform targets."
 
@@ -29,6 +32,12 @@ api-test:
 
 api-clean:
 	$(MAKE) -C api clean
+
+api-build-betakeygen:
+	$(MAKE) -C api build-betakeygen
+
+api-betakeygen:
+	$(MAKE) -C api betakeygen
 
 web-test:
 	cd web && npm test

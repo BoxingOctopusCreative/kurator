@@ -3,7 +3,7 @@
   "info": {
     "title": "Kurator API",
     "version": "1.0",
-    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, setup/migrations, and optional S3-backed image uploads."
+    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads."
   },
   "host": "localhost:8080",
   "basePath": "/",
@@ -32,58 +32,6 @@
         }
       }
     },
-    "/api/v1/setup": {
-      "get": {
-        "tags": ["setup"],
-        "summary": "Setup availability",
-        "produces": ["application/json"],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "setup_enabled": {"type": "boolean"}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/setup/status": {
-      "get": {
-        "tags": ["setup"],
-        "summary": "Migration status",
-        "produces": ["application/json"],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {"type": "object"}
-          }
-        }
-      }
-    },
-    "/api/v1/setup/migrate": {
-      "post": {
-        "tags": ["setup"],
-        "summary": "Run migrations",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {"$ref": "#/definitions/SetupMigrateBody"}
-          }
-        ],
-        "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}},
-          "400": {"description": "Bad Request"},
-          "403": {"description": "Forbidden"},
-          "500": {"description": "Server Error"}
-        }
-      }
-    },
     "/api/v1/auth/register": {
       "post": {
         "tags": ["auth"],
@@ -105,6 +53,37 @@
           },
           "400": {"description": "Bad Request"},
           "409": {"description": "Conflict"}
+        }
+      }
+    },
+    "/api/v1/auth/beta/status": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Beta access status",
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}}
+        }
+      }
+    },
+    "/api/v1/auth/beta/unlock": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Unlock private beta (set cookie)",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/BetaUnlockBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}},
+          "400": {"description": "Bad Request"},
+          "404": {"description": "Not Found"}
         }
       }
     },
@@ -156,6 +135,66 @@
         "summary": "Logout",
         "responses": {
           "204": {"description": "No Content"}
+        }
+      }
+    },
+    "/api/v1/auth/forgot-password": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Request password recovery code",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/ForgotPasswordBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}}
+        }
+      }
+    },
+    "/api/v1/auth/forgot-password/verify": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Verify recovery code",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/VerifyForgotPasswordBody"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "object"}},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/auth/forgot-password/reset": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Reset password after recovery",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/ResetForgotPasswordBody"}
+          }
+        ],
+        "responses": {
+          "204": {"description": "No Content"},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
         }
       }
     },
@@ -287,6 +326,22 @@
         }
       }
     },
+    "/api/v1/users/search": {
+      "get": {
+        "tags": ["social"],
+        "summary": "Search users",
+        "produces": ["application/json"],
+        "parameters": [
+          {"name": "q", "in": "query", "required": true, "type": "string"}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {"type": "array", "items": {"$ref": "#/definitions/PublicUser"}}
+          }
+        }
+      }
+    },
     "/api/v1/collections": {
       "get": {
         "tags": ["collections"],
@@ -305,6 +360,77 @@
             "schema": {"$ref": "#/definitions/CollectionListResult"}
           },
           "500": {"description": "Server Error"}
+        }
+      },
+      "post": {
+        "tags": ["collections"],
+        "summary": "Create collection",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {"$ref": "#/definitions/CreateCollectionBody"}
+          }
+        ],
+        "responses": {
+          "201": {"description": "Created", "schema": {"$ref": "#/definitions/Collection"}},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"}
+        }
+      }
+    },
+    "/api/v1/collections/{id}/items.csv": {
+      "get": {
+        "tags": ["collections"],
+        "summary": "Export collection items as CSV",
+        "produces": ["text/csv"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"type": "string"}},
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "404": {"description": "Not Found"}
+        }
+      }
+    },
+    "/api/v1/collections/{id}/items/import": {
+      "post": {
+        "tags": ["collections"],
+        "summary": "Import items from CSV",
+        "consumes": ["multipart/form-data"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "file",
+            "in": "formData",
+            "required": true,
+            "type": "file",
+            "description": "CSV file"
+          }
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/ImportItemsResult"}},
+          "400": {"description": "Bad Request"},
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"}
         }
       }
     },
@@ -496,6 +622,12 @@
         "display_name": {"type": "string"}
       }
     },
+    "BetaUnlockBody": {
+      "type": "object",
+      "properties": {
+        "key": {"type": "string"}
+      }
+    },
     "LoginBody": {
       "type": "object",
       "required": ["email", "password"],
@@ -534,21 +666,32 @@
       "type": "object",
       "properties": {"password": {"type": "string"}}
     },
+    "ForgotPasswordBody": {
+      "type": "object",
+      "properties": {
+        "email": {"type": "string"},
+        "turnstile_token": {"type": "string"}
+      }
+    },
+    "VerifyForgotPasswordBody": {
+      "type": "object",
+      "properties": {
+        "email": {"type": "string"},
+        "code": {"type": "string"},
+        "turnstile_token": {"type": "string"}
+      }
+    },
+    "ResetForgotPasswordBody": {
+      "type": "object",
+      "properties": {
+        "reset_token": {"type": "string"},
+        "password": {"type": "string"},
+        "turnstile_token": {"type": "string"}
+      }
+    },
     "ImageFromURLBody": {
       "type": "object",
       "properties": {"url": {"type": "string"}}
-    },
-    "SetupMigrateBody": {
-      "type": "object",
-      "properties": {
-        "database_url": {"type": "string"},
-        "host": {"type": "string"},
-        "port": {"type": "integer"},
-        "user": {"type": "string"},
-        "password": {"type": "string"},
-        "database": {"type": "string"},
-        "sslmode": {"type": "string"}
-      }
     },
     "Item": {
       "type": "object",
@@ -593,6 +736,42 @@
         "total": {"type": "integer", "format": "int64"},
         "page": {"type": "integer"},
         "page_size": {"type": "integer"}
+      }
+    },
+    "CreateCollectionBody": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "is_public": {"type": "boolean"},
+        "category": {"type": "string"}
+      }
+    },
+    "ImportItemsResult": {
+      "type": "object",
+      "properties": {
+        "created": {"type": "integer"},
+        "updated": {"type": "integer"},
+        "errors": {
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      }
+    },
+    "PublicUser": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer", "format": "int64"},
+        "username": {"type": "string"},
+        "display_name": {"type": "string"},
+        "first_name": {"type": "string"},
+        "last_name": {"type": "string"},
+        "location": {"type": "string"},
+        "bio": {"type": "string"},
+        "avatar_url": {"type": "string"},
+        "banner_url": {"type": "string"},
+        "social_links": {"type": "array", "items": {"type": "object"}},
+        "created_at": {"type": "string", "format": "date-time"}
       }
     },
     "MetadataLookupResult": {

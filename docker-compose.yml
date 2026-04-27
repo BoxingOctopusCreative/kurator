@@ -1,162 +1,196 @@
 services:
-  nginx:
-    image: nginx:alpine
-    container_name: kurator-nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - kurator-web-1
-      - kurator-web-2
-    restart: unless-stopped
-
-  minio:
-    image: minio/minio:latest
-    container_name: kurator-minio
-    command: server /data --console-address ":9001"
+  api:
+    image: ghcr.io/kuratorapp/kurator-api:latest
+    networks:
+      shared-network:
+        ipv4_address: 10.0.0.200
+    expose:
+      - "8080"
     environment:
-      MINIO_ROOT_USER: kurator
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-kurator_dev_minio_secret}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - kurator_minio:/data
-    restart: unless-stopped
-
-  minio-init:
-    image: minio/mc:latest
-    container_name: kurator-minio-init
-    depends_on:
-      minio:
-        condition: service_started
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        sleep 2
-        mc alias set local http://minio:9000 kurator "$$MINIO_ROOT_PASSWORD"
-        mc mb local/kurator-covers --ignore-existing
-        mc anonymous set download local/kurator-covers
-    environment:
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-kurator_dev_minio_secret}
-    restart: "no"
-
-  kurator-api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    container_name: kurator-api
-    ports:
-      - "8080:8080"
-    environment:
+      HTTP_ADDR: ":8080"
+      CORS_ORIGINS: https://kuratorapp.cc,https://www.kuratorapp.cc,https://swagger.kuratorapp.cc
       # For managed Postgres (Aiven/Neon), set DATABASE_URL with sslmode=verify-full (or verify-ca)
       # and use PGSSLROOTCERT to point at the mounted CA file.
-      DATABASE_URL: ${DATABASE_URL:-postgres://kurator:kurator@postgres:5432/kurator?sslmode=disable}
-      PGSSLROOTCERT: ${PGSSLROOTCERT:-}
-      SSL_CERT_FILE: ${SSL_CERT_FILE:-}
-      MEILISEARCH_HOST: http://meilisearch:7700
-      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:-dev_master_key}
+      DATABASE_URL: $DATABASE_URL
+      PGSSLROOTCERT: $PGSSLROOTCERT
+      ## Meilisearch
+      MEILISEARCH_HOST: http://10.0.0.202:7700
+      MEILISEARCH_API_KEY: $MEILISEARCH_API_KEY
       MEILISEARCH_INDEX: kurator_items
-      HTTP_ADDR: ":8080"
-      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-dev_only_change_me_in_production_use_long_random}
-      SESSION_MAX_AGE_SECONDS: ${SESSION_MAX_AGE_SECONDS:-2592000}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      CORS_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:9000
-      S3_BUCKET: kurator-covers
-      S3_REGION: us-east-1
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY_ID: kurator
-      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-kurator_dev_minio_secret}
-      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/kurator-covers}
-      # Optional metadata lookups (Add item title search)
-      TMDB_API_KEY: ${TMDB_API_KEY:-}
-      DISCOGS_PERSONAL_TOKEN: ${DISCOGS_PERSONAL_TOKEN:-}
-      THEGAMESDB_API_KEY: ${THEGAMESDB_API_KEY:-}
-      GOOGLE_BOOKS_API_KEY: ${GOOGLE_BOOKS_API_KEY:-}
-      COMICVINE_API_KEY: ${COMICVINE_API_KEY:-}
-      CLOUDFLARE_TURNSTILE_ENABLED: ${CLOUDFLARE_TURNSTILE_ENABLED:-}
-      CLOUDFLARE_TURNSTILE_SECRETKEY: ${CLOUDFLARE_TURNSTILE_SECRETKEY:-}
-      # Allow POST /api/v1/setup/migrate (disable in production after bootstrap)
-      SETUP_ENABLED: ${SETUP_ENABLED:-true}
-      SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      ## Auth
+      AUTH_JWT_SECRET: $AUTH_JWT_SECRET
+      SESSION_MAX_AGE_SECONDS: 2592000
+      COOKIE_SECURE: true
+      ## S3-compatible image storage (optional). When S3Bucket is set, PublicBaseURL and keys are required.
+      S3_BUCKET: $S3_BUCKET
+      S3_REGION: auto
+      S3_ENDPOINT: $S3_ENDPOINT
+      S3_ACCESS_KEY_ID: $S3_ACCESS_KEY_ID
+      S3_SECRET_ACCESS_KEY: $S3_SECRET_ACCESS_KEY
+      S3_PUBLIC_BASE_URL: https://userassets.kuratorapp.cc
+      S3_KEY_PREFIX: covers
+      ## Metadata lookups (Add item title search)
+      METADATA_USER_AGENT: "Kurator/1.0"
+      TMDB_API_KEY: $TMDB_API_KEY
+      DISCOGS_PERSONAL_TOKEN: $DISCOGS_PERSONAL_TOKEN
+      THEGAMESDB_API_KEY: $THEGAMESDB_API_KEY
+      GOOGLE_BOOKS_API_KEY: $GOOGLE_BOOKS_API_KEY
+      COMICVINE_API_KEY: $COMICVINE_API_KEY
+      ## Cloudflare Turnstile
+      CLOUDFLARE_TURNSTILE_ENABLED: $CLOUDFLARE_TURNSTILE_ENABLED
+      CLOUDFLARE_TURNSTILE_SECRETKEY: $CLOUDFLARE_TURNSTILE_SECRETKEY
+      BETA_ACCESS_REQUIRED: $BETA_ACCESS_REQUIRED
+      ## Mailgun
+      MAILGUN_API_KEY: $MAILGUN_API_KEY
+      MAILGUN_DOMAIN: $MAILGUN_DOMAIN
+      MAILGUN_FROM: $MAILGUN_FROM
+      MAILGUN_API_BASE: https://api.mailgun.net
+      ## Sentry
+      SENTRY_DSN: $SENTRY_DSN
+      SENTRY_ENVIRONMENT: $SENTRY_ENVIRONMENT
     volumes:
       # Optional: mount managed-DB CA certs (e.g. Aiven CA) and set PGSSLROOTCERT to a file in this path.
-      - ./infra/certs:/opt/kurator/certs:ro
+      - /mnt/portainer_ext_vol_01/kurator/certs:/opt/kurator/certs:ro
     depends_on:
       meilisearch:
         condition: service_started
-      minio-init:
-        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
     restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=shared-network
+      - traefik.http.routers.kurator-api.rule=Host(`api.kuratorapp.cc`)
+      - traefik.http.routers.kurator-api.service=api
+      - traefik.http.routers.kurator-api.tls=true
+      - traefik.http.routers.kurator-api.entrypoints=websecure
+      - traefik.http.routers.kurator-api.tls.certresolver=leresolver
+      - traefik.http.services.kurator-api.loadbalancer.server.port=8080
+      - traefik.http.middlewares.kurator-api.headers.SSLRedirect=true
+      - traefik.http.middlewares.kurator-api.headers.STSSeconds=315360000
+      - traefik.http.middlewares.kurator-api.headers.browserXSSFilter=true
+      - traefik.http.middlewares.kurator-api.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.kurator-api.headers.forceSTSHeader=true
+      - traefik.http.middlewares.kurator-api.headers.SSLHost=api.kuratorapp.cc
+      - traefik.http.middlewares.kurator-api.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.kurator-api.headers.STSPreload=true
 
-  kurator-web-1: &kurator_web
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-      args:
-        API_INTERNAL_URL: ${API_INTERNAL_URL:-http://kurator-api:8080}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
-        NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID: ${NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID:-}
-        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
-        SENTRY_ORG: ${SENTRY_ORG:-}
-        SENTRY_PROJECT: ${SENTRY_PROJECT:-}
-        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
-    environment:
-      NODE_ENV: production
-      API_INTERNAL_URL: http://kurator-api:8080
-      SENTRY_DSN: ${SENTRY_DSN:-}
-      CLOUDFLARE_TURNSTILE_ENABLED: ${CLOUDFLARE_TURNSTILE_ENABLED:-}
-      CLOUDFLARE_TURNSTILE_SITEKEY: ${CLOUDFLARE_TURNSTILE_SITEKEY:-}
-      NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_ENABLED: ${NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_ENABLED:-}
-      NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY: ${NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY:-}
-      # Landing page background (https://unsplash.com/oauth/applications)
-      UNSPLASH_ACCESS_KEY: ${UNSPLASH_ACCESS_KEY:-}
-    depends_on:
-      - kurator-api
-    restart: unless-stopped
+  web:
+    image: ghcr.io/kuratorapp/kurator-web:latest
+    networks:
+      shared-network:
+        ipv4_address: 10.0.0.201
     expose:
       - "3000"
-
-  kurator-web-2:
-    <<: *kurator_web
-
-  postgres:
-    image: postgres:latest
-    container_name: kurator-postgres
-    profiles:
-      - local-db
     environment:
-      POSTGRES_USER: kurator
-      POSTGRES_PASSWORD: kurator
-      POSTGRES_DB: kurator
-    ports:
-      - "5432:5432"
-    volumes:
-      - kurator_pg_data:/var/lib/postgresql/data
+      API_INTERNAL_URL: http://10.0.0.200:8080
+      NEXT_PUBLIC_API_URL: http://10.0.0.200:8080
+      NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID: $NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID
+      NEXT_PUBLIC_SENTRY_DSN: $NEXT_PUBLIC_SENTRY_DSN
+      SENTRY_ORG: $SENTRY_ORG
+      SENTRY_PROJECT: $SENTRY_PROJECT
+      SENTRY_AUTH_TOKEN: $SENTRY_AUTH_TOKEN
+      NODE_ENV: production
+      CLOUDFLARE_TURNSTILE_ENABLED: true
+      CLOUDFLARE_TURNSTILE_SITEKEY: $CLOUDFLARE_TURNSTILE_SITEKEY
+      NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_ENABLED: true
+      NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY: $NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY
+      # Landing page background (https://unsplash.com/oauth/applications)
+      UNSPLASH_ACCESS_KEY: $UNSPLASH_ACCESS_KEY
+    depends_on:
+      - api
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kurator -d kurator"]
-      interval: 3s
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 20s
       timeout: 5s
-      retries: 10
+      retries: 8
+      start_period: 30s
     restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=shared-network
+      - traefik.http.routers.kurator-web.rule=Host(`kuratorapp.cc`)
+      - traefik.http.routers.kurator-web.service=kurator-web
+      - traefik.http.routers.kurator-web.tls=true
+      - traefik.http.routers.kurator-web.entrypoints=websecure
+      - traefik.http.routers.kurator-web.tls.certresolver=leresolver
+      - traefik.http.services.kurator-web.loadbalancer.server.port=3000
+      - traefik.http.middlewares.kurator-web.headers.SSLRedirect=true
+      - traefik.http.middlewares.kurator-web.headers.STSSeconds=315360000
+      - traefik.http.middlewares.kurator-web.headers.browserXSSFilter=true
+      - traefik.http.middlewares.kurator-web.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.kurator-web.headers.forceSTSHeader=true
+      - traefik.http.middlewares.kurator-web.headers.SSLHost=kuratorapp.cc
+      - traefik.http.middlewares.kurator-web.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.kurator-web.headers.STSPreload=true
 
   meilisearch:
     image: getmeili/meilisearch:latest
-    container_name: kurator-meilisearch
+    networks:
+      shared-network:
+        ipv4_address: 10.0.0.202
+    expose:
+      - "7700"
     environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_master_key}
+      MEILI_MASTER_KEY: $MEILI_MASTER_KEY
       MEILI_NO_ANALYTICS: "true"
-    ports:
-      - "7700:7700"
     volumes:
       - kurator_meili_data:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7700/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
+  
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    networks:
+      shared-network:
+        ipv4_address: 10.0.0.203
+    environment:
+      SWAGGER_UI_PORT: 8081
+      BASE_URL: /
+      SWAGGER_JSON: /mnt/swagger.json
+    expose:
+      - "8081"
+    depends_on:
+      - api
+    volumes:
+      - /mnt/portainer_ext_vol_01/kurator/api/docs/swagger.json:/mnt/swagger.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8081/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=shared-network
+      - traefik.http.routers.kurator-swagger-ui.rule=Host(`swagger.kuratorapp.cc`)
+      - traefik.http.routers.kurator-swagger-ui.service=kurator-swagger-ui
+      - traefik.http.routers.kurator-swagger-ui.tls=true
+      - traefik.http.routers.kurator-swagger-ui.entrypoints=websecure
+      - traefik.http.routers.kurator-swagger-ui.tls.certresolver=leresolver
+      - traefik.http.services.kurator-swagger-ui.loadbalancer.server.port=8081
+      - traefik.http.middlewares.kurator-swagger-ui.headers.SSLRedirect=true
+      - traefik.http.middlewares.kurator-swagger-ui.headers.STSSeconds=315360000
+      - traefik.http.middlewares.kurator-swagger-ui.headers.browserXSSFilter=true
+      - traefik.http.middlewares.kurator-swagger-ui.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.kurator-api.headers.forceSTSHeader=true
+      - traefik.http.middlewares.kurator-swagger-ui.headers.SSLHost=swagger.kuratorapp.cc
+      - traefik.http.middlewares.kurator-swagger-ui.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.kurator-swagger-ui.headers.STSPreload=true
 
 volumes:
-  kurator_pg_data:
   kurator_meili_data:
-  kurator_minio:
+
+networks:
+  shared-network:
+    external: true
