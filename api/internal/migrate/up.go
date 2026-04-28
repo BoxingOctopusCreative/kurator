@@ -201,7 +201,7 @@ func execMigrationSQL(ctx context.Context, tx pgx.Tx, sql string) error {
 	if sql == "" {
 		return nil
 	}
-	parts := strings.Split(sql, ";")
+	parts := splitMigrationStatements(sql)
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -212,4 +212,84 @@ func execMigrationSQL(ctx context.Context, tx pgx.Tx, sql string) error {
 		}
 	}
 	return nil
+}
+
+// splitMigrationStatements splits on ';' outside SQL single-quoted strings and PostgreSQL
+// dollar-quoted string literals ($$...$$ or $tag$...$tag$). Naive strings.Split breaks DO blocks
+// and other dollar-quoted bodies that contain semicolons (see migration 025).
+func splitMigrationStatements(sql string) []string {
+	sql = strings.TrimSpace(sql)
+	if sql == "" {
+		return nil
+	}
+	var stmts []string
+	var b strings.Builder
+	for i := 0; i < len(sql); {
+		switch sql[i] {
+		case '\'':
+			b.WriteByte('\'')
+			i++
+			for i < len(sql) {
+				b.WriteByte(sql[i])
+				if sql[i] == '\'' {
+					if i+1 < len(sql) && sql[i+1] == '\'' {
+						b.WriteByte('\'')
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+		case '$':
+			start := i
+			opener, afterOpen := readPgDollarQuoteOpener(sql, i)
+			if opener == "" {
+				b.WriteByte('$')
+				i++
+				continue
+			}
+			b.WriteString(sql[start:afterOpen])
+			idx := strings.Index(sql[afterOpen:], opener)
+			if idx < 0 {
+				b.WriteString(sql[afterOpen:])
+				i = len(sql)
+				break
+			}
+			end := afterOpen + idx + len(opener)
+			b.WriteString(sql[afterOpen:end])
+			i = end
+		case ';':
+			s := strings.TrimSpace(b.String())
+			if s != "" {
+				stmts = append(stmts, s)
+			}
+			b.Reset()
+			i++
+		default:
+			b.WriteByte(sql[i])
+			i++
+		}
+	}
+	if tail := strings.TrimSpace(b.String()); tail != "" {
+		stmts = append(stmts, tail)
+	}
+	return stmts
+}
+
+// readPgDollarQuoteOpener returns the full opening delimiter (e.g. $$ or $body$) and the index
+// after it, or ("", start) if position start is not the beginning of a dollar-quoted literal.
+func readPgDollarQuoteOpener(s string, start int) (opener string, afterOpen int) {
+	if start >= len(s) || s[start] != '$' {
+		return "", start
+	}
+	j := start + 1
+	for j < len(s) && s[j] != '$' {
+		j++
+	}
+	if j >= len(s) {
+		return "", start
+	}
+	return s[start : j+1], j + 1
 }
