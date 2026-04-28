@@ -7,6 +7,7 @@ import { fetchBetaAccessStatus, unlockBetaAccess } from "@/lib/auth";
 export function AuthBetaGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const shouldGatePath = pathname?.startsWith("/register") ?? false;
   const [phase, setPhase] = useState<"loading" | "ready">("loading");
   const [showGate, setShowGate] = useState(false);
   const [key, setKey] = useState("");
@@ -14,12 +15,17 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!shouldGatePath) {
+      setPhase("ready");
+      setShowGate(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
         const s = await fetchBetaAccessStatus();
         if (cancelled) return;
-        if (s.required && !s.unlocked) {
+        if (s.required && !s.unlocked && shouldGatePath) {
           setShowGate(true);
         }
       } catch {
@@ -31,7 +37,7 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [shouldGatePath]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,10 +51,7 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
     try {
       await unlockBetaAccess(trimmed);
       setShowGate(false);
-      if (pathname?.startsWith("/login")) {
-        router.push("/register");
-        router.refresh();
-      }
+      router.refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not validate key.");
     } finally {
@@ -69,8 +72,7 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
       <div className="mx-auto w-full max-w-md space-y-4">
         <h2 className="text-xl font-semibold text-kurator-fg">Private beta</h2>
         <p className="text-sm text-kurator-muted">
-          Enter the beta access key you received. After it is accepted, you will continue to create your account
-          (from the login page you will be taken to registration).
+          Enter the beta access key you received. After it is accepted, you can continue creating your account.
         </p>
         <form onSubmit={onSubmit} className="space-y-3">
           <label className="block text-sm">
