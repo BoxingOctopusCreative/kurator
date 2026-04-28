@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchBetaAccessStatus, unlockBetaAccess } from "@/lib/auth";
@@ -112,6 +113,11 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
           >
             {busy ? "Checking…" : "Continue"}
           </button>
+          <p className="pt-1 text-center text-sm text-kurator-muted">
+            <Link href="/login" className="text-kurator-accent hover:underline">
+              Back to login
+            </Link>
+          </p>
         </form>
       </div>
     );
