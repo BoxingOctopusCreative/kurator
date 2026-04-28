@@ -4,7 +4,7 @@ import { HomePageClient } from "@/components/HomePageClient";
 import { fetchUnsplashBackground } from "@/lib/unsplash-background.server";
 
 export const metadata: Metadata = {
-  title: "Home",
+  title: "Kurator - Home",
 };
 
 export default async function HomePage() {
