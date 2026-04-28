@@ -43,6 +43,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={dmSans.variable} suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://assets.kuratorapp.cc" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://assets.kuratorapp.cc" />
         <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://api.unsplash.com" />
       </head>
