@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(process.cwd(), ".."),
   images: {
+    // Self-hosted (e.g. Docker + Traefik/Cloudflare): serve remote `src` URLs as-is instead of
+    // `/_next/image?...`, which often 400s without a working sharp stack, with very long Unsplash
+    // query strings, or when an edge proxy limits the optimizer request.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
