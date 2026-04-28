@@ -9,8 +9,8 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Rewrite target for /api/v1/* (must match docker-compose service name at build time).
-ARG API_INTERNAL_URL=http://kurator-api:8080
+# Server-side fetches during `next build` (if any). Runtime browser proxy uses the same env at request time.
+ARG API_INTERNAL_URL=http://api:8080
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL

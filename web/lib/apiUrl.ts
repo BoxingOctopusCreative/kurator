@@ -1,9 +1,10 @@
 /**
  * Resolves API URLs for server vs browser.
  *
- * In the browser, always use same-origin `/api/v1/...` so Next.js rewrites proxy to the API
- * and session cookies stay on the app origin. Sending `NEXT_PUBLIC_API_URL` here used to
- * bypass the rewrite and break auth (see metadata lookup comment in api.ts).
+ * In the browser, always use same-origin `/api/v1/...` so the App Router proxy
+ * (`app/api/v1/[[...path]]/route.ts`) forwards to the API and session cookies stay on the app
+ * origin. Pointing the browser at `NEXT_PUBLIC_API_URL` (e.g. api.example.com) would be
+ * cross-origin and break cookie auth unless you redesign CORS and cookie attributes.
  *
  * Server-side uses API_INTERNAL_URL or falls back to a direct backend URL.
  */

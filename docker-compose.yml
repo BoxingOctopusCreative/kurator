@@ -92,6 +92,7 @@ services:
     expose:
       - "3000"
     environment:
+      # Runtime proxy target for same-origin /api/v1/* (see web/app/api/v1/[[...path]]/route.ts).
       API_INTERNAL_URL: http://10.0.0.200:8080
       NEXT_PUBLIC_API_URL: http://10.0.0.200:8080
       NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID: $NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID
