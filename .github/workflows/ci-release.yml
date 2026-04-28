@@ -1,18 +1,3 @@
-# CI, semantic version tagging, API binaries, GitHub Release assets, and GHCR images.
-#
-# Version bumps (push to main): use the first line of the commit message (summary):
-#   MAJOR: ... -> major   MINOR: ... -> minor   PATCH: ... -> patch
-# Other conventional-style commits use the tag action’s default analyzer: fix: -> patch,
-# feat: -> minor, and a BREAKING CHANGE footer (or MAJOR: ...) -> major. The default
-# Angular-style parser does not treat feat!: in the subject as breaking; use a footer or MAJOR:.
-# If nothing matches, default_bump (patch) is used.
-#
-# CodeQL was removed while GitHub Advanced Security is not enabled (uploads fail without it).
-# To restore: add codeql-go and codeql-js jobs back from git history and set
-# release.needs to [unit-tests, codeql-go, codeql-js].
-#
-# GHCR images: ghcr.io/<owner-lowercase>/kurator-api and kurator-web.
-
 name: CI and release
 
 on:
@@ -29,7 +14,26 @@ permissions:
   contents: read
 
 jobs:
+  check-skip:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for CI or INFO commit prefix
+        id: skip
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if [[ "$COMMIT_MSG" =~ ^(CI|INFO): ]]; then
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+            echo "Commit starts with CI/INFO. Skipping build/release."
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   unit-tests:
+    needs: [check-skip]
+    if: needs.check-skip.outputs.should_skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,8 +58,12 @@ jobs:
         run: npm ci && npm test
 
   release:
-    needs: [unit-tests]
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [unit-tests, check-skip]
+    # Ensure it only runs if tests passed AND skip wasn't triggered
+    if: |
+      needs.check-skip.outputs.should_skip != 'true' &&
+      github.ref == 'refs/heads/main' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -69,17 +77,16 @@ jobs:
         id: ns
         run: echo "owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: "Bump SemVer tag (MAJOR:/MINOR:/PATCH: or conventional commits; default patch)"
+      - name: "Bump SemVer tag"
         id: tag_version
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           release_branches: main
           default_bump: patch
-          # Only MAJOR:/MINOR:/PATCH: here so feat:/fix:/breaking still use the analyzer defaults.
-          # Listing feat:/fix: in custom rules would override breaking-footer majors with feat:minor.
-          # Prefix before the colon is case-sensitive (must be MAJOR, MINOR, PATCH).
-          custom_release_rules: "MAJOR:major,MINOR:minor,PATCH:patch"
+          # Explicitly mapping CI and INFO to null/none just in case, 
+          # though the job 'if' condition should prevent this step from running anyway.
+          custom_release_rules: "MAJOR:major,MINOR:minor,PATCH:patch,CI:none,INFO:none"
 
       - uses: actions/setup-go@v5
         if: steps.tag_version.outputs.new_tag != ''
@@ -87,7 +94,7 @@ jobs:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
 
-      - name: Build API binaries (Linux and macOS, arm64 and amd64)
+      - name: Build API binaries
         if: steps.tag_version.outputs.new_tag != ''
         working-directory: api
         env:
@@ -103,7 +110,7 @@ jobs:
             chmod +x "$out"
           done
 
-      - name: Create GitHub Release and attach binaries
+      - name: Create GitHub Release
         if: steps.tag_version.outputs.new_tag != ''
         uses: softprops/action-gh-release@v2
         with:
@@ -112,7 +119,7 @@ jobs:
           generate_release_notes: true
           files: dist/kurator-api-*
 
-      - name: Upload release binaries as workflow artifacts
+      - name: Upload release binaries
         if: steps.tag_version.outputs.new_tag != ''
         uses: actions/upload-artifact@v4
         with:

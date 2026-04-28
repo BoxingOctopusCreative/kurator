@@ -1,8 +1,3 @@
-# Snyk dependency and static-code scans. Add org/repo secret SNYK_TOKEN (snyk.io account → Settings → Auth).
-#
-# Retests: pull_request / push, manual (Actions → Snyk Security → Run workflow), and weekly schedule
-# (new advisories and Snyk rules without a code change).
-
 name: Snyk Security
 
 on:
@@ -21,10 +16,32 @@ permissions:
   contents: read
 
 jobs:
-  snyk:
+  check-skip:
     runs-on: ubuntu-latest
-    # Fork PRs cannot use this repo’s secrets; skip instead of failing with a missing-token error.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      should_skip: ${{ steps.skip.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for CI or INFO commit prefix
+        id: skip
+        run: |
+          # Only check for skip prefixes on code changes (push/PR)
+          if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "pull_request" ]]; then
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            if [[ "$COMMIT_MSG" =~ ^(CI|INFO): ]]; then
+              echo "should_skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "should_skip=false" >> "$GITHUB_OUTPUT"
+
+  snyk:
+    needs: [check-skip]
+    runs-on: ubuntu-latest
+    # Added the check for should_skip here
+    if: |
+      needs.check-skip.outputs.should_skip != 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - uses: actions/checkout@v4
 

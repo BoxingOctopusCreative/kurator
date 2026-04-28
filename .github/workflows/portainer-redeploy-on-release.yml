@@ -1,0 +1,138 @@
+name: Portainer redeploy on release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  check-skip:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check release commit message
+        id: skip
+        run: |
+          # Get the commit message of the tag/release
+          COMMIT_MSG=$(git log -1 --pretty=%B ${{ github.event.release.tag_name }})
+          if [[ "$COMMIT_MSG" =~ ^(CI|INFO): ]]; then
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  redeploy-stack:
+    needs: [check-skip]
+    if: needs.check-skip.outputs.should_skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Redeploy Portainer stack from latest image
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_API_TOKEN: ${{ secrets.PORTAINER_API_TOKEN }}
+          PORTAINER_STACK_ID: ${{ secrets.PORTAINER_STACK_ID }}
+          PORTAINER_TLS_INSECURE: ${{ vars.PORTAINER_TLS_INSECURE || 'false' }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          for required_var in PORTAINER_URL PORTAINER_API_TOKEN PORTAINER_STACK_ID; do
+            if [ -z "${!required_var:-}" ]; then
+              echo "Missing required configuration: ${required_var}"
+              exit 1
+            fi
+          done
+
+          base_url="${PORTAINER_URL%/}"
+
+          curl_tls_flags=()
+          if [ "${PORTAINER_TLS_INSECURE}" = "true" ]; then
+            curl_tls_flags+=("-k")
+          fi
+
+          stack_response=$(
+            curl -fsS "${curl_tls_flags[@]}" \
+              -H "X-API-Key: ${PORTAINER_API_TOKEN}" \
+              "${base_url}/api/stacks/${PORTAINER_STACK_ID}"
+          )
+
+          endpoint_id=$(python - <<'PY' "${stack_response}"
+          import json
+          import sys
+
+          stack = json.loads(sys.argv[1])
+          endpoint_id = stack.get("EndpointId")
+          if endpoint_id is None:
+              endpoint_id = stack.get("endpointId")
+          print("" if endpoint_id is None else endpoint_id)
+          PY
+          )
+
+          if [ -z "${endpoint_id}" ]; then
+            echo "Could not derive endpoint ID from stack ${PORTAINER_STACK_ID}."
+            exit 1
+          fi
+
+          redeploy_url="${base_url}/api/stacks/${PORTAINER_STACK_ID}/git/redeploy?endpointId=${endpoint_id}"
+
+          curl -fsS "${curl_tls_flags[@]}" \
+            -X PUT \
+            -H "X-API-Key: ${PORTAINER_API_TOKEN}" \
+            "${redeploy_url}"
+
+          echo "Triggered Portainer redeploy for stack ${PORTAINER_STACK_ID} on endpoint ${endpoint_id} after release ${RELEASE_TAG}."
+
+  notify-discord:
+    needs: [redeploy-stack, check-skip]
+    runs-on: ubuntu-latest
+    if: success() && needs.check-skip.outputs.should_skip != 'true'
+    steps:
+      - name: Send release message to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASE_NOTES: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "DISCORD_WEBHOOK_URL secret is not set; skipping notification."
+            exit 0
+          fi
+
+          max_notes_len=1700
+          if [ "${#RELEASE_NOTES}" -gt "${max_notes_len}" ]; then
+            TRIMMED_NOTES="${RELEASE_NOTES:0:${max_notes_len}}..."
+          else
+            TRIMMED_NOTES="${RELEASE_NOTES}"
+          fi
+          export TRIMMED_NOTES
+
+          python - <<'PY' | curl -sSf -X POST \
+            -H "Content-Type: application/json" \
+            -d @- \
+            "${DISCORD_WEBHOOK_URL}"
+          import json
+          import os
+
+          tag = os.environ.get("RELEASE_TAG", "unknown")
+          url = os.environ.get("RELEASE_URL", "")
+          notes = os.environ.get("TRIMMED_NOTES", "").strip() or "_No release notes provided._"
+
+          payload = {
+              "content": (
+                  f"🚀 **New Release Published: {tag}**\n"
+                  f"Release: {url}\n\n"
+                  f"**Release Notes**\n{notes}"
+              )
+          }
+
+          print(json.dumps(payload))
+          PY
