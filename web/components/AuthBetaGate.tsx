@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchBetaAccessStatus, unlockBetaAccess } from "@/lib/auth";
 
@@ -69,12 +70,22 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
 
   if (showGate) {
     return (
-      <div className="mx-auto w-full max-w-md space-y-4">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
+        <div className="mb-4 flex justify-center">
+          <Image
+            src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
+            alt="Kurator"
+            width={600}
+            height={300}
+            className="mb-8 h-auto w-auto max-w-full filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
+            priority
+          />
+        </div>
         <h2 className="text-xl font-semibold text-kurator-fg">Private beta</h2>
-        <p className="text-sm text-kurator-muted">
+        <p className="mt-1 text-sm text-kurator-muted">
           Enter the beta access key you received. After it is accepted, you can continue creating your account.
         </p>
-        <form onSubmit={onSubmit} className="space-y-3">
+        <form onSubmit={onSubmit} className="mt-8 space-y-3">
           <label className="block text-sm">
             <span className="text-kurator-muted">Beta access key</span>
             <input
