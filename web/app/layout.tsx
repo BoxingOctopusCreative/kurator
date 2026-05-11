@@ -28,14 +28,40 @@ const atkinsonHyperlegible = Atkinson_Hyperlegible({
 
 const htmlFontVars = [cabin.variable, lexend.variable, atkinsonHyperlegible.variable].join(" ");
 
+const siteDescription =
+  "Kurator is your personal collection tracker — games, music, books, movies, TV, and anime. Organize, track, and share the stuff you obsess over.";
+
+const brandIconUrl = "https://assets.kuratorapp.cc/brand/PNG/kurator_favicon-white.png";
+const ogImageUrl = "https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://kuratorapp.cc"),
   title: {
     default: "Kurator",
     template: "Kurator - %s",
   },
-  description: "Collection tracker — games, music, books, movies, TV, and anime.",
+  description: siteDescription,
   icons: {
-    icon: "https://assets.kuratorapp.cc/brand/PNG/kurator_favicon-white.png",
+    icon: brandIconUrl,
+    apple: brandIconUrl,
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Kurator",
+    title: "Kurator",
+    description: siteDescription,
+    images: [
+      {
+        url: ogImageUrl,
+        alt: "Kurator",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Kurator",
+    description: siteDescription,
+    images: [ogImageUrl],
   },
   manifest: "/manifest.json",
   appleWebApp: {

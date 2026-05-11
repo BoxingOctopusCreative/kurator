@@ -561,20 +561,9 @@ export async function fetchUserFollowers(
   });
   if (res.status === 404) throw new Error("User not found.");
   if (!res.ok) throw new Error(`followers: ${res.status}`);
-  const raw = (await res.json()) as Partial<UserListResponse> & {
-    Items?: unknown;
-  };
-  const items = Array.isArray(raw.items)
-    ? raw.items
-    : Array.isArray(raw.Items)
-      ? (raw.Items as PublicUser[])
-      : [];
-  return {
-    items,
-    total: typeof raw.total === "number" ? raw.total : 0,
-    page: typeof raw.page === "number" ? raw.page : 1,
-    page_size: typeof raw.page_size === "number" ? raw.page_size : 24,
-  };
+  return parseUserListResponse(
+    (await res.json()) as Partial<UserListResponse> & { Items?: unknown },
+  );
 }
 
 export async function fetchUserFollowing(
@@ -592,9 +581,12 @@ export async function fetchUserFollowing(
   });
   if (res.status === 404) throw new Error("User not found.");
   if (!res.ok) throw new Error(`following: ${res.status}`);
-  const raw = (await res.json()) as Partial<UserListResponse> & {
-    Items?: unknown;
-  };
+  return parseUserListResponse(
+    (await res.json()) as Partial<UserListResponse> & { Items?: unknown },
+  );
+}
+
+function parseUserListResponse(raw: Partial<UserListResponse> & { Items?: unknown }): UserListResponse {
   const items = Array.isArray(raw.items)
     ? raw.items
     : Array.isArray(raw.Items)
@@ -606,6 +598,42 @@ export async function fetchUserFollowing(
     page: typeof raw.page === "number" ? raw.page : 1,
     page_size: typeof raw.page_size === "number" ? raw.page_size : 24,
   };
+}
+
+/** Mutual followers (you follow each other). Requires session. */
+export async function fetchMyFriends(opts?: { page?: number; limit?: number }): Promise<UserListResponse> {
+  const sp = new URLSearchParams();
+  if (opts?.page != null && opts.page > 0) sp.set("page", String(opts.page));
+  if (opts?.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
+  const qs = sp.toString();
+  const res = await fetch(apiUrl(`/me/friends${qs ? `?${qs}` : ""}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("Sign in to view friends.");
+  if (!res.ok) throw new Error(`friends: ${res.status}`);
+  return parseUserListResponse((await res.json()) as Partial<UserListResponse> & { Items?: unknown });
+}
+
+/**
+ * Public profiles followed by your mutual followers, excluding people you already follow.
+ * Requires session.
+ */
+export async function fetchPeopleYouMayKnow(opts?: {
+  page?: number;
+  limit?: number;
+}): Promise<UserListResponse> {
+  const sp = new URLSearchParams();
+  if (opts?.page != null && opts.page > 0) sp.set("page", String(opts.page));
+  if (opts?.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
+  const qs = sp.toString();
+  const res = await fetch(apiUrl(`/me/people-you-may-know${qs ? `?${qs}` : ""}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("Sign in to view suggestions.");
+  if (!res.ok) throw new Error(`people you may know: ${res.status}`);
+  return parseUserListResponse((await res.json()) as Partial<UserListResponse> & { Items?: unknown });
 }
 
 export type Wishlist = {

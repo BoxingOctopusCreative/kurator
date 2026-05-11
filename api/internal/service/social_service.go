@@ -162,3 +162,28 @@ func (s *SocialService) ListFollowing(ctx context.Context, userID int64, viewer 
 	offset := (page - 1) * limit
 	return s.follow.ListFollowing(ctx, userID, limit, offset)
 }
+
+// ListMyFriends returns mutual followers for the authenticated user only.
+func (s *SocialService) ListMyFriends(ctx context.Context, viewerID int64, page, limit int) ([]models.PublicUser, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 || limit > 48 {
+		limit = 24
+	}
+	offset := (page - 1) * limit
+	return s.follow.ListMutualFriends(ctx, viewerID, limit, offset)
+}
+
+// ListPeopleYouMayKnow returns public profiles followed by the viewer's mutual friends,
+// excluding the viewer and accounts the viewer already follows.
+func (s *SocialService) ListPeopleYouMayKnow(ctx context.Context, viewerID int64, page, limit int) ([]models.PublicUser, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 || limit > 48 {
+		limit = 24
+	}
+	offset := (page - 1) * limit
+	return s.follow.ListPeopleYouMayKnow(ctx, viewerID, limit, offset)
+}

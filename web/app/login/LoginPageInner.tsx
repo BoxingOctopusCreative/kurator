@@ -33,7 +33,7 @@ export function LoginPageInner({ initialBackground, turnstileSiteKey, turnstileE
               alt="Kurator"
               width={600}
               height={300}
-              className="mb-8 max-w-full h-auto w-auto filter-[drop-shadow(0_2px_6px_rgba(0,0,0,0.5))_drop-shadow(0_8px_28px_rgba(0,0,0,0.5))]"
+              className="kurator-logo-shadow mb-8 max-w-full h-auto w-auto"
               priority
             />
           </div>

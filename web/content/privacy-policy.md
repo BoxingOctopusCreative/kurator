@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: May 10, 2026_
+_Last updated: May 11, 2026_
 
 ## Overview
 
@@ -16,7 +16,7 @@ This policy describes what the software can store and transmit when you use an i
 
 - **Shelf and item content:** collection and list titles, descriptions, category pins, cover art, ratings, consumption status where used, structured metadata you enter or import (for example identifiers or fields that vary by category), wishlists, and free-form notes you attach to entries.
 
-- **Social and activity:** who you follow and who follows you; optional in-app activity notifications describing actions by other users relevant to your content.
+- **Social and activity:** who you follow and who follows you; optional in-app activity notifications describing actions by other users relevant to your content. When you are signed in, the People area may list mutual followers and suggest other accounts with public profiles who are followed by those mutual connections (excluding people you already follow).
 
 ## Automatically collected data and device storage
 

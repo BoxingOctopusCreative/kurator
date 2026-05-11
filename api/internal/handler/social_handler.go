@@ -125,6 +125,34 @@ func (h *SocialHandler) ListFollowing(c *fiber.Ctx) error {
 	return c.JSON(userListResult{Items: items, Total: total, Page: page, PageSize: limit})
 }
 
+func (h *SocialHandler) ListMyFriends(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "24"))
+	items, total, err := h.svc.ListMyFriends(c.Context(), uid, page, limit)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(userListResult{Items: items, Total: total, Page: page, PageSize: limit})
+}
+
+func (h *SocialHandler) ListPeopleYouMayKnow(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "24"))
+	items, total, err := h.svc.ListPeopleYouMayKnow(c.Context(), uid, page, limit)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(userListResult{Items: items, Total: total, Page: page, PageSize: limit})
+}
+
 func (h *SocialHandler) Follow(c *fiber.Ctx) error {
 	followerID, ok := c.Locals("userID").(int64)
 	if !ok || followerID < 1 {

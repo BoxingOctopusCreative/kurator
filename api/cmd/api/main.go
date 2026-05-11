@@ -262,6 +262,8 @@ func runAPI(cfg config.Config) error {
 	me.Post("/2fa/disable", authH.TwoFADisable)
 	me.Post("/password/verification-code", recoveryH.RequestMePasswordVerificationCode)
 	me.Post("/password", recoveryH.ChangeMePassword)
+	me.Get("/friends", socialH.ListMyFriends)
+	me.Get("/people-you-may-know", socialH.ListPeopleYouMayKnow)
 
 	v1.Post("/images", requireAuth, imgH.Upload)
 

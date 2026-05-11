@@ -62,6 +62,11 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* Marketing / auth hero: wide transparent logo reads on busy Unsplash backgrounds. */
+@utility kurator-logo-shadow {
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.45)) drop-shadow(0 10px 32px rgb(0 0 0 / 0.4));
+}
+
 /* Theme tokens live in color-schemes.css (palettes × light / dark). */
 
 /* Body font: Tailwind `font-sans` reads `--font-sans` from @theme; user choice overrides on <html>. */
