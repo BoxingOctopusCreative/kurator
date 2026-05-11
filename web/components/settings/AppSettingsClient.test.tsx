@@ -27,6 +27,7 @@ vi.mock("next/navigation", () => ({
     push: vi.fn(),
     refresh: vi.fn(),
   }),
+  usePathname: () => "/settings/app",
 }));
 
 vi.mock("@/components/ThemePreferenceSelect", () => ({
