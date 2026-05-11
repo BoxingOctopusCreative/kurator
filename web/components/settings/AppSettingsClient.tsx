@@ -112,6 +112,9 @@ export function AppSettingsClient() {
   function handlePasswordFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPwdFeedback(null);
+    if (!user) {
+      return;
+    }
     if (pwdNew !== pwdConfirm) {
       setPwdFeedback({ tone: "bad", text: "New password and confirmation do not match." });
       return;
