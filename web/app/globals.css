@@ -8,6 +8,7 @@
   --font-sans: var(--font-cabin), system-ui, sans-serif;
 
   --color-kurator-bg: var(--kurator-bg);
+  --color-kurator-main: var(--kurator-main);
   --color-kurator-surface: var(--kurator-surface);
   --color-kurator-border: var(--kurator-border);
   --color-kurator-accent: var(--kurator-accent);
@@ -31,6 +32,29 @@
   ::backdrop,
   ::file-selector-button {
     border-color: var(--kurator-border, var(--color-gray-200, currentcolor));
+  }
+
+  html {
+    --kurator-elevation-surface:
+      0 1px 2px rgb(0 0 0 / 0.06),
+      0 4px 14px rgb(0 0 0 / 0.07);
+  }
+
+  html.dark {
+    --kurator-elevation-surface:
+      0 2px 4px rgb(0 0 0 / 0.38),
+      0 10px 28px rgb(0 0 0 / 0.32);
+  }
+
+  /* Form blocks: same elevation as .shadow-surface tiles (not inside floating panels). */
+  form {
+    border-radius: 0.75rem;
+    box-shadow: var(--kurator-elevation-surface);
+  }
+
+  .shadow-dropdown form {
+    border-radius: unset;
+    box-shadow: none;
   }
 }
 
@@ -72,8 +96,26 @@ html[data-font="accessible_atkinson"] {
   --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Floating panels: menus, modals — stronger depth than shadow-lg alone (no full-page scrim). */
+/* Card / tile / form-like panels + floating shells (menus, modals). */
 @layer utilities {
+  .shadow-surface {
+    box-shadow: var(--kurator-elevation-surface);
+  }
+
+  /* Full-width page title heroes: soft depth below the banner (keep light). */
+  .shadow-hero-bottom {
+    box-shadow:
+      0 5px 16px -8px rgb(0 0 0 / 0.07),
+      0 2px 6px -4px rgb(0 0 0 / 0.04);
+  }
+
+  html.dark .shadow-hero-bottom {
+    box-shadow:
+      0 6px 20px -8px rgb(0 0 0 / 0.22),
+      0 2px 8px -4px rgb(0 0 0 / 0.14);
+  }
+
+  /* Floating panels: stronger depth than shadow-lg alone (no full-page scrim). */
   .shadow-dropdown {
     box-shadow:
       0 1px 2px rgb(0 0 0 / 0.06),

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { useAuth } from "@/components/AuthProvider";
 import { ColorSchemeSelect } from "@/components/ColorSchemeSelect";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
@@ -217,20 +218,23 @@ export function AppSettingsClient() {
 
   if (user === undefined || user === null) {
     return (
-      <div className="mx-auto max-w-lg text-sm text-kurator-muted">
+      <div className="mx-auto max-w-3xl text-sm text-kurator-muted">
         {user === undefined ? "Loading…" : "Redirecting to login…"}
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-kurator-fg">App Settings</h1>
-        <p className="mt-1 text-sm text-kurator-muted">Signed in as {user.email}</p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-10">
+      <PageHeroUnsplash>
+        <div>
+          <h1 className="text-2xl font-semibold text-kurator-fg">App Settings</h1>
+          <p className="mt-1 text-sm text-kurator-muted">Signed in as {user.email}</p>
+        </div>
+      </PageHeroUnsplash>
 
-      <section className="space-y-3 border-t border-kurator-border pt-8">
+      <div className="space-y-10 rounded-xl border border-kurator-border bg-kurator-surface p-6 sm:p-8 shadow-surface">
+      <section className="space-y-3">
         <h2 className="text-sm font-medium text-kurator-fg">Change Password</h2>
         <p className="text-sm text-kurator-muted">
           Your new password takes effect immediately. All sessions are signed out, including this browser — you will log in
@@ -268,7 +272,7 @@ export function AppSettingsClient() {
               autoComplete="new-password"
               required
               minLength={8}
-              className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={pwdNew}
               onChange={(e) => setPwdNew(e.target.value)}
             />
@@ -280,7 +284,7 @@ export function AppSettingsClient() {
               autoComplete="new-password"
               required
               minLength={8}
-              className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={pwdConfirm}
               onChange={(e) => setPwdConfirm(e.target.value)}
             />
@@ -294,7 +298,7 @@ export function AppSettingsClient() {
                 required={pwdEmailSent}
                 disabled={!pwdEmailSent}
                 placeholder={pwdEmailSent ? "6-digit code" : "Request a code first"}
-                className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
                 value={pwdEmailCode}
                 onChange={(e) => setPwdEmailCode(e.target.value)}
               />
@@ -394,7 +398,7 @@ export function AppSettingsClient() {
           <span className="text-kurator-muted">Theme</span>
           <ThemePreferenceSelect
             id="app-settings-theme"
-            className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           />
         </label>
         <label className="block text-sm">
@@ -402,7 +406,7 @@ export function AppSettingsClient() {
           <FontFamilySelect
             id="app-settings-font"
             accessibleFontsEnabled={sessionUser?.accessible_fonts_enabled ?? false}
-            className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           />
         </label>
         <label className="flex cursor-pointer items-start gap-3 text-sm">
@@ -435,7 +439,7 @@ export function AppSettingsClient() {
           <ColorSchemeSelect
             id="app-settings-color-scheme"
             accessibleExtrasEnabled={sessionUser?.accessible_color_schemes_enabled ?? false}
-            className="mt-1 w-full max-w-xs rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           />
         </label>
         <label className="flex cursor-pointer items-start gap-3 text-sm">
@@ -544,6 +548,7 @@ export function AppSettingsClient() {
           </button>
         )}
       </section>
+      </div>
 
       {message ? (
         <p

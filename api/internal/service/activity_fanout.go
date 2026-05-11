@@ -84,3 +84,21 @@ func (f *ActivityFanout) NotifyItemRated(ctx context.Context, actorID, collectio
 		"stars":           stars,
 	})
 }
+
+// NotifyNewFollower tells followedUserID that followerID started following them.
+func (f *ActivityFanout) NotifyNewFollower(ctx context.Context, followedUserID, followerID int64) {
+	if f == nil || f.notif == nil {
+		return
+	}
+	if followedUserID < 1 || followerID < 1 || followedUserID == followerID {
+		return
+	}
+	raw, err := json.Marshal(map[string]any{})
+	if err != nil {
+		log.Printf("activity fanout: marshal payload: %v", err)
+		return
+	}
+	if err := f.notif.InsertOne(ctx, followedUserID, followerID, models.NotificationKindNewFollower, raw); err != nil {
+		log.Printf("activity fanout: %v", err)
+	}
+}

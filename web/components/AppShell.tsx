@@ -56,7 +56,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <div className="min-h-dvh bg-kurator-bg">{children}</div>;
+    return (
+      <div className="@container min-h-dvh w-full bg-kurator-bg">{children}</div>
+    );
   }
 
   return (

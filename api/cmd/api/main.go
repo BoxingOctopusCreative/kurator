@@ -179,7 +179,7 @@ func runAPI(cfg config.Config) error {
 	})
 	betaRepo := repository.NewPostgresBetaKeyRepository(pool)
 	authSvc := service.NewAuthService(pool, userRepo, sessionRepo, betaRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge, cfg.BetaAccessRequired)
-	socialSvc := service.NewSocialService(userRepo, followRepo)
+	socialSvc := service.NewSocialService(userRepo, followRepo, activityFanout)
 
 	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc, activityFanout)
 	collH := handler.NewCollectionHandler(collSvc, authSvc, itemSvc, collRepo, activityFanout)

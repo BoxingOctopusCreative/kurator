@@ -14,10 +14,15 @@ import (
 type SocialService struct {
 	users  *repository.PostgresUserRepository
 	follow *repository.PostgresFollowRepository
+	fanout *ActivityFanout
 }
 
-func NewSocialService(users *repository.PostgresUserRepository, follow *repository.PostgresFollowRepository) *SocialService {
-	return &SocialService{users: users, follow: follow}
+func NewSocialService(
+	users *repository.PostgresUserRepository,
+	follow *repository.PostgresFollowRepository,
+	fanout *ActivityFanout,
+) *SocialService {
+	return &SocialService{users: users, follow: follow, fanout: fanout}
 }
 
 func isNumericUserRef(s string) bool {
@@ -116,7 +121,14 @@ func (s *SocialService) Follow(ctx context.Context, followerID, targetID int64) 
 	if err := s.assertProfileVisible(ctx, targetID, &v); err != nil {
 		return err
 	}
-	return s.follow.Follow(ctx, followerID, targetID)
+	inserted, err := s.follow.Follow(ctx, followerID, targetID)
+	if err != nil {
+		return err
+	}
+	if inserted && s.fanout != nil {
+		s.fanout.NotifyNewFollower(ctx, targetID, followerID)
+	}
+	return nil
 }
 
 func (s *SocialService) Unfollow(ctx context.Context, followerID, targetID int64) error {

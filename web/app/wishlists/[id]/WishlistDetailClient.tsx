@@ -20,6 +20,7 @@ import {
   type CategoryFormSlice,
 } from "@/components/CategoryMetadataFields";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
 import {
   createWishlistEntry,
@@ -591,7 +592,7 @@ export function WishlistDetailClient() {
                   disabled={savingSettings}
                   onClick={() => setCoverArtModalOpen(true)}
                   aria-label="Edit cover art"
-                  className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-xs ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
+                  className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-surface ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
                 >
                   <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
                     {wishlist.cover_art_url?.trim() ? (
@@ -608,7 +609,7 @@ export function WishlistDetailClient() {
                   </div>
                 </button>
               ) : (
-                <div className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                <div className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface">
                   <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
                     {wishlist.cover_art_url?.trim() ? (
                       <ItemCoverImage
@@ -620,6 +621,7 @@ export function WishlistDetailClient() {
                   </div>
                 </div>
               ))}
+            <PageHeroUnsplash className="mt-6" bleedBottomMargin={false} bleedToMainTop={false}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 {isOwner ? (
@@ -843,6 +845,7 @@ export function WishlistDetailClient() {
                 </div>
               )}
             </div>
+            </PageHeroUnsplash>
           </header>
 
           {isOwner && (
@@ -1003,12 +1006,12 @@ export function WishlistDetailClient() {
                 type="button"
                 onClick={() => setAddWishlistModalOpen(true)}
                 aria-haspopup="dialog"
-                className="mb-8 w-full rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted transition hover:border-kurator-accent/40 hover:bg-kurator-border/20 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                className="mb-8 w-full rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted transition hover:border-kurator-accent/40 hover:bg-kurator-border/20 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
               >
                 Nothing on this list yet. Click to add an item.
               </button>
             ) : (
-              <p className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+              <p className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
                 Nothing on this list yet.
               </p>
             )
@@ -1038,7 +1041,7 @@ export function WishlistDetailClient() {
                     fromPick ?? fromDefault ?? addToShelfOptions[0]?.id ?? "";
                   return (
                     <li key={item.id}>
-                      <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs">
+                      <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface">
                         <div className="shrink-0 space-y-2 p-4 pb-2">
                           <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
                             {item.title}
@@ -1048,7 +1051,7 @@ export function WishlistDetailClient() {
                           </span>
                         </div>
                         <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                             <ItemCoverImage
                               url={cover}
                               alt={`Cover for ${item.title}`}

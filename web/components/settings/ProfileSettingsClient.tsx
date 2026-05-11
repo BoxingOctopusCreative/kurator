@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ProfileImageCropModal } from "@/components/ProfileImageCropModal";
 import { fetchMe, patchProfile, type AuthUser } from "@/lib/auth";
 import { uploadAvatarImage, uploadBannerImage } from "@/lib/api";
@@ -396,7 +397,7 @@ export function ProfileSettingsClient() {
   const avatarPreviewSrc = safeImageSrcUrl(avatarUrl);
 
   return (
-    <div className="mx-auto max-w-lg space-y-10">
+    <div className="mx-auto max-w-3xl space-y-10">
       {cropSession ? (
         <ProfileImageCropModal
           kind={cropSession.kind}
@@ -405,12 +406,17 @@ export function ProfileSettingsClient() {
           onComplete={cropSession.kind === "avatar" ? uploadCroppedAvatar : uploadCroppedBanner}
         />
       ) : null}
-      <div>
-        <h1 className="text-2xl font-semibold text-kurator-fg">Profile Settings</h1>
-        <p className="mt-1 text-sm text-kurator-muted">Signed in as {user.email}</p>
-      </div>
+      <PageHeroUnsplash>
+        <div>
+          <h1 className="text-2xl font-semibold text-kurator-fg">Profile Settings</h1>
+          <p className="mt-1 text-sm text-kurator-muted">Signed in as {user.email}</p>
+        </div>
+      </PageHeroUnsplash>
 
-      <form onSubmit={onSaveProfile} className="space-y-4">
+      <form
+        onSubmit={onSaveProfile}
+        className="space-y-4 rounded-xl border border-kurator-border bg-kurator-surface p-6 sm:p-8"
+      >
         <h2 className="text-sm font-medium text-kurator-fg">Public Profile</h2>
         <label className="block text-sm">
           <span className="text-kurator-muted">Display name</span>
@@ -565,7 +571,7 @@ export function ProfileSettingsClient() {
           <p className="text-xs text-kurator-muted/90">
             Wide image for your public /people page (crop to 3:1, exported 1800×600). Optional. Max 10 MB before crop.
           </p>
-          <div className="relative h-28 w-full max-w-xl overflow-hidden rounded-xl border border-kurator-border bg-kurator-bg">
+          <div className="relative h-28 w-full overflow-hidden rounded-xl border border-kurator-border bg-kurator-bg shadow-surface">
             {bannerPreviewSrc ? (
               // eslint-disable-next-line @next/next/no-img-element -- remote S3/CDN URL
               <img src={bannerPreviewSrc} alt="" className="h-full w-full object-cover" />
@@ -606,7 +612,7 @@ export function ProfileSettingsClient() {
             <input
               type="text"
               inputMode="url"
-              className="mt-1 w-full max-w-xl rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
               value={bannerUrl}
               onChange={(e) => setBannerUrl(e.target.value)}
               placeholder="https://…"

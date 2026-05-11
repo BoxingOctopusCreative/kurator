@@ -3,6 +3,7 @@
 import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { useState } from "react";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 
 export function SentryExampleClient() {
   const [apiMessage, setApiMessage] = useState<string | null>(null);
@@ -10,12 +11,14 @@ export function SentryExampleClient() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg">Sentry Verification</h1>
-        <p className="mt-2 text-sm text-kurator-muted">
-          Use these actions to confirm errors reach your Sentry project. Remove this route when you are done.
-        </p>
-      </div>
+      <PageHeroUnsplash>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg">Sentry Verification</h1>
+          <p className="mt-2 text-sm text-kurator-muted">
+            Use these actions to confirm errors reach your Sentry project. Remove this route when you are done.
+          </p>
+        </div>
+      </PageHeroUnsplash>
 
       {!dsn && (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">

@@ -24,6 +24,7 @@ import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { categoryLabel } from "@/lib/categoryLabels";
@@ -383,7 +384,7 @@ export function ListDetailClient() {
               disabled={savingMeta}
               onClick={() => setCoverArtModalOpen(true)}
               aria-label="Edit cover art"
-              className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-xs ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
+              className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-surface ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
             >
               <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
                 {list.cover_art_url?.trim() ? (
@@ -400,7 +401,7 @@ export function ListDetailClient() {
               </div>
             </button>
           ) : (
-            <div className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-xs">
+            <div className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface">
               <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
                 {list.cover_art_url?.trim() ? (
                   <ItemCoverImage
@@ -412,6 +413,7 @@ export function ListDetailClient() {
               </div>
             </div>
           ))}
+        <PageHeroUnsplash className="mt-6" bleedBottomMargin={false} bleedToMainTop={false}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold text-kurator-fg md:text-3xl">
@@ -485,6 +487,7 @@ export function ListDetailClient() {
             </div>
           )}
         </div>
+        </PageHeroUnsplash>
       </header>
 
       {items.length === 0 ? (
@@ -493,12 +496,12 @@ export function ListDetailClient() {
             type="button"
             onClick={() => setAddListModalOpen(true)}
             aria-haspopup="dialog"
-            className="mb-8 w-full rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted transition hover:border-kurator-accent/40 hover:bg-kurator-border/20 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+            className="mb-8 w-full rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted transition hover:border-kurator-accent/40 hover:bg-kurator-border/20 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
           >
             No items yet. Click to add from your shelves.
           </button>
         ) : (
-          <p className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+          <p className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
             Nothing on this list yet.
           </p>
         )
@@ -514,8 +517,8 @@ export function ListDetailClient() {
             const cover = getCoverArtUrl(meta);
             return (
               <li key={it.id}>
-                <div className="flex h-full min-h-65 flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs">
-                  <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                <div className="flex h-full min-h-65 flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-surface">
+                  <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                     <ItemCoverImage
                       url={cover}
                       alt={`Cover for ${it.title}`}

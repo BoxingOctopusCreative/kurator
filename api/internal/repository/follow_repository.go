@@ -20,19 +20,19 @@ func NewPostgresFollowRepository(pool *pgxpool.Pool) *PostgresFollowRepository {
 	return &PostgresFollowRepository{pool: pool}
 }
 
-func (r *PostgresFollowRepository) Follow(ctx context.Context, followerID, followingID int64) error {
+// Follow creates followerID → followingID. Returns true if a new follow row was inserted.
+func (r *PostgresFollowRepository) Follow(ctx context.Context, followerID, followingID int64) (bool, error) {
 	if followerID == followingID {
-		return ErrCannotFollowSelf
+		return false, ErrCannotFollowSelf
 	}
 	tag, err := r.pool.Exec(ctx, `
 		INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2)
 		ON CONFLICT DO NOTHING
 	`, followerID, followingID)
 	if err != nil {
-		return fmt.Errorf("follow: %w", err)
+		return false, fmt.Errorf("follow: %w", err)
 	}
-	_ = tag
-	return nil
+	return tag.RowsAffected() > 0, nil
 }
 
 func (r *PostgresFollowRepository) Unfollow(ctx context.Context, followerID, followingID int64) error {

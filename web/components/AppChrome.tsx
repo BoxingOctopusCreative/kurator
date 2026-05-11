@@ -338,7 +338,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
           </button>
         </div>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
+      <div className="@container flex min-w-0 flex-1 flex-col bg-kurator-main pb-20 md:pb-0">
         <header className="sticky top-0 z-50 flex md:hidden items-center justify-between gap-3 border-b border-kurator-border bg-kurator-surface/95 pb-3 pl-4 pr-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-md">
           <Link href="/" className="min-w-0 shrink text-base font-semibold text-kurator-fg">
             <Image

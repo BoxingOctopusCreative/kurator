@@ -12,6 +12,7 @@ const (
 	NotificationKindWishlistCreated   = "wishlist_created"
 	NotificationKindItemAdded         = "item_added"
 	NotificationKindItemRated         = "item_rated"
+	NotificationKindNewFollower       = "new_follower"
 )
 
 // NotificationFeedItem is one row for GET /me/notifications.

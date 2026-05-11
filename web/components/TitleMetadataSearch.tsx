@@ -253,7 +253,7 @@ export function TitleMetadataSearch({ category, title, onApply }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-kurator-border bg-kurator-bg/40 p-3">
+    <div className="rounded-lg shadow-surface border border-kurator-border bg-kurator-bg/40 p-3">
       <div className="flex items-center gap-2 text-xs font-medium text-kurator-muted">
         <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
         {loading ? "Searching…" : "Matches"}

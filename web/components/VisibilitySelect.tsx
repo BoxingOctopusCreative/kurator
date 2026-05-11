@@ -57,11 +57,9 @@ export function VisibilitySelect({ value, onChange, name, legend, disabled }: Pr
           return (
             <label
               key={opt.value}
-              className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                checked
-                  ? "border-kurator-accent bg-kurator-accent/10 text-kurator-fg"
-                  : "border-kurator-border bg-kurator-bg text-kurator-muted hover:border-kurator-accent/40 hover:text-kurator-fg/90"
-              } ${disabled ? "cursor-not-allowed opacity-60 hover:border-kurator-border" : ""}`}
+              className={`flex cursor-pointer items-start gap-3 py-1.5 text-sm transition-colors ${
+                checked ? "text-kurator-fg" : "text-kurator-muted hover:text-kurator-fg/90"
+              } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
             >
               <input
                 type="radio"
@@ -74,7 +72,7 @@ export function VisibilitySelect({ value, onChange, name, legend, disabled }: Pr
               />
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-current" aria-hidden />
               <span className="flex flex-col gap-0.5">
-                <span className="font-medium text-kurator-fg">{opt.label}</span>
+                <span className="font-medium text-inherit">{opt.label}</span>
                 <span className="text-xs text-kurator-muted">{opt.description}</span>
               </span>
             </label>

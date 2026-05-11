@@ -419,7 +419,7 @@ export type UserListResponse = {
   page_size: number;
 };
 
-/** In-app activity notification (follow graph + shelf visibility). */
+/** In-app activity notification (new followers, follow-graph fan-out + shelf visibility). */
 export type NotificationFeedItem = {
   id: number;
   actor: PublicUser;

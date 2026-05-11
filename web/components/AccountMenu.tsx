@@ -60,11 +60,9 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
       <button
         type="button"
         onClick={() => {
-          setOpen((v) => {
-            const next = !v;
-            if (next) onMenuOpen();
-            return next;
-          });
+          const next = !open;
+          setOpen(next);
+          if (next) onMenuOpen();
         }}
         className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-kurator-surface/95 shadow-md backdrop-blur-md transition-opacity hover:opacity-90"
         aria-expanded={open}

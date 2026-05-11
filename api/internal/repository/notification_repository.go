@@ -67,6 +67,36 @@ func (r *PostgresNotificationRepository) InsertFanout(
 	return nil
 }
 
+// InsertOne inserts a single in-app notification: recipient user_id sees actor_id as the actor.
+// Skips when recipient and actor are the same (matches DB CHECK).
+func (r *PostgresNotificationRepository) InsertOne(
+	ctx context.Context,
+	recipientUserID, actorID int64,
+	kind string,
+	payload json.RawMessage,
+) error {
+	if r == nil || r.pool == nil {
+		return nil
+	}
+	if recipientUserID < 1 || actorID < 1 || kind == "" {
+		return nil
+	}
+	if recipientUserID == actorID {
+		return nil
+	}
+	if len(payload) == 0 {
+		payload = json.RawMessage(`{}`)
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO notifications (user_id, actor_id, kind, payload)
+		VALUES ($1, $2, $3, $4::jsonb)
+	`, recipientUserID, actorID, kind, payload)
+	if err != nil {
+		return fmt.Errorf("insert notification: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresNotificationRepository) UnreadCount(ctx context.Context, userID int64) (int64, error) {
 	var n int64
 	err := r.pool.QueryRow(ctx, `

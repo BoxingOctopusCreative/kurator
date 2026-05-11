@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { LandingPage } from "@/components/LandingPage";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { fetchItems, type Item } from "@/lib/api";
@@ -23,7 +24,7 @@ function ItemCard({ item }: { item: Item }) {
     <li className="w-[min(260px,85vw)] shrink-0 snap-start">
       <Link
         href={`/collections/${item.collection_id}`}
-        className="flex h-full min-h-[260px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs transition-colors hover:border-kurator-accent/50"
+        className="flex h-full min-h-[260px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface transition-colors hover:border-kurator-accent/50"
       >
         <div className="shrink-0 space-y-2 p-3 pb-2">
           <h3 className="line-clamp-2 text-sm font-medium leading-snug text-kurator-fg">{item.title}</h3>
@@ -35,7 +36,7 @@ function ItemCard({ item }: { item: Item }) {
           </div>
         </div>
         <div className="mt-auto flex flex-1 flex-col justify-end p-3 pt-2">
-          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
             <ItemCoverImage
               url={cover}
               alt={`Cover for ${item.title}`}
@@ -76,7 +77,7 @@ function ItemRow({
         </p>
       )}
       {!loading && !error && items.length === 0 && (
-        <p className="rounded-lg border border-kurator-border bg-kurator-surface/60 px-4 py-6 text-sm text-kurator-muted">{emptyHint}</p>
+        <p className="rounded-lg shadow-surface border border-kurator-border bg-kurator-surface/60 px-4 py-6 text-sm text-kurator-muted">{emptyHint}</p>
       )}
       {!loading && !error && items.length > 0 && (
         <ul className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5">
@@ -139,18 +140,12 @@ export function HomePageClient({ initialBackground = null }: Props) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-12">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <PageHeroUnsplash>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Dashboard</h1>
           <p className="mt-1 text-sm text-kurator-muted">Recent adds on your shelves and from people you follow.</p>
         </div>
-        <Link
-          href="/items/add"
-          className="inline-flex items-center justify-center rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90"
-        >
-          Add Item
-        </Link>
-      </div>
+      </PageHeroUnsplash>
 
       <ItemRow
         title="Your Collections"

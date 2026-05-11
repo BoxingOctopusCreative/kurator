@@ -12,6 +12,7 @@ import {
   visibilityOf,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { DeleteEntryBucketDialog, type EntryDeleteSubject } from "@/components/DeleteEntryBucketDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
@@ -90,17 +91,19 @@ export function ListsBrowser() {
           reload();
         }}
       />
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Lists</h1>
-        <p className="mt-1 text-sm text-kurator-muted">
-          Curated picks from your collections — favourites, themes, or anything you group across categories.
-          Choose Followers to share with people who follow you, or Friends only for mutuals.
-        </p>
-      </header>
+      <PageHeroUnsplash>
+        <header>
+          <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Lists</h1>
+          <p className="mt-1 text-sm text-kurator-muted">
+            Curated picks from your collections — favourites, themes, or anything you group across categories.
+            Choose Followers to share with people who follow you, or Friends only for mutuals.
+          </p>
+        </header>
+      </PageHeroUnsplash>
 
       <form
         onSubmit={onCreate}
-        className="mb-10 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 md:p-6"
+        className="mb-10 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:p-6"
       >
         <h2 className="text-sm font-medium text-kurator-fg">New List</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -151,7 +154,7 @@ export function ListsBrowser() {
       )}
 
       {!loading && !error && lists.length === 0 && (
-        <p className="rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+        <p className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
           No lists yet. Create one above, then add items from your shelves.
         </p>
       )}
@@ -178,10 +181,10 @@ export function ListsBrowser() {
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
               )}
-              <div className="flex h-full flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80">
+              <div className="flex h-full flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-surface transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80">
                 <Link href={`/lists/${lst.id}`} className="flex flex-1 flex-col p-4 transition-colors">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                       {lst.cover_art_url ? (
                         <ItemCoverImage url={lst.cover_art_url} alt="" className="h-full w-full object-cover" />
                       ) : (

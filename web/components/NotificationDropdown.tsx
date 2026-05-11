@@ -44,6 +44,10 @@ function notificationHref(n: NotificationFeedItem): string | null {
       const id = payloadStr(p, "item_id");
       return id ? `/items/${id}` : null;
     }
+    case "new_follower": {
+      const u = n.actor.username?.trim();
+      return u ? `/people/${encodeURIComponent(u)}` : null;
+    }
     default:
       return null;
   }
@@ -77,6 +81,8 @@ function notificationSummary(n: NotificationFeedItem): string {
         coll ? ` on “${coll}”.` : "."
       }`;
     }
+    case "new_follower":
+      return `${who} started following you.`;
     default:
       return `${who} did something in Kurator.`;
   }
@@ -262,8 +268,8 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
             <p className="px-3 py-3 text-center text-xs text-red-400">{err}</p>
           ) : items.length === 0 ? (
             <p className="px-3 py-4 text-center text-xs text-kurator-muted">
-              No activity yet. When people you follow add shelves or rate items you can see, it
-              shows up here.
+              No activity yet. When someone follows you or people you follow add shelves or rate
+              items you can see, it shows up here.
             </p>
           ) : (
             <ul className="divide-y divide-kurator-border/60">
@@ -331,13 +337,11 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
       <button
         ref={buttonRef}
         type="button"
-        onClick={() =>
-          setOpen((v) => {
-            const next = !v;
-            if (next) onMenuOpen();
-            return next;
-          })
-        }
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next) onMenuOpen();
+        }}
         className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-kurator-surface/95 text-kurator-muted shadow-md backdrop-blur-md transition-colors hover:bg-kurator-border/50 hover:text-kurator-fg"
         aria-expanded={open}
         aria-haspopup="true"

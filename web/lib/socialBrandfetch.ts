@@ -26,7 +26,6 @@ const PLATFORM_BRAND_DOMAIN: Record<string, string> = {
   imdb: "imdb.com",
   discogs: "discogs.com",
   "hey.cafe": "hey.cafe",
-  "ehnw.ca": "ehnw.ca",
 };
 
 function normalizeHost(hostname: string): string {
@@ -76,4 +75,27 @@ export function brandfetchLogoCdnUrl(domain: string, clientId: string, opts: Bra
   const cid = clientId.trim();
   const fallback = "lettermark";
   return `https://cdn.brandfetch.io/${d}/w/${opts.width}/theme/${opts.theme}/fallback/${fallback}?c=${encodeURIComponent(cid)}`;
+}
+
+/**
+ * Hostname for best-effort remote favicon lookup (browser &lt;img src&gt; only).
+ * Returns null for non-http(s), localhost, IPs, and malformed hostnames.
+ */
+export function hostnameForFaviconLookup(profileUrl: string): string | null {
+  const raw = profileUrl.trim();
+  if (!raw || !/^https?:\/\//i.test(raw)) return null;
+  try {
+    const host = normalizeHost(new URL(raw).hostname);
+    if (!host || host === "localhost") return null;
+    if (!isLikelyBrandDomain(host)) return null;
+    return host;
+  } catch {
+    return null;
+  }
+}
+
+/** Google favicon service — no API key; suitable for arbitrary https origins. */
+export function googleS2FaviconUrl(host: string, sizePx: number): string {
+  const sz = Math.min(128, Math.max(16, Math.round(sizePx)));
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${sz}`;
 }

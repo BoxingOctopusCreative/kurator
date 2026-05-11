@@ -16,6 +16,7 @@ import {
   visibilityOf,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { DeleteCollectionDialog, type DeleteCollectionSubject } from "@/components/DeleteCollectionDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
@@ -198,19 +199,21 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
           setListVersion((x) => x + 1);
         }}
       />
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Collections</h1>
-          <p className="mt-1 text-sm text-kurator-muted">
-            Choose who can see each shelf: yourself only, your followers, or just mutuals. Follow people under
-            People to see their shelves in the Following tab.
-          </p>
+      <PageHeroUnsplash>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Collections</h1>
+            <p className="mt-1 text-sm text-kurator-muted">
+              Choose who can see each shelf: yourself only, your followers, or just mutuals. Follow people under
+              People to see their shelves in the Following tab.
+            </p>
+          </div>
         </div>
-      </div>
+      </PageHeroUnsplash>
 
       <form
         onSubmit={onCreateCollection}
-        className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4"
+        className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4"
       >
         <div className="group relative inline-flex items-center gap-1.5">
           <h2 className="text-sm font-medium text-kurator-fg">New Collection</h2>
@@ -335,7 +338,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
         </div>
       )}
 
-      <div className="mb-6 flex flex-col gap-4 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="mb-6 flex flex-col gap-4 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="block min-w-[200px] flex-1 text-sm">
           <span className="text-kurator-muted">Search</span>
           <input
@@ -394,7 +397,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
       )}
 
       {!loading && data && data.items.length === 0 && (
-        <p className="rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+        <p className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
           No collections match your filters.
         </p>
       )}
@@ -418,13 +421,13 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 )}
-                <div className="flex h-full flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80">
+                <div className="flex h-full flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-surface transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80">
                   <Link
                     href={`/collections/${c.id}`}
                     className="flex flex-1 flex-col p-4 transition-colors"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                      <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                         {c.cover_art_url ? (
                           <ItemCoverImage url={c.cover_art_url} alt="" className="h-full w-full object-cover" />
                         ) : (

@@ -4,8 +4,11 @@ export const SOCIAL_ICON_USE_NETWORK_FOR_URL = new Set([
   "goodreads",
   "imdb",
   "discogs",
-  "ehnw.ca",
 ]);
+
+/** Official Eh! (ehnw.ca) mark — used where `react-social-icons` has no network key. */
+export const EH_LOGO_ICON_URL =
+  "https://assets.kuratorapp.cc/brand/socials/eh_logo.svg";
 
 /** Official Hey.Cafe roundel (used where `react-social-icons` has no network key). */
 export const HEY_CAFE_ICON_URL =

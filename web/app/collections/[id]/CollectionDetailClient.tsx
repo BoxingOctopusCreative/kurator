@@ -54,6 +54,7 @@ import { CoverArtEditModal } from "@/components/CoverArtEditModal";
 import { DeleteCollectionDialog } from "@/components/DeleteCollectionDialog";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
@@ -707,7 +708,7 @@ export function CollectionDetailClient() {
                   disabled={shelfSaving}
                   onClick={() => setCoverArtModalOpen(true)}
                   aria-label="Edit cover art"
-                  className="relative mb-8 w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-xs ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
+                  className="relative mb-8 w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-surface ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
                 >
                   <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
                     {collection.cover_art_url?.trim() ? (
@@ -724,7 +725,7 @@ export function CollectionDetailClient() {
                   </div>
                 </button>
               ) : (
-                <div className="relative mb-8 w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                <div className="relative mb-8 w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface">
                   <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
                     {collection.cover_art_url?.trim() ? (
                       <ItemCoverImage
@@ -736,6 +737,7 @@ export function CollectionDetailClient() {
                   </div>
                 </div>
               ))}
+            <PageHeroUnsplash className="mt-6" bleedBottomMargin={false} bleedToMainTop={false}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 {isOwner ? (
@@ -971,6 +973,7 @@ export function CollectionDetailClient() {
                 </div>
               )}
             </div>
+            </PageHeroUnsplash>
           </header>
 
           {items.length === 0 ? (
@@ -979,18 +982,18 @@ export function CollectionDetailClient() {
                 type="button"
                 onClick={() => setAddItemModalOpen(true)}
                 aria-haspopup="dialog"
-                className="mb-8 w-full rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted transition hover:border-kurator-accent/40 hover:bg-kurator-border/20 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                className="mb-8 w-full rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted transition hover:border-kurator-accent/40 hover:bg-kurator-border/20 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
               >
                 No items in this collection yet. Click to add an item.
               </button>
             ) : (
-              <p className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+              <p className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
                 No items in this collection yet.
               </p>
             )
           ) : (
             <>
-              <div className="mb-6 flex flex-col gap-4 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="mb-6 flex flex-col gap-4 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 lg:flex-row lg:items-end lg:justify-between">
                 <label className="block min-w-0 flex-1 text-sm">
                   <span className="text-kurator-muted">Search</span>
                   <input
@@ -1065,11 +1068,11 @@ export function CollectionDetailClient() {
               </div>
 
               {filteredItems.length === 0 ? (
-                <p className="rounded-xl border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+                <p className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
                   No items match your search or filter.
                 </p>
               ) : viewMode === "list" ? (
-                <div className="overflow-x-auto rounded-xl border border-kurator-border">
+                <div className="overflow-x-auto rounded-xl shadow-surface border border-kurator-border">
                   <table className="w-full min-w-180 border-collapse text-left text-sm">
                     <thead>
                       <tr className="border-b border-kurator-border bg-kurator-surface/80 text-xs uppercase tracking-wide text-kurator-muted">
@@ -1298,7 +1301,7 @@ export function CollectionDetailClient() {
                             }}
                           >
                             <td className="align-top px-3 py-3">
-                              <div className="h-20 w-16 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                              <div className="h-20 w-16 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                                 <ItemCoverImage
                                   url={cover}
                                   alt=""
@@ -1424,7 +1427,7 @@ export function CollectionDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2">
+                        <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2">
                           <div className="flex shrink-0 items-start justify-between gap-2 p-4 pb-2">
                             <Link
                               href={`/items/${item.id}`}
@@ -1473,7 +1476,7 @@ export function CollectionDetailClient() {
                               </div>
                             </div>
                             <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                              <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                              <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                                 <ItemCoverImage
                                   url={cover}
                                   alt={`Cover for ${item.title}`}

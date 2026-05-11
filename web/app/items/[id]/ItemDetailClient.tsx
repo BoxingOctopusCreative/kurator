@@ -12,6 +12,7 @@ import {
   consumptionPendingLabel,
   normalizeConsumptionStatus,
 } from "@/lib/consumptionLabels";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
@@ -267,8 +268,9 @@ export function ItemDetailClient() {
         {collectionName ? `Back to ${collectionName}` : "Back to Collection"}
       </Link>
 
-      <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div className="mx-auto w-40 shrink-0 overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-xs sm:mx-0 sm:w-44">
+      <PageHeroUnsplash bleedToMainTop={false}>
+      <header className="flex flex-col gap-6 sm:flex-row sm:items-start">
+        <div className="mx-auto w-40 shrink-0 overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface sm:mx-0 sm:w-44">
           <ItemCoverImage
             url={cover}
             alt={`Cover for ${item.title}`}
@@ -382,6 +384,7 @@ export function ItemDetailClient() {
           </dl>
         </div>
       </header>
+      </PageHeroUnsplash>
 
       {itemLists.length > 0 ? (
         <section className="mb-8" aria-labelledby="item-in-lists-heading">
@@ -395,7 +398,7 @@ export function ItemDetailClient() {
                 className="flex items-center gap-3 text-lg font-semibold text-kurator-fg"
               >
                 {list.cover_art_url ? (
-                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
                     <ItemCoverImage
                       url={list.cover_art_url}
                       alt=""
@@ -413,7 +416,7 @@ export function ItemDetailClient() {
       ) : null}
 
       {(enrichment?.synopsis || enrichment?.note || enrichment?.source) && (
-        <section className="mb-8 rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 md:p-6">
+        <section className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-kurator-muted">Synopsis</h2>
           {enrichment?.synopsis ? (
             <>
@@ -448,7 +451,7 @@ export function ItemDetailClient() {
         </section>
       )}
 
-      <section className="rounded-xl border border-kurator-border bg-kurator-surface/60 p-4 md:p-6">
+      <section className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-kurator-muted">Details</h2>
 
         {!hasDetailRows ? (

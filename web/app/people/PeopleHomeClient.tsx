@@ -6,6 +6,7 @@ import { User, UserRoundSearch } from "lucide-react";
 import type { PublicUser } from "@/lib/api";
 import { publicLegalNameLine, searchUsers } from "@/lib/api";
 import { safeImageSrcUrl } from "@/lib/safeUrl";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { useAuth } from "@/components/AuthProvider";
 
 export function PeopleHomeClient() {
@@ -49,7 +50,7 @@ export function PeopleHomeClient() {
 
   if (user === null) {
     return (
-      <div className="mx-auto max-w-lg rounded-xl border border-kurator-border bg-kurator-surface/60 p-6 text-center">
+      <div className="mx-auto max-w-lg rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-6 text-center">
         <p className="text-sm text-kurator-muted">Sign in to search for people and follow their public collections.</p>
         <Link
           href="/login"
@@ -63,13 +64,15 @@ export function PeopleHomeClient() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">People</h1>
-        <p className="mt-1 text-sm text-kurator-muted">
-          Find collectors by display name or bio, follow them, and browse their public shelves from their
-          profile or the Following tab on Collections.
-        </p>
-      </div>
+      <PageHeroUnsplash>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">People</h1>
+          <p className="mt-1 text-sm text-kurator-muted">
+            Find collectors by display name or bio, follow them, and browse their public shelves from their
+            profile or the Following tab on Collections.
+          </p>
+        </div>
+      </PageHeroUnsplash>
 
       <label className="block text-sm">
         <span className="text-kurator-muted">Search</span>
@@ -109,7 +112,7 @@ export function PeopleHomeClient() {
             <li key={u.id}>
               <Link
                 href={`/people/${encodeURIComponent(u.username)}`}
-                className="flex items-start gap-3 rounded-xl border border-kurator-border bg-kurator-surface/60 px-4 py-3 transition-colors hover:border-kurator-accent/50"
+                className="flex items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 px-4 py-3 transition-colors hover:border-kurator-accent/50"
               >
                 <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-kurator-border bg-kurator-bg">
                   {avatarSrc ? (

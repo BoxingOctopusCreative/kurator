@@ -76,7 +76,7 @@ export function BarcodeScannerPlaceholder() {
       </p>
       <div
         id={boxId}
-        className="mx-auto aspect-video w-full max-w-md overflow-hidden rounded-xl border border-kurator-border bg-black"
+        className="mx-auto aspect-video w-full max-w-md overflow-hidden rounded-xl shadow-surface border border-kurator-border bg-black"
       />
       <div className="flex flex-wrap gap-2">
         <button
@@ -103,7 +103,7 @@ export function BarcodeScannerPlaceholder() {
         </p>
       )}
       {lastCode && (
-        <p className="rounded-lg border border-kurator-border bg-kurator-surface px-3 py-2 text-sm text-kurator-muted">
+        <p className="rounded-lg shadow-surface border border-kurator-border bg-kurator-surface px-3 py-2 text-sm text-kurator-muted">
           Last read: <span className="font-mono text-kurator-fg">{lastCode}</span>
         </p>
       )}

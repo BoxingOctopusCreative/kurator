@@ -6,6 +6,7 @@ import {
   CategoryMetadataFields,
   type CategoryFormSlice,
 } from "@/components/CategoryMetadataFields";
+import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { createItem, fetchCollections, type Category, type Collection, type ConsumptionStatus } from "@/lib/api";
@@ -104,13 +105,20 @@ export default function AddItemPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <h1 className="text-2xl font-semibold text-kurator-fg">Add Item</h1>
-      <p className="mt-1 text-sm text-kurator-muted">
-        Add a title, pick a type, and fill in what you know.
-      </p>
+    <div className="mx-auto max-w-3xl space-y-10">
+      <PageHeroUnsplash>
+        <div>
+          <h1 className="text-2xl font-semibold text-kurator-fg">Add Item</h1>
+          <p className="mt-1 text-sm text-kurator-muted">
+            Add a title, pick a type, and fill in what you know.
+          </p>
+        </div>
+      </PageHeroUnsplash>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-6">
+      <form
+        onSubmit={onSubmit}
+        className="space-y-6 rounded-xl border border-kurator-border bg-kurator-surface p-6 sm:p-8"
+      >
         <label className="block text-sm">
           <span className="text-kurator-muted">Category</span>
           <select

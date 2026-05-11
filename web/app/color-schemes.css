@@ -4,12 +4,18 @@
  */
 
 @layer utilities {
+  html {
+    --kurator-main: var(--kurator-bg);
+  }
+
   /* —— Kurator default (current product look) —— */
   html:not(.dark):not([data-palette]),
   html:not(.dark)[data-palette="default"] {
     color-scheme: light;
     --kurator-bg: #e8edf5;
-    --kurator-surface: #f4f7fc;
+    /* App main canvas: airy; chrome (--kurator-surface) sits slightly deeper */
+    --kurator-main: #f6f9fd;
+    --kurator-surface: #e7eef9;
     --kurator-border: #d0dbeb;
     --kurator-accent: #5168cf;
     --kurator-muted: #5c6d86;
@@ -21,7 +27,8 @@
   html.dark[data-palette="default"] {
     color-scheme: dark;
     --kurator-bg: #0c0f14;
-    --kurator-surface: #141a22;
+    --kurator-main: #111620;
+    --kurator-surface: #151c28;
     --kurator-border: #243042;
     --kurator-accent: #3d9cf0;
     --kurator-muted: #8b9cb3;
@@ -33,7 +40,8 @@
   html:not(.dark)[data-palette="darcula"] {
     color-scheme: light;
     --kurator-bg: #e8edf5;
-    --kurator-surface: #f4f7fc;
+    --kurator-main: #f6f9fd;
+    --kurator-surface: #e7eef9;
     --kurator-border: #d0dbeb;
     --kurator-accent: #5168cf;
     --kurator-muted: #5c6d86;
@@ -44,7 +52,8 @@
   html.dark[data-palette="darcula"] {
     color-scheme: dark;
     --kurator-bg: #2b2b2b;
-    --kurator-surface: #323232;
+    --kurator-main: #303030;
+    --kurator-surface: #3d3d3d;
     --kurator-border: #4e4e52;
     --kurator-accent: #6a9fb5;
     --kurator-muted: #8c8c8c;
@@ -56,7 +65,8 @@
   html:not(.dark)[data-palette="catppuccin"] {
     color-scheme: light;
     --kurator-bg: #eff1f5;
-    --kurator-surface: #e6e9ef;
+    --kurator-main: #f6f7fb;
+    --kurator-surface: #e2e6ef;
     --kurator-border: #ccd0da;
     --kurator-accent: #1e66f5;
     --kurator-muted: #6c6f85;
@@ -67,7 +77,9 @@
   html.dark[data-palette="catppuccin"] {
     color-scheme: dark;
     --kurator-bg: #1e1e2e;
-    --kurator-surface: #181825;
+    /* Base (main) vs crust (chrome) for clearer separation */
+    --kurator-main: #242438;
+    --kurator-surface: #11111b;
     --kurator-border: #313244;
     --kurator-accent: #89b4fa;
     --kurator-muted: #a6adc8;
@@ -79,7 +91,8 @@
   html:not(.dark)[data-palette="solarized"] {
     color-scheme: light;
     --kurator-bg: #fdf6e3;
-    --kurator-surface: #eee8d5;
+    --kurator-main: #fefbf4;
+    --kurator-surface: #ebe3cf;
     --kurator-border: #93a1a1;
     --kurator-accent: #268bd2;
     --kurator-muted: #657b83;
@@ -90,7 +103,8 @@
   html.dark[data-palette="solarized"] {
     color-scheme: dark;
     --kurator-bg: #002b36;
-    --kurator-surface: #073642;
+    --kurator-main: #063542;
+    --kurator-surface: #0a3a47;
     --kurator-border: #586e75;
     --kurator-accent: #268bd2;
     --kurator-muted: #839496;
@@ -102,7 +116,8 @@
   html:not(.dark)[data-palette="outrun"] {
     color-scheme: light;
     --kurator-bg: #f8efff;
-    --kurator-surface: #fff7fb;
+    --kurator-main: #fcf8ff;
+    --kurator-surface: #f0e4fb;
     --kurator-border: #e9c7f0;
     --kurator-accent: #db2777;
     --kurator-muted: #7c6b9e;
@@ -113,7 +128,8 @@
   html.dark[data-palette="outrun"] {
     color-scheme: dark;
     --kurator-bg: #0b0614;
-    --kurator-surface: #150a28;
+    --kurator-main: #120a22;
+    --kurator-surface: #1a0d32;
     --kurator-border: #6d28d9;
     --kurator-accent: #22d3ee;
     --kurator-muted: #c4b5fd;
@@ -125,6 +141,7 @@
   html:not(.dark)[data-palette="accessible_okabe"] {
     color-scheme: light;
     --kurator-bg: #f2f2f2;
+    --kurator-main: #fafafa;
     --kurator-surface: #ffffff;
     --kurator-border: #333333;
     --kurator-accent: #0072b2;
@@ -136,7 +153,8 @@
   html.dark[data-palette="accessible_okabe"] {
     color-scheme: dark;
     --kurator-bg: #1a1a1a;
-    --kurator-surface: #262626;
+    --kurator-main: #222222;
+    --kurator-surface: #2e2e2e;
     --kurator-border: #666666;
     --kurator-accent: #56b4e9;
     --kurator-muted: #b5b5b5;
@@ -148,6 +166,7 @@
   html:not(.dark)[data-palette="accessible_high_contrast"] {
     color-scheme: light;
     --kurator-bg: #ffffff;
+    --kurator-main: #f7f7f7;
     --kurator-surface: #ffffff;
     --kurator-border: #000000;
     --kurator-accent: #0000c0;
@@ -159,7 +178,8 @@
   html.dark[data-palette="accessible_high_contrast"] {
     color-scheme: dark;
     --kurator-bg: #000000;
-    --kurator-surface: #0a0a0a;
+    --kurator-main: #0c0c0c;
+    --kurator-surface: #141414;
     --kurator-border: #ffffff;
     --kurator-accent: #ffff66;
     --kurator-muted: #e0e0e0;
