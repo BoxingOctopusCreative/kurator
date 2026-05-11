@@ -24,6 +24,7 @@ import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { isEntityUuid } from "@/lib/entityId";
@@ -416,6 +417,15 @@ export function ListDetailClient() {
             <h1 className="text-2xl font-semibold text-kurator-fg md:text-3xl">
               {list.name}
             </h1>
+            <p className="mt-2 text-xs text-kurator-muted">
+              Shelf Type:{" "}
+              <span className="font-medium text-kurator-fg">List</span>
+            </p>
+            {list.author ? (
+              <div className="mt-2">
+                <ShelfAuthorLink author={list.author} variant="avatarAndName" />
+              </div>
+            ) : null}
             {list.description ? (
               <p className="mt-2 text-sm text-kurator-muted">
                 {list.description}

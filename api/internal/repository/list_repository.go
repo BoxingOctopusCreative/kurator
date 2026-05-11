@@ -32,20 +32,33 @@ func (r *PostgresListRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return r.pool.Begin(ctx)
 }
 
-// listSelectColumns is the canonical column list for list scans (alias l, plus item_count last).
 const listSelectColumns = "l.id, l.user_id, l.name, l.description, l.cover_art_url, l.visibility, l.created_at, l.updated_at"
+const listAuthorColumns = "shelf_owner.username, shelf_owner.display_name, shelf_owner.avatar_url"
+const listSelectWithAuthor = listSelectColumns + ", " + listAuthorColumns
 const listGroupColumns = "l.id, l.user_id, l.name, l.description, l.cover_art_url, l.visibility, l.created_at, l.updated_at"
+const listGroupWithAuthor = listGroupColumns + ", shelf_owner.username, shelf_owner.display_name, shelf_owner.avatar_url"
+
+// Bare column names for INSERT/UPDATE RETURNING (no table alias).
+const listReturningColumns = "id, user_id, name, description, cover_art_url, visibility, created_at, updated_at"
+const listReturningAuthor = `,
+  (SELECT username FROM users u WHERE u.id = lists.user_id),
+  (SELECT display_name FROM users u WHERE u.id = lists.user_id),
+  (SELECT avatar_url FROM users u WHERE u.id = lists.user_id)`
 
 func scanListRow(row interface{ Scan(dest ...any) error }) (models.List, error) {
 	var l models.List
 	var desc sql.NullString
 	var cover sql.NullString
 	var vis string
+	var auUser, auDn, auAv sql.NullString
 	if err := row.Scan(
-		&l.ID, &l.UserID, &l.Name, &desc, &cover, &vis, &l.CreatedAt, &l.UpdatedAt, &l.ItemCount,
+		&l.ID, &l.UserID, &l.Name, &desc, &cover, &vis, &l.CreatedAt, &l.UpdatedAt,
+		&auUser, &auDn, &auAv,
+		&l.ItemCount,
 	); err != nil {
 		return l, fmt.Errorf("scan list: %w", err)
 	}
+	l.Author = shelfAuthorPtr(auUser, auDn, auAv)
 	if desc.Valid {
 		s := desc.String
 		l.Description = &s
@@ -67,12 +80,13 @@ func scanListRow(row interface{ Scan(dest ...any) error }) (models.List, error) 
 func (r *PostgresListRepository) ListForViewer(ctx context.Context, viewerID int64) ([]models.List, error) {
 	vis := OwnedShelfVisibleToViewerSQL("l.user_id", "l.visibility", "$1")
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+listSelectColumns+`,
+		SELECT `+listSelectWithAuthor+`,
 		       COALESCE(COUNT(e.id), 0)::bigint AS item_count
 		FROM lists l
+		LEFT JOIN users shelf_owner ON shelf_owner.id = l.user_id
 		LEFT JOIN list_entries e ON e.list_id = l.id
 		WHERE `+vis+`
-		GROUP BY `+listGroupColumns+`
+		GROUP BY `+listGroupWithAuthor+`
 		ORDER BY l.name ASC
 	`, viewerID)
 	if err != nil {
@@ -92,12 +106,13 @@ func (r *PostgresListRepository) ListForViewer(ctx context.Context, viewerID int
 
 func (r *PostgresListRepository) GetByIDForUser(ctx context.Context, id string, userID int64) (*models.List, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT `+listSelectColumns+`,
+		SELECT `+listSelectWithAuthor+`,
 		       COALESCE(COUNT(e.id), 0)::bigint AS item_count
 		FROM lists l
+		LEFT JOIN users shelf_owner ON shelf_owner.id = l.user_id
 		LEFT JOIN list_entries e ON e.list_id = l.id
 		WHERE l.id = $1 AND l.user_id = $2
-		GROUP BY `+listGroupColumns+`
+		GROUP BY `+listGroupWithAuthor+`
 	`, id, userID)
 	l, err := scanListRow(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -112,12 +127,13 @@ func (r *PostgresListRepository) GetByIDForUser(ctx context.Context, id string, 
 func (r *PostgresListRepository) GetByIDForViewer(ctx context.Context, id string, viewerID int64) (*models.List, error) {
 	vis := OwnedShelfVisibleToViewerSQL("l.user_id", "l.visibility", "$2")
 	row := r.pool.QueryRow(ctx, `
-		SELECT `+listSelectColumns+`,
+		SELECT `+listSelectWithAuthor+`,
 		       COALESCE(COUNT(e.id), 0)::bigint AS item_count
 		FROM lists l
+		LEFT JOIN users shelf_owner ON shelf_owner.id = l.user_id
 		LEFT JOIN list_entries e ON e.list_id = l.id
 		WHERE l.id = $1 AND `+vis+`
-		GROUP BY `+listGroupColumns+`
+		GROUP BY `+listGroupWithAuthor+`
 	`, id, viewerID)
 	l, err := scanListRow(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -144,7 +160,7 @@ func (r *PostgresListRepository) Create(ctx context.Context, userID int64, name 
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO lists (user_id, name, description, visibility, is_public)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING `+listSelectColumns+`, 0::bigint AS item_count
+		RETURNING `+listReturningColumns+listReturningAuthor+`, 0::bigint AS item_count
 	`, userID, name, descVal, string(visibility), visibility.IsPublic())
 	l, err := scanListRow(row)
 	if err != nil {
@@ -187,7 +203,7 @@ func (r *PostgresListRepository) UpdateFull(ctx context.Context, id string, user
 			cover_art_url = CASE WHEN $7::boolean THEN $8::text ELSE cover_art_url END,
 			updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
-		RETURNING `+listSelectColumns+`,
+		RETURNING `+listReturningColumns+listReturningAuthor+`,
 		         (SELECT COUNT(*) FROM list_entries WHERE list_id = lists.id)::bigint AS item_count
 	`, id, userID, name, descVal, setVis, visArg, setCover, coverArg)
 	l, err := scanListRow(row)
@@ -295,8 +311,9 @@ func (r *PostgresListRepository) CountEntriesByListID(ctx context.Context, listI
 // ListOwnerListsExcept returns lists owned by ownerID except excludeID (for move targets).
 func (r *PostgresListRepository) ListOwnerListsExcept(ctx context.Context, ownerID int64, excludeID string) ([]models.List, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+listSelectColumns+`, 0::bigint AS item_count
+		SELECT `+listSelectWithAuthor+`, 0::bigint AS item_count
 		FROM lists l
+		LEFT JOIN users shelf_owner ON shelf_owner.id = l.user_id
 		WHERE l.user_id = $1 AND l.id <> $2::uuid
 		ORDER BY l.name ASC
 	`, ownerID, excludeID)

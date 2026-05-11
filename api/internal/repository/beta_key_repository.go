@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrBetaKeyNotFound         = errors.New("beta key not found")
-	ErrBetaKeyAlreadyClaimed   = errors.New("beta key already claimed")
+	ErrBetaKeyNotFound       = errors.New("beta key not found")
+	ErrBetaKeyAlreadyClaimed = errors.New("beta key already claimed")
 )
 
 type BetaKeyRepository interface {

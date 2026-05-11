@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Layers } from "lucide-react";
 import type { CollectionListResponse, UserProfile } from "@/lib/api";
 import { fetchUserProfile, followUser, unfollowUser, publicLegalNameLine } from "@/lib/api";
+import { FollowListDialog } from "@/components/FollowListDialog";
 import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
 import { socialPlatformDisplayName } from "@/lib/socialPlatforms";
 import { safeHttpUrl, safeImageSrcUrl } from "@/lib/safeUrl";
@@ -22,6 +23,7 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
   const [collections, setCollections] = useState(initialCollections);
   const [error, setError] = useState<string | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
+  const [followListOpen, setFollowListOpen] = useState<"followers" | "following" | null>(null);
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -75,6 +77,14 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
 
   return (
     <div className="mx-auto max-w-3xl">
+      <FollowListDialog
+        variant={followListOpen}
+        userRef={userRef}
+        profileDisplayName={profile.display_name || profile.username}
+        onOpenChange={(next) => {
+          if (!next) setFollowListOpen(null);
+        }}
+      />
       {error && (
         <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
           {error}
@@ -146,8 +156,26 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
             </ul>
           ) : null}
           {profile.bio ? <p className="mt-3 text-sm text-kurator-muted">{profile.bio}</p> : null}
-          <p className="mt-4 text-xs text-kurator-muted">
-            {profile.follower_count} followers · {profile.following_count} following
+          <p className="mt-4 flex flex-wrap items-center gap-x-2 text-xs text-kurator-muted">
+            <button
+              type="button"
+              disabled={followBusy}
+              onClick={() => setFollowListOpen("followers")}
+              className="rounded underline-offset-2 hover:text-kurator-fg hover:underline disabled:opacity-50"
+            >
+              {profile.follower_count} follower{profile.follower_count === 1 ? "" : "s"}
+            </button>
+            <span aria-hidden className="text-kurator-muted/60">
+              ·
+            </span>
+            <button
+              type="button"
+              disabled={followBusy}
+              onClick={() => setFollowListOpen("following")}
+              className="rounded underline-offset-2 hover:text-kurator-fg hover:underline disabled:opacity-50"
+            >
+              {profile.following_count} following
+            </button>
           </p>
           {user && user.id !== profile.id && (
             <button

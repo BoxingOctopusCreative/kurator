@@ -48,6 +48,7 @@ import {
 } from "@/lib/validation";
 import { useAuth } from "@/components/AuthProvider";
 import { CollectionAddItemModal } from "@/components/CollectionAddItemModal";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { EditItemModal } from "@/components/EditItemModal";
 import { CoverArtEditModal } from "@/components/CoverArtEditModal";
 import { DeleteCollectionDialog } from "@/components/DeleteCollectionDialog";
@@ -900,6 +901,11 @@ export function CollectionDetailClient() {
                     </span>
                   )}
                 </p>
+                {collection.author ? (
+                  <div className="mt-2">
+                    <ShelfAuthorLink author={collection.author} variant="avatarAndName" />
+                  </div>
+                ) : null}
 
                 {isOwner && shelfMsg && (
                   <p className="mt-2 text-sm text-kurator-muted" role="status">

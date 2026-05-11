@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/components/AuthProvider";
 import { DeleteEntryBucketDialog, type EntryDeleteSubject } from "@/components/DeleteEntryBucketDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { assertCollectionOrWishlistName, assertLooseMultilineText, LIMITS } from "@/lib/validation";
 
@@ -177,51 +178,56 @@ export function ListsBrowser() {
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
               )}
-              <Link
-                href={`/lists/${lst.id}`}
-                className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
-                    {lst.cover_art_url ? (
-                      <ItemCoverImage url={lst.cover_art_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
-                        <ListOrdered className="h-5 w-5" aria-hidden />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="font-medium text-kurator-fg">{lst.name}</h2>
-                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-kurator-muted">
-                      <span>
-                        {lst.item_count} {lst.item_count === 1 ? "item" : "items"}
-                      </span>
-                      {user != null && lst.user_id !== user.id && (
-                        <span className="rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                          Member
-                        </span>
+              <div className="flex h-full flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80">
+                <Link href={`/lists/${lst.id}`} className="flex flex-1 flex-col p-4 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                      {lst.cover_art_url ? (
+                        <ItemCoverImage url={lst.cover_art_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                          <ListOrdered className="h-5 w-5" aria-hidden />
+                        </div>
                       )}
-                      {user != null && lst.user_id === user.id &&
-                        (() => {
-                          const v = visibilityOf(lst);
-                          if (v === "followers") return null;
-                          const Icon = v === "private" ? Lock : Users;
-                          const label = v === "private" ? "Private" : "Friends";
-                          return (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                              <Icon className="h-3 w-3" aria-hidden />
-                              {label}
-                            </span>
-                          );
-                        })()}
-                    </p>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-medium text-kurator-fg">{lst.name}</h2>
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-kurator-muted">
+                        <span>
+                          {lst.item_count} {lst.item_count === 1 ? "item" : "items"}
+                        </span>
+                        {user != null && lst.user_id !== user.id && (
+                          <span className="rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                            Member
+                          </span>
+                        )}
+                        {user != null &&
+                          lst.user_id === user.id &&
+                          (() => {
+                            const v = visibilityOf(lst);
+                            if (v === "followers") return null;
+                            const Icon = v === "private" ? Lock : Users;
+                            const label = v === "private" ? "Private" : "Friends";
+                            return (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                                <Icon className="h-3 w-3" aria-hidden />
+                                {label}
+                              </span>
+                            );
+                          })()}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                {lst.description ? (
-                  <p className="mt-3 line-clamp-3 text-sm text-kurator-muted">{lst.description}</p>
+                  {lst.description ? (
+                    <p className="mt-3 line-clamp-3 text-sm text-kurator-muted">{lst.description}</p>
+                  ) : null}
+                </Link>
+                {lst.author ? (
+                  <div className="flex items-center border-t border-kurator-border/60 px-4 py-2">
+                    <ShelfAuthorLink author={lst.author} />
+                  </div>
                 ) : null}
-              </Link>
+              </div>
             </li>
           ))}
         </ul>

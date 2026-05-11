@@ -64,10 +64,12 @@ type RatingUpdate struct {
 }
 
 type Collection struct {
-	ID          string  `json:"id"`
-	UserID      *int64  `json:"user_id,omitempty"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
+	ID     string `json:"id"`
+	UserID *int64 `json:"user_id,omitempty"`
+	// Author public preview when UserID is set and the owner exists (nil for legacy unowned catalogs).
+	Author      *ShelfAuthor `json:"author,omitempty"`
+	Name        string       `json:"name"`
+	Description *string      `json:"description,omitempty"`
 	// Category pins this shelf to one item type when set; omitted or null means legacy / not yet pinned.
 	Category *Category `json:"category,omitempty"`
 	// CoverArtURL is an absolute http(s) image URL or same-origin path from image upload.

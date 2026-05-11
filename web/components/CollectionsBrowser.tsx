@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/components/AuthProvider";
 import { DeleteCollectionDialog, type DeleteCollectionSubject } from "@/components/DeleteCollectionDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import type { CollectionsListFilters } from "@/lib/collectionsListUrl";
 import {
@@ -417,45 +418,52 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 )}
-                <Link
-                  href={`/collections/${c.id}`}
-                  className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
-                      {c.cover_art_url ? (
-                        <ItemCoverImage url={c.cover_art_url} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
-                          <Layers className="h-5 w-5" aria-hidden />
-                        </div>
-                      )}
+                <div className="flex h-full flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80">
+                  <Link
+                    href={`/collections/${c.id}`}
+                    className="flex flex-1 flex-col p-4 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
+                        {c.cover_art_url ? (
+                          <ItemCoverImage url={c.cover_art_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                            <Layers className="h-5 w-5" aria-hidden />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h2 className="font-medium text-kurator-fg">{c.name}</h2>
+                        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-kurator-muted">
+                          <span>
+                            {c.item_count} {c.item_count === 1 ? "item" : "items"}
+                          </span>
+                          {(() => {
+                            const v = visibilityOf(c);
+                            if (v === "followers") return null;
+                            const Icon = v === "private" ? Lock : Users;
+                            const label = v === "private" ? "Private" : "Friends";
+                            return (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                                <Icon className="h-3 w-3" aria-hidden />
+                                {label}
+                              </span>
+                            );
+                          })()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="font-medium text-kurator-fg">{c.name}</h2>
-                      <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-kurator-muted">
-                        <span>
-                          {c.item_count} {c.item_count === 1 ? "item" : "items"}
-                        </span>
-                        {(() => {
-                          const v = visibilityOf(c);
-                          if (v === "followers") return null;
-                          const Icon = v === "private" ? Lock : Users;
-                          const label = v === "private" ? "Private" : "Friends";
-                          return (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                              <Icon className="h-3 w-3" aria-hidden />
-                              {label}
-                            </span>
-                          );
-                        })()}
-                      </p>
+                    {c.description ? (
+                      <p className="mt-3 line-clamp-3 text-sm text-kurator-muted">{c.description}</p>
+                    ) : null}
+                  </Link>
+                  {c.author ? (
+                    <div className="flex items-center border-t border-kurator-border/60 px-4 py-2">
+                      <ShelfAuthorLink author={c.author} />
                     </div>
-                  </div>
-                  {c.description && (
-                    <p className="mt-3 line-clamp-3 text-sm text-kurator-muted">{c.description}</p>
-                  )}
-                </Link>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

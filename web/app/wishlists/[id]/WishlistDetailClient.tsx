@@ -55,6 +55,7 @@ import { CoverArtEditModal } from "@/components/CoverArtEditModal";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 
 const categories: { value: Category; label: string }[] = [
@@ -771,6 +772,16 @@ export function WishlistDetailClient() {
                     </p>
                   )
                 )}
+
+                <p className="mt-2 text-xs text-kurator-muted">
+                  Shelf Type:{" "}
+                  <span className="font-medium text-kurator-fg">Playlist</span>
+                </p>
+                {wishlist.author ? (
+                  <div className="mt-2">
+                    <ShelfAuthorLink author={wishlist.author} variant="avatarAndName" />
+                  </div>
+                ) : null}
 
                 {isOwner && settingsMsg && (
                   <p className="mt-2 text-sm text-kurator-muted" role="status">

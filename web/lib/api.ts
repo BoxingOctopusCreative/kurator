@@ -57,9 +57,18 @@ export type Item = {
   updated_at: string;
 };
 
+/** Public owner preview on user-owned shelves (from API `author`). */
+export type ShelfAuthor = {
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+};
+
 export type Collection = {
   id: string;
   user_id?: number | null;
+  /** Present when the shelf has a user owner; omitted on legacy catalog rows. */
+  author?: ShelfAuthor | null;
   name: string;
   description?: string | null;
   /** When set, items on this shelf must use this category. */
@@ -537,9 +546,72 @@ export async function unfollowUser(userRef: string): Promise<void> {
   if (!res.ok) throw new Error(`unfollow: ${res.status}`);
 }
 
+export async function fetchUserFollowers(
+  userRef: string,
+  opts?: { page?: number; limit?: number },
+): Promise<UserListResponse> {
+  const sp = new URLSearchParams();
+  if (opts?.page != null && opts.page > 0) sp.set("page", String(opts.page));
+  if (opts?.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
+  const enc = encodeURIComponent(userRef.trim());
+  const qs = sp.toString();
+  const res = await fetch(apiUrl(`/users/${enc}/followers${qs ? `?${qs}` : ""}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new Error("User not found.");
+  if (!res.ok) throw new Error(`followers: ${res.status}`);
+  const raw = (await res.json()) as Partial<UserListResponse> & {
+    Items?: unknown;
+  };
+  const items = Array.isArray(raw.items)
+    ? raw.items
+    : Array.isArray(raw.Items)
+      ? (raw.Items as PublicUser[])
+      : [];
+  return {
+    items,
+    total: typeof raw.total === "number" ? raw.total : 0,
+    page: typeof raw.page === "number" ? raw.page : 1,
+    page_size: typeof raw.page_size === "number" ? raw.page_size : 24,
+  };
+}
+
+export async function fetchUserFollowing(
+  userRef: string,
+  opts?: { page?: number; limit?: number },
+): Promise<UserListResponse> {
+  const sp = new URLSearchParams();
+  if (opts?.page != null && opts.page > 0) sp.set("page", String(opts.page));
+  if (opts?.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
+  const enc = encodeURIComponent(userRef.trim());
+  const qs = sp.toString();
+  const res = await fetch(apiUrl(`/users/${enc}/following${qs ? `?${qs}` : ""}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new Error("User not found.");
+  if (!res.ok) throw new Error(`following: ${res.status}`);
+  const raw = (await res.json()) as Partial<UserListResponse> & {
+    Items?: unknown;
+  };
+  const items = Array.isArray(raw.items)
+    ? raw.items
+    : Array.isArray(raw.Items)
+      ? (raw.Items as PublicUser[])
+      : [];
+  return {
+    items,
+    total: typeof raw.total === "number" ? raw.total : 0,
+    page: typeof raw.page === "number" ? raw.page : 1,
+    page_size: typeof raw.page_size === "number" ? raw.page_size : 24,
+  };
+}
+
 export type Wishlist = {
   id: string;
   user_id: number;
+  author?: ShelfAuthor | null;
   name: string;
   description?: string | null;
   cover_art_url?: string | null;
@@ -810,6 +882,7 @@ export async function obtainWishlistEntry(
 export type List = {
   id: string;
   user_id: number;
+  author?: ShelfAuthor | null;
   name: string;
   description?: string | null;
   cover_art_url?: string | null;

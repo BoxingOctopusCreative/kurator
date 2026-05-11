@@ -130,12 +130,13 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 	offsetArg := addArg(p.Offset)
 
 	listSQL := fmt.Sprintf(`
-		SELECT `+collectionSelectColumns+`,
+		SELECT `+collectionSelectWithAuthor+`,
 		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
 		FROM collections c
+		LEFT JOIN users owner ON owner.id = c.user_id
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
-		GROUP BY `+collectionGroupColumns+`
+		GROUP BY `+collectionGroupWithAuthor+`
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
 	`, whereSQL, order, limitArg, offsetArg)
@@ -185,12 +186,13 @@ func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id string, v
 
 	whereSQL := strings.Join(where, " AND ")
 	q := fmt.Sprintf(`
-		SELECT `+collectionSelectColumns+`,
+		SELECT `+collectionSelectWithAuthor+`,
 		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
 		FROM collections c
+		LEFT JOIN users owner ON owner.id = c.user_id
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
-		GROUP BY `+collectionGroupColumns+`
+		GROUP BY `+collectionGroupWithAuthor+`
 	`, whereSQL)
 
 	c, err := scanCollectionRow(r.pool.QueryRow(ctx, q, args...))
@@ -269,12 +271,19 @@ func (r *PostgresCollectionRepository) GetFanoutContextByCollectionID(ctx contex
 	}, nil
 }
 
-// collectionSelectColumns/collectionGroupColumns mirror the order scanCollectionRow expects (alias c in FROM).
+// collectionSelectColumns/collectionGroupColumns are the core collection row (alias c).
 const collectionSelectColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.created_at, c.updated_at"
+const collectionAuthorColumns = "owner.username, owner.display_name, owner.avatar_url"
+const collectionSelectWithAuthor = collectionSelectColumns + ", " + collectionAuthorColumns
 const collectionGroupColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.created_at, c.updated_at"
+const collectionGroupWithAuthor = collectionGroupColumns + ", owner.username, owner.display_name, owner.avatar_url"
 
-// collectionReturningColumns is the same column order as collectionSelectColumns for INSERT/UPDATE ... RETURNING (no table alias in scope).
+// collectionReturningColumns is the bare columns list for INSERT/UPDATE ... RETURNING.
 const collectionReturningColumns = "id, user_id, name, description, category, cover_art_url, visibility, created_at, updated_at"
+const collectionReturningAuthor = `,
+  (SELECT username FROM users u WHERE u.id = collections.user_id),
+  (SELECT display_name FROM users u WHERE u.id = collections.user_id),
+  (SELECT avatar_url FROM users u WHERE u.id = collections.user_id)`
 
 func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 	var c models.Collection
@@ -283,14 +292,21 @@ func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 	var cat sql.NullString
 	var cover sql.NullString
 	var vis string
+	var auUser, auDn, auAv sql.NullString
 	if err := row.Scan(
-		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &vis, &c.CreatedAt, &c.UpdatedAt, &c.ItemCount,
+		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &vis, &c.CreatedAt, &c.UpdatedAt,
+		&auUser, &auDn, &auAv,
+		&c.ItemCount,
 	); err != nil {
 		return c, fmt.Errorf("scan collection: %w", err)
 	}
+	c.Author = nil
 	if uid.Valid {
 		v := uid.Int64
 		c.UserID = &v
+		if v >= 1 {
+			c.Author = shelfAuthorPtr(auUser, auDn, auAv)
+		}
 	}
 	if desc.Valid {
 		s := desc.String
@@ -334,7 +350,7 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO collections (user_id, name, description, visibility, is_public, category)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING `+collectionReturningColumns+`, 0::bigint AS item_count
+		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`, 0::bigint AS item_count
 	`, userID, name, descVal, string(visibility), visibility.IsPublic(), catVal)
 	c, err := scanCollectionRow(row)
 	if err != nil {
@@ -385,7 +401,7 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 			cover_art_url = CASE WHEN $9::boolean THEN $10::text ELSE cover_art_url END,
 			updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
-		RETURNING `+collectionReturningColumns+`,
+		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`,
 		         (SELECT COUNT(*) FROM items WHERE collection_id = collections.id)::bigint AS item_count
 	`, id, ownerID, setName, nameVal, setDesc, descVal, setVis, visArg, setCover, coverVal)
 	c, err := scanCollectionRow(row)
@@ -402,8 +418,9 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 // ListOwnerCollectionsExcept returns the signed-in user's other collections (for move targets when deleting a shelf).
 func (r *PostgresCollectionRepository) ListOwnerCollectionsExcept(ctx context.Context, ownerID int64, excludeID string) ([]models.Collection, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+collectionSelectColumns+`, 0::bigint AS item_count
+		SELECT `+collectionSelectWithAuthor+`, 0::bigint AS item_count
 		FROM collections c
+		LEFT JOIN users owner ON owner.id = c.user_id
 		WHERE c.user_id = $1 AND c.id <> $2::uuid
 		ORDER BY c.name ASC
 	`, ownerID, excludeID)

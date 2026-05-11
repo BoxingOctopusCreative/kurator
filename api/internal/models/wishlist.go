@@ -6,12 +6,13 @@ import (
 )
 
 type Wishlist struct {
-	ID                 string  `json:"id"`
-	UserID             int64   `json:"user_id"`
-	Name               string  `json:"name"`
-	Description        *string `json:"description,omitempty"`
-	CoverArtURL        *string `json:"cover_art_url,omitempty"`
-	TargetCollectionID *string `json:"target_collection_id,omitempty"`
+	ID                 string       `json:"id"`
+	UserID             int64        `json:"user_id"`
+	Author             *ShelfAuthor `json:"author,omitempty"`
+	Name               string       `json:"name"`
+	Description        *string      `json:"description,omitempty"`
+	CoverArtURL        *string      `json:"cover_art_url,omitempty"`
+	TargetCollectionID *string      `json:"target_collection_id,omitempty"`
 	// Visibility is the source of truth: private, followers, or friends.
 	Visibility Visibility `json:"visibility"`
 	// IsPublic is kept for backward compatibility with older clients; derived from Visibility.
