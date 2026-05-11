@@ -71,7 +71,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
               priority
             />
           </div>
-          <h1 className="text-2xl font-semibold text-kurator-fg">Create account</h1>
+          <h1 className="text-2xl font-semibold text-kurator-fg">Create Account</h1>
           <p className="mt-1 text-sm text-kurator-muted">
             Kurator stores credentials in your database — no external identity provider.
           </p>
@@ -153,7 +153,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
           <p className="mt-8 text-center text-sm text-kurator-muted">
             Already have an account?{" "}
             <Link href="/login" className="text-kurator-accent hover:underline">
-              Log in
+              Log In
             </Link>
           </p>
           <p className="mt-4 text-center text-xs text-kurator-muted">

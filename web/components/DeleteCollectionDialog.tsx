@@ -114,7 +114,7 @@ export function DeleteCollectionDialog({ collection, open, onOpenChange, onDelet
     <>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !busy) onOpenChange(false);
@@ -124,7 +124,7 @@ export function DeleteCollectionDialog({ collection, open, onOpenChange, onDelet
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-collection-title"
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-lg"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <h2 id="delete-collection-title" className="text-lg font-semibold text-kurator-fg">

@@ -1,6 +1,6 @@
 # Example Kurator API config (copy to kurator.toml).
 # Precedence: environment variables > CLI flags > this file > built-in defaults.
-# Config file path: -config flag, or KURATOR_CONFIG, or ./kurator.toml if present.
+# Config file path: -c/--config flag, or KURATOR_CONFIG, or ./kurator.toml if present.
 #
 # Settings are grouped by TOML table. Environment variable names are unchanged
 # (e.g. DATABASE_URL, S3_BUCKET). Migrate older flat kurator.toml files into these sections.

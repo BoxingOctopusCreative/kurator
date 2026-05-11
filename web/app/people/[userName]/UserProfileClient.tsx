@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import type { CollectionListResponse, UserProfile } from "@/lib/api";
 import { fetchUserProfile, followUser, unfollowUser, publicLegalNameLine } from "@/lib/api";
 import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
@@ -75,14 +75,6 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link
-        href="/people"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        People search
-      </Link>
-
       {error && (
         <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
           {error}
@@ -129,7 +121,7 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
                 const socialHref = safeHttpUrl(link.url);
                 const label = socialPlatformDisplayName(link.platform ?? "");
                 const wrapClass =
-                  "inline-flex rounded-full border border-kurator-border/80 bg-kurator-surface/50 p-1.5 text-kurator-accent transition-colors hover:border-kurator-accent/50 hover:bg-kurator-surface";
+                  "inline-flex rounded-full p-2 text-kurator-accent transition-colors duration-150 hover:bg-kurator-border/50";
                 return (
                   <li key={`${link.url}-${i}`}>
                     {socialHref ? (

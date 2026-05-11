@@ -21,7 +21,7 @@ func TestSocialLinksJSON_normalizes(t *testing.T) {
 }
 
 func TestSocialLinksJSON_legacyInfersPlatform(t *testing.T) {
-	raw := []byte(`[{"label":"x","url":"https://x.com/kurator"}]`)
+	raw := []byte(`[{"label":"gh","url":"https://github.com/kurator"}]`)
 	out, err := SocialLinksJSON(raw)
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestSocialLinksJSON_legacyInfersPlatform(t *testing.T) {
 	if err := json.Unmarshal(out, &items); err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0].Platform != "x" {
+	if len(items) != 1 || items[0].Platform != "github" {
 		t.Fatalf("got %+v", items)
 	}
 }

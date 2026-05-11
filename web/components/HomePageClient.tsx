@@ -35,7 +35,7 @@ function ItemCard({ item }: { item: Item }) {
           </div>
         </div>
         <div className="mt-auto flex flex-1 flex-col justify-end p-3 pt-2">
-          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
             <ItemCoverImage
               url={cover}
               alt={`Cover for ${item.title}`}
@@ -148,12 +148,12 @@ export function HomePageClient({ initialBackground = null }: Props) {
           href="/items/add"
           className="inline-flex items-center justify-center rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90"
         >
-          Add item
+          Add Item
         </Link>
       </div>
 
       <ItemRow
-        title="Your collections"
+        title="Your Collections"
         description="Recently added items across collections you own."
         items={mineItems}
         loading={loadMine}
@@ -162,7 +162,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
           <>
             Nothing here yet.{" "}
             <Link href="/items/add" className="text-kurator-accent hover:underline">
-              Add an item
+              Add an Item
             </Link>{" "}
             or open{" "}
             <Link href="/collections" className="text-kurator-accent hover:underline">
@@ -174,7 +174,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
       />
 
       <ItemRow
-        title="People you follow"
+        title="People You Follow"
         description="Recent public adds from collectors you follow."
         items={followItems}
         loading={loadFollow}
@@ -183,7 +183,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
           <>
             No recent items from followed accounts, or you are not following anyone yet.{" "}
             <Link href="/people" className="text-kurator-accent hover:underline">
-              Find people
+              Find People
             </Link>{" "}
             and follow them to see their public shelves here.
           </>

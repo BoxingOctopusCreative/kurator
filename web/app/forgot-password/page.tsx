@@ -5,7 +5,7 @@ import { isCloudflareTurnstileEnabled } from "@/lib/turnstile-config";
 import { ForgotPasswordPageInner } from "./ForgotPasswordPageInner";
 
 export const metadata: Metadata = {
-  title: "Reset password",
+  title: "Reset Password",
 };
 
 export default async function ForgotPasswordPage() {

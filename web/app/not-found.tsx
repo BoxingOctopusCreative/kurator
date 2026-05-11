@@ -57,7 +57,7 @@ export default function NotFound() {
             />
           </div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-kurator-muted">Error 404</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-kurator-fg md:text-4xl">Page not found</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-kurator-fg md:text-4xl">Page Not Found</h1>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-kurator-muted">
             That link may be broken, or the page may have moved. Try heading home and navigating from there.
           </p>
@@ -65,7 +65,7 @@ export default function NotFound() {
             href="/"
             className="mt-10 inline-flex rounded-lg bg-kurator-accent px-5 py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90"
           >
-            Back to home
+            Back to Home
           </Link>
         </div>
       </UnsplashMarketingShell>

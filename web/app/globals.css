@@ -1,9 +1,11 @@
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+@import './color-schemes.css';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-sans: var(--font-cabin), system-ui, sans-serif;
 
   --color-kurator-bg: var(--kurator-bg);
   --color-kurator-surface: var(--kurator-surface);
@@ -28,7 +30,7 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--kurator-border, var(--color-gray-200, currentcolor));
   }
 }
 
@@ -36,30 +38,64 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* Theme tokens live in color-schemes.css (palettes × light / dark). */
+
+/* Body font: Tailwind `font-sans` reads `--font-sans` from @theme; user choice overrides on <html>. */
+html[data-font="default"],
+html:not([data-font]) {
+  --font-sans: var(--font-cabin), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+html[data-font="sans"] {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+html[data-font="serif"] {
+  --font-sans: ui-serif, Georgia, Cambria, "Palatino Linotype", "Book Antiqua", Palatino, "Times New Roman", Times, serif;
+}
+
+html[data-font="mono"] {
+  --font-sans: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+html[data-font="accessible_opendyslexic"] {
+  --font-sans:
+    "OpenDyslexic", ui-sans-serif, system-ui, sans-serif;
+}
+
+html[data-font="accessible_lexend"] {
+  --font-sans: var(--font-lexend), ui-sans-serif, system-ui, sans-serif;
+}
+
+html[data-font="accessible_atkinson"] {
+  --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Floating panels: menus, modals — stronger depth than shadow-lg alone (no full-page scrim). */
 @layer utilities {
-  :root {
-    color-scheme: light;
-    --kurator-bg: #f4f6f9;
-    --kurator-surface: #ffffff;
-    --kurator-border: #e2e8f0;
-    --kurator-accent: #2563eb;
-    --kurator-muted: #64748b;
-    --kurator-fg: #0f172a;
-    --kurator-on-accent: #ffffff;
+  .shadow-dropdown {
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.06),
+      0 8px 24px rgb(0 0 0 / 0.08),
+      0 22px 48px -14px rgb(0 0 0 / 0.14);
   }
 
-  .dark {
-    color-scheme: dark;
-    --kurator-bg: #0c0f14;
-    --kurator-surface: #141a22;
-    --kurator-border: #243042;
-    --kurator-accent: #3d9cf0;
-    --kurator-muted: #8b9cb3;
-    --kurator-fg: #f4f4f5;
-    --kurator-on-accent: #ffffff;
+  html.dark .shadow-dropdown {
+    box-shadow:
+      0 2px 4px rgb(0 0 0 / 0.45),
+      0 10px 32px rgb(0 0 0 / 0.52),
+      0 26px 56px -16px rgb(0 0 0 / 0.58);
   }
+}
 
-  body {
-    @apply min-h-dvh bg-kurator-bg text-kurator-fg antialiased;
-  }
+/*
+  react-easy-crop uses box-shadow for the dimmed overlay (9999em spread).
+  Layer a real drop shadow on the crop frame so the selection reads clearly.
+*/
+div.reactEasyCrop_CropArea {
+  box-shadow:
+    0 4px 16px rgb(0 0 0 / 0.4),
+    0 2px 6px rgb(0 0 0 / 0.28),
+    0 0 0 9999em rgba(0, 0, 0, 0.5);
 }

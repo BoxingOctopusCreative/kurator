@@ -75,6 +75,14 @@ func (s *stubUserRepo) UpdateThemePreference(ctx context.Context, id int64, pref
 	return nil
 }
 
+func (s *stubUserRepo) UpdateColorPreferences(ctx context.Context, id int64, colorScheme string, accessibleExtras bool) error {
+	return nil
+}
+
+func (s *stubUserRepo) UpdateFontPreferences(ctx context.Context, id int64, fontFamily string, accessibleFonts bool) error {
+	return nil
+}
+
 func (s *stubUserRepo) SetTwoFactorPending(ctx context.Context, id int64, secret string) error {
 	return nil
 }

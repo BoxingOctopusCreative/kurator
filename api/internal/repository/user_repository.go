@@ -23,6 +23,8 @@ type UserRepository interface {
 	GetIDByUsernameCI(ctx context.Context, username string) (int64, error)
 	UpdateProfile(ctx context.Context, id int64, displayName, bio string, avatarURL, bannerURL *string, firstName, lastName, location string, firstNamePublic, lastNamePublic bool, socialLinks []byte, username string, profileIsPublic bool, setUsernameLocked bool) error
 	UpdateThemePreference(ctx context.Context, id int64, preference string) error
+	UpdateColorPreferences(ctx context.Context, id int64, colorScheme string, accessibleExtras bool) error
+	UpdateFontPreferences(ctx context.Context, id int64, fontFamily string, accessibleFonts bool) error
 	SetTwoFactorPending(ctx context.Context, id int64, secret string) error
 	EnableTwoFactor(ctx context.Context, id int64) error
 	DisableTwoFactor(ctx context.Context, id int64) error
@@ -38,7 +40,7 @@ func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 }
 
 func userScanCols() string {
-	return `id, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, created_at, updated_at`
+	return `id, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, created_at, updated_at`
 }
 
 func (r *PostgresUserRepository) Create(ctx context.Context, email, passwordHash, displayName, username string) (*models.User, error) {
@@ -50,7 +52,7 @@ func (r *PostgresUserRepository) Create(ctx context.Context, email, passwordHash
 		VALUES ($1, $2, $3, $4, TRUE)
 		RETURNING `+userScanCols(),
 		email, passwordHash, displayName, username).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -75,7 +77,7 @@ func (r *PostgresUserRepository) CreateTx(ctx context.Context, tx pgx.Tx, email,
 		VALUES ($1, $2, $3, $4, TRUE)
 		RETURNING `+userScanCols(),
 		email, passwordHash, displayName, username).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -97,7 +99,7 @@ func (r *PostgresUserRepository) GetByEmail(ctx context.Context, email string) (
 	err := r.pool.QueryRow(ctx, `
 		SELECT `+userScanCols()+` FROM users WHERE lower(email) = lower($1)
 	`, email).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
@@ -115,7 +117,7 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id int64) (*models
 	err := r.pool.QueryRow(ctx, `
 		SELECT `+userScanCols()+` FROM users WHERE id = $1
 	`, id).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
@@ -176,6 +178,32 @@ func (r *PostgresUserRepository) UpdateThemePreference(ctx context.Context, id i
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE users SET theme_preference = $2, updated_at = NOW() WHERE id = $1
 	`, id, preference)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) UpdateColorPreferences(ctx context.Context, id int64, colorScheme string, accessibleExtras bool) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users SET color_scheme = $2, accessible_color_schemes_enabled = $3, updated_at = NOW() WHERE id = $1
+	`, id, colorScheme, accessibleExtras)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) UpdateFontPreferences(ctx context.Context, id int64, fontFamily string, accessibleFonts bool) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users SET font_family = $2, accessible_fonts_enabled = $3, updated_at = NOW() WHERE id = $1
+	`, id, fontFamily, accessibleFonts)
 	if err != nil {
 		return err
 	}

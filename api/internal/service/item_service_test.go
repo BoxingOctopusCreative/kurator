@@ -34,14 +34,14 @@ type stubItemRepo struct {
 	deleteErr  error
 }
 
-func (s *stubItemRepo) ListLatest(ctx context.Context, limit int) ([]models.Item, error) {
+func (s *stubItemRepo) ListLatest(ctx context.Context, viewer *int64, limit int) ([]models.Item, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
 	return s.list, nil
 }
 
-func (s *stubItemRepo) ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error) {
+func (s *stubItemRepo) ListByCollection(ctx context.Context, collectionID string, viewer *int64, limit int, consumptionFilter string) ([]models.Item, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -49,7 +49,7 @@ func (s *stubItemRepo) ListByCollection(ctx context.Context, collectionID string
 }
 
 func (s *stubItemRepo) ListByCollectionExport(ctx context.Context, collectionID string, max int) ([]models.Item, error) {
-	return s.ListByCollection(ctx, collectionID, max, "")
+	return s.ListByCollection(ctx, collectionID, nil, max, "")
 }
 
 func (s *stubItemRepo) ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error) {
@@ -66,7 +66,7 @@ func (s *stubItemRepo) ListRecentFromFollowedUsers(ctx context.Context, follower
 	return s.list, nil
 }
 
-func (s *stubItemRepo) GetByID(ctx context.Context, id string) (*models.Item, error) {
+func (s *stubItemRepo) GetByID(ctx context.Context, id string, viewer *int64) (*models.Item, error) {
 	if s.getErr != nil {
 		return nil, s.getErr
 	}
@@ -212,7 +212,7 @@ func TestItemService_Get_notFound(t *testing.T) {
 	repo := &stubItemRepo{getErr: repository.ErrItemNotFound}
 	svc := NewItemService(repo, nil, nil)
 
-	_, err := svc.Get(ctx, "99999999-9999-9999-9999-999999999999")
+	_, err := svc.Get(ctx, "99999999-9999-9999-9999-999999999999", nil)
 	if err != repository.ErrItemNotFound {
 		t.Fatalf("got %v want ErrItemNotFound", err)
 	}

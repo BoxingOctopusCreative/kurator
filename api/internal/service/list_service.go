@@ -37,7 +37,7 @@ func (s *ListService) Get(ctx context.Context, id string, userID int64) (*models
 	return s.list.GetByIDForViewer(ctx, id, userID)
 }
 
-func (s *ListService) Create(ctx context.Context, userID int64, name, description string, isPublic *bool) (*models.List, error) {
+func (s *ListService) Create(ctx context.Context, userID int64, name, description string, visibility *models.Visibility) (*models.List, error) {
 	n, err := validation.CollectionOrWishlistName(name, "Name")
 	if err != nil {
 		return nil, err
@@ -50,14 +50,14 @@ func (s *ListService) Create(ctx context.Context, userID int64, name, descriptio
 	if desc != "" {
 		descPtr = &desc
 	}
-	pub := true
-	if isPublic != nil {
-		pub = *isPublic
+	vis := models.DefaultVisibility
+	if visibility != nil && (*visibility).Valid() {
+		vis = *visibility
 	}
-	return s.list.Create(ctx, userID, n, descPtr, pub)
+	return s.list.Create(ctx, userID, n, descPtr, vis)
 }
 
-func (s *ListService) Update(ctx context.Context, userID int64, id string, name, description string, isPublic *bool, coverArt *string) (*models.List, error) {
+func (s *ListService) Update(ctx context.Context, userID int64, id string, name, description string, visibility *models.Visibility, coverArt *string) (*models.List, error) {
 	n, err := validation.CollectionOrWishlistName(name, "Name")
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (s *ListService) Update(ctx context.Context, userID int64, id string, name,
 	if err != nil {
 		return nil, err
 	}
-	return s.list.UpdateFull(ctx, id, userID, n, descPtr, isPublic, coverNorm)
+	return s.list.UpdateFull(ctx, id, userID, n, descPtr, visibility, coverNorm)
 }
 
 func trimPtrString(p *string) string {
@@ -186,7 +186,7 @@ func (s *ListService) AddItem(ctx context.Context, userID int64, listID, itemID 
 	if itemID == "" {
 		return fmt.Errorf("item_id is required")
 	}
-	it, err := s.items.GetByID(ctx, itemID)
+	it, err := s.items.GetByID(ctx, itemID, &userID)
 	if err != nil {
 		return err
 	}

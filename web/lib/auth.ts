@@ -14,10 +14,12 @@ import {
   assertUsername,
   LIMITS,
   type SocialLinkInput,
+  type ColorScheme,
+  type FontFamily,
   type ThemePreference,
 } from "./validation";
 
-export type { ThemePreference };
+export type { ColorScheme, FontFamily, ThemePreference };
 
 async function readApiError(res: Response): Promise<string> {
   const text = await res.text();
@@ -47,6 +49,12 @@ export type AuthUser = {
   location: string;
   bio: string;
   theme_preference: ThemePreference;
+  /** Present on API builds with colour-scheme support. */
+  color_scheme?: ColorScheme;
+  accessible_color_schemes_enabled?: boolean;
+  /** Present on API builds with font_family support. */
+  font_family?: FontFamily;
+  accessible_fonts_enabled?: boolean;
   avatar_url: string | null;
   banner_url: string | null;
   social_links: SocialLinkInput[];
@@ -254,6 +262,40 @@ export async function resetPasswordWithToken(
   }
 }
 
+/** Logged-in: request emailed 6-digit code (accounts without 2FA only). */
+export async function requestSignedInPasswordVerificationCode(): Promise<{ ok: boolean; message?: string }> {
+  const res = await api("/me/password/verification-code", {
+    method: "POST",
+    body: "{}",
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+  return (await res.json()) as { ok: boolean; message?: string };
+}
+
+/** Logged-in: set new password with TOTP (2FA accounts) or email_code (otherwise). Ends all sessions. */
+export async function changePasswordSignedIn(params: {
+  password: string;
+  totpCode?: string;
+  emailCode?: string;
+}): Promise<void> {
+  const safePassword = assertPasswordClient(params.password);
+  const payload: Record<string, string> = { password: safePassword };
+  const totp = params.totpCode?.replace(/\s/g, "") ?? "";
+  const email = params.emailCode?.trim() ?? "";
+  if (totp) payload.totp_code = assertTotpCode(totp);
+  if (email) payload.email_code = assertRecoveryCode6(email, "Verification code");
+  const res = await api("/me/password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 204) return;
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+}
+
 export async function patchProfile(body: {
   display_name?: string;
   bio?: string;
@@ -268,6 +310,10 @@ export async function patchProfile(body: {
   username?: string;
   profile_is_public?: boolean;
   theme_preference?: string;
+  color_scheme?: string;
+  accessible_color_schemes_enabled?: boolean;
+  font_family?: string;
+  accessible_fonts_enabled?: boolean;
 }): Promise<AuthUser> {
   const payload: Record<string, unknown> = {};
   if (body.display_name !== undefined) {
@@ -311,6 +357,18 @@ export async function patchProfile(body: {
   }
   if (body.theme_preference !== undefined) {
     payload.theme_preference = assertThemePreference(body.theme_preference);
+  }
+  if (body.accessible_color_schemes_enabled !== undefined) {
+    payload.accessible_color_schemes_enabled = Boolean(body.accessible_color_schemes_enabled);
+  }
+  if (body.color_scheme !== undefined) {
+    payload.color_scheme = body.color_scheme.trim().toLowerCase();
+  }
+  if (body.font_family !== undefined) {
+    payload.font_family = body.font_family.trim().toLowerCase();
+  }
+  if (body.accessible_fonts_enabled !== undefined) {
+    payload.accessible_fonts_enabled = Boolean(body.accessible_fonts_enabled);
   }
   const res = await api("/me", {
     method: "PATCH",

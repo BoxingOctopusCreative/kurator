@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/boxingoctopus/kurator/api/internal/turnstile"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
@@ -151,6 +152,78 @@ func (h *PasswordRecoveryHandler) ResetForgotPassword(c *fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusBadRequest, inv.Message)
 		}
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// RequestMePasswordVerificationCode emails a verification code so a signed-in user without 2FA can change password.
+func (h *PasswordRecoveryHandler) RequestMePasswordVerificationCode(c *fiber.Ctx) error {
+	if h.svc == nil {
+		return fiber.NewError(fiber.StatusServiceUnavailable, "password verification email is not available")
+	}
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	if err := h.svc.RequestVerificationCodeSignedIn(c.Context(), uid); err != nil {
+		switch {
+		case errors.Is(err, service.ErrPasswordChangeUsesTOTP):
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		case errors.Is(err, service.ErrMailNotConfigured):
+			return fiber.NewError(fiber.StatusServiceUnavailable, err.Error())
+		case errors.Is(err, service.ErrPasswordChangeRateLimited):
+			return fiber.NewError(fiber.StatusTooManyRequests, err.Error())
+		case errors.Is(err, repository.ErrUserNotFound):
+			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		}
+	}
+	return c.JSON(fiber.Map{
+		"ok":      true,
+		"message": "If email delivery is working, check your inbox for a 6-digit code.",
+	})
+}
+
+// MeChangePasswordBody is the logged-in password change confirmation (totp XOR email code).
+type MeChangePasswordBody struct {
+	Password   string `json:"password"`
+	TotpCode   string `json:"totp_code"`
+	EmailCode  string `json:"email_code"`
+}
+
+// ChangeMePassword sets a new password after verifying TOTP (2FA) or an emailed code (otherwise). Revokes all sessions.
+func (h *PasswordRecoveryHandler) ChangeMePassword(c *fiber.Ctx) error {
+	if h.svc == nil {
+		return fiber.NewError(fiber.StatusServiceUnavailable, "password change is not available")
+	}
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	var body MeChangePasswordBody
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	if err := h.svc.ChangePasswordSignedIn(c.Context(), uid, body.Password, body.TotpCode, body.EmailCode); err != nil {
+		switch {
+		case errors.Is(err, service.ErrWeakPassword):
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		case errors.Is(err, service.ErrInvalidTOTP):
+			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
+		case errors.Is(err, service.ErrInvalidRecoveryCode):
+			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
+		case errors.Is(err, service.ErrPasswordWrongProofKind):
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		case errors.Is(err, repository.ErrUserNotFound):
+			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		default:
+			var inv *validation.InvalidInputError
+			if errors.As(err, &inv) {
+				return fiber.NewError(fiber.StatusBadRequest, inv.Message)
+			}
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

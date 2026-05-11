@@ -110,10 +110,8 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="crop-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) {
           onClose();
@@ -121,7 +119,10 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
       }}
     >
       <div
-        className="flex max-h-[min(92vh,800px)] w-full max-w-3xl flex-col rounded-xl border border-kurator-border bg-kurator-bg shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crop-modal-title"
+        className="flex max-h-[min(92vh,800px)] w-full max-w-3xl flex-col rounded-xl border border-kurator-border bg-kurator-bg shadow-dropdown"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-kurator-border px-4 py-3">

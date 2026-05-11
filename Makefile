@@ -11,7 +11,7 @@ help:
 	@echo "  make api-build-all    — API darwin amd64/arm64 + linux amd64/arm64"
 	@echo "  make api-test / api-clean"
 	@echo "  make api-build-betakeygen — build private beta key CLI -> api/bin/kurator-betakeygen"
-	@echo "  make api-betakeygen ARGS='-config api/kurator.toml' — go run betakeygen (prints key to stdout)"
+	@echo "  make api-betakeygen ARGS='-c api/kurator.toml' — go run betakeygen (prints key to stdout)"
 	@echo "  make web-test         — Vitest in web/ (UI unit tests)"
 	@echo "See api/Makefile for individual platform targets."
 

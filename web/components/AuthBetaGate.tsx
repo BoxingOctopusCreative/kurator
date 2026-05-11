@@ -115,7 +115,7 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
           </button>
           <p className="pt-1 text-center text-sm text-kurator-muted">
             <Link href="/login" className="text-kurator-accent hover:underline">
-              Back to login
+              Back to Log In
             </Link>
           </p>
         </form>

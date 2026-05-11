@@ -11,7 +11,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -33,18 +32,38 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/spf13/afero"
+	"github.com/spf13/cobra"
 )
 
 func main() {
 	var opts config.LoadOptions
-	config.RegisterFlags(flag.CommandLine, &opts)
-	flag.Parse()
-
-	cfg, err := config.Load(&opts)
-	if err != nil {
-		log.Fatalf("config: %v", err)
+	cmd := &cobra.Command{
+		Use:   "kurator-api",
+		Short: "Run the Kurator API HTTP server.",
+		Long: "Run the Kurator API HTTP server.\n\n" +
+			"Configuration is layered from highest to lowest precedence: environment variables, " +
+			"CLI flags, the TOML config file (-c/--config or KURATOR_CONFIG, default ./kurator.toml), " +
+			"and built-in defaults.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			cfg, err := config.Load(afero.NewOsFs(), &opts)
+			if err != nil {
+				return fmt.Errorf("config: %w", err)
+			}
+			return runAPI(cfg)
+		},
 	}
+	config.RegisterFlags(cmd.Flags(), &opts)
 
+	if err := cmd.Execute(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runAPI(cfg config.Config) error {
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer startupCancel()
 
@@ -136,6 +155,7 @@ func main() {
 	itemRepo := repository.NewPostgresItemRepository(pool)
 	collRepo := repository.NewPostgresCollectionRepository(pool)
 	wishRepo := repository.NewPostgresWishlistRepository(pool)
+	notifRepo := repository.NewPostgresNotificationRepository(pool)
 	userRepo := repository.NewPostgresUserRepository(pool)
 	followRepo := repository.NewPostgresFollowRepository(pool)
 	sessionRepo := repository.NewPostgresSessionRepository(pool)
@@ -147,6 +167,7 @@ func main() {
 	wishSvc := service.NewWishlistService(wishRepo, collRepo, indexer)
 	listRepo := repository.NewPostgresListRepository(pool)
 	listSvc := service.NewListService(listRepo, collRepo, itemRepo)
+	activityFanout := service.NewActivityFanout(notifRepo)
 	searchSvc := service.NewSearchService(indexer)
 	metaSvc := service.NewMetadataService(service.MetadataConfig{
 		UserAgent:        cfg.MetadataUserAgent,
@@ -160,11 +181,12 @@ func main() {
 	authSvc := service.NewAuthService(pool, userRepo, sessionRepo, betaRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge, cfg.BetaAccessRequired)
 	socialSvc := service.NewSocialService(userRepo, followRepo)
 
-	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc)
-	collH := handler.NewCollectionHandler(collSvc, authSvc, itemSvc, collRepo)
+	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc, activityFanout)
+	collH := handler.NewCollectionHandler(collSvc, authSvc, itemSvc, collRepo, activityFanout)
 	socialH := handler.NewSocialHandler(socialSvc, authSvc)
-	wishH := handler.NewWishlistHandler(wishSvc)
-	listH := handler.NewListHandler(listSvc)
+	wishH := handler.NewWishlistHandler(wishSvc, activityFanout)
+	listH := handler.NewListHandler(listSvc, activityFanout)
+	notifH := handler.NewNotificationHandler(notifRepo)
 	searchH := handler.NewSearchHandler(searchSvc)
 	metaH := handler.NewMetadataHandler(metaSvc)
 	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey, cfg.BetaAccessRequired)
@@ -211,9 +233,14 @@ func main() {
 	me := v1.Group("/me", requireAuth)
 	me.Get("/", authH.Me)
 	me.Patch("/", authH.PatchMe)
+	me.Get("/notifications", notifH.List)
+	me.Patch("/notifications/:id/read", notifH.MarkRead)
+	me.Post("/notifications/read-all", notifH.MarkAllRead)
 	me.Post("/2fa/setup", authH.TwoFASetup)
 	me.Post("/2fa/enable", authH.TwoFAEnable)
 	me.Post("/2fa/disable", authH.TwoFADisable)
+	me.Post("/password/verification-code", recoveryH.RequestMePasswordVerificationCode)
+	me.Post("/password", recoveryH.ChangeMePassword)
 
 	v1.Post("/images", requireAuth, imgH.Upload)
 
@@ -263,8 +290,9 @@ func main() {
 	addr := cfg.HTTPAddr
 	log.Printf("listening on %s", addr)
 	if err := app.Listen(addr); err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("listen %s: %w", addr, err)
 	}
+	return nil
 }
 
 // initSentry configures the Sentry SDK when SENTRY_DSN / config [sentry] dsn is set.
@@ -284,6 +312,7 @@ func initSentry(cfg config.Config) bool {
 
 	opts := sentry.ClientOptions{
 		Dsn:              dsn,
+		SendDefaultPII:   false,
 		EnableTracing:    true,
 		TracesSampleRate: tracesSampleRate,
 	}

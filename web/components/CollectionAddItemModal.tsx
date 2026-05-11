@@ -93,7 +93,7 @@ export function CollectionAddItemModal({
   }
 
   return (
-    <WishlistAddEntryModal open={open} onOpenChange={onOpenChange} title="Add item">
+    <WishlistAddEntryModal open={open} onOpenChange={onOpenChange} title="Add Item">
       <form onSubmit={onSubmit} className="space-y-5">
         <p className="text-xs text-kurator-muted">
           New items are saved to this shelf

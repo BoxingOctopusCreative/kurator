@@ -15,9 +15,9 @@ import (
 )
 
 type CollectionService struct {
-	repo     *repository.PostgresCollectionRepository
-	items    *repository.PostgresItemRepository
-	search   SearchIndexer
+	repo   *repository.PostgresCollectionRepository
+	items  *repository.PostgresItemRepository
+	search SearchIndexer
 }
 
 func NewCollectionService(
@@ -348,7 +348,7 @@ func (s *CollectionService) Get(ctx context.Context, id string, viewer *int64) (
 }
 
 // Create adds a collection for the signed-in user. shelfCategory pins the shelf to one item type when set (omit for a flex shelf until the first item pins it).
-func (s *CollectionService) Create(ctx context.Context, userID int64, name, description string, isPublic *bool, shelfCategory *models.Category) (*models.Collection, error) {
+func (s *CollectionService) Create(ctx context.Context, userID int64, name, description string, visibility *models.Visibility, shelfCategory *models.Category) (*models.Collection, error) {
 	n, err := validation.CollectionOrWishlistName(name, "Name")
 	if err != nil {
 		return nil, err
@@ -361,20 +361,20 @@ func (s *CollectionService) Create(ctx context.Context, userID int64, name, desc
 	if desc != "" {
 		descPtr = &desc
 	}
-	pub := true
-	if isPublic != nil {
-		pub = *isPublic
+	vis := models.DefaultVisibility
+	if visibility != nil && (*visibility).Valid() {
+		vis = *visibility
 	}
 	if shelfCategory != nil {
 		if !shelfCategory.Valid() {
 			return nil, fmt.Errorf("invalid category")
 		}
 	}
-	return s.repo.Create(ctx, userID, n, descPtr, pub, shelfCategory)
+	return s.repo.Create(ctx, userID, n, descPtr, vis, shelfCategory)
 }
 
 // Patch updates a collection owned by userID.
-func (s *CollectionService) Patch(ctx context.Context, userID int64, id string, name *string, description *string, isPublic *bool, coverArt *string) (*models.Collection, error) {
+func (s *CollectionService) Patch(ctx context.Context, userID int64, id string, name *string, description *string, visibility *models.Visibility, coverArt *string) (*models.Collection, error) {
 	if name != nil {
 		n, err := validation.CollectionOrWishlistName(*name, "Name")
 		if err != nil {
@@ -393,8 +393,8 @@ func (s *CollectionService) Patch(ctx context.Context, userID int64, id string, 
 	if err != nil {
 		return nil, err
 	}
-	if name == nil && description == nil && isPublic == nil && coverNorm == nil {
+	if name == nil && description == nil && visibility == nil && coverNorm == nil {
 		return nil, fmt.Errorf("no changes")
 	}
-	return s.repo.UpdateByOwner(ctx, userID, id, name, description, isPublic, coverNorm)
+	return s.repo.UpdateByOwner(ctx, userID, id, name, description, visibility, coverNorm)
 }

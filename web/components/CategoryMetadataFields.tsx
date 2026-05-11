@@ -40,6 +40,10 @@ export type CategoryFormSlice = {
   catalog_open_library_key?: string;
   catalog_comicvine_id?: string;
   catalog_comicvine_resource?: string;
+  /** TV: box set vs one season on disc */
+  tv_edition?: string;
+  /** TV: season number when tv_edition is single_season */
+  tv_season?: string;
 };
 
 type Props = {
@@ -218,6 +222,45 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             autoComplete="off"
           />
         </label>
+        {category === "tv" ? (
+          <>
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-kurator-muted">Set type</span>
+              <select
+                className="mt-1 w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                value={values.tv_edition ?? ""}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  onChange({
+                    ...values,
+                    tv_edition: next,
+                    tv_season: next === "single_season" ? values.tv_season : "",
+                  });
+                }}
+              >
+                <option value="">Select…</option>
+                <option value="box_set">Box set (multiple seasons)</option>
+                <option value="single_season">Single season</option>
+              </select>
+            </label>
+            {values.tv_edition === "single_season" ? (
+              <label className="block text-sm">
+                <span className="text-kurator-muted">Season #</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  inputMode="numeric"
+                  className="mt-1 w-full max-w-48 rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  value={values.tv_season ?? ""}
+                  onChange={(e) => onChange({ ...values, tv_season: e.target.value })}
+                  placeholder="e.g. 1"
+                  autoComplete="off"
+                />
+              </label>
+            ) : null}
+          </>
+        ) : null}
         <div className="sm:col-span-2">
           <CoverArtField
             value={values.cover_art ?? ""}

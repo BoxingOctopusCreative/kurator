@@ -12,11 +12,12 @@ import (
 )
 
 type ListHandler struct {
-	svc *service.ListService
+	svc    *service.ListService
+	fanout *service.ActivityFanout
 }
 
-func NewListHandler(svc *service.ListService) *ListHandler {
-	return &ListHandler{svc: svc}
+func NewListHandler(svc *service.ListService, fanout *service.ActivityFanout) *ListHandler {
+	return &ListHandler{svc: svc, fanout: fanout}
 }
 
 func (h *ListHandler) List(c *fiber.Ctx) error {
@@ -32,9 +33,10 @@ func (h *ListHandler) List(c *fiber.Ctx) error {
 }
 
 type createListBody struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	IsPublic    *bool  `json:"is_public"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Visibility  *string `json:"visibility"`
+	IsPublic    *bool   `json:"is_public"`
 }
 
 func (h *ListHandler) Create(c *fiber.Ctx) error {
@@ -46,9 +48,16 @@ func (h *ListHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	l, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.IsPublic)
+	vis, verr := resolveVisibility(body.Visibility, body.IsPublic)
+	if verr != nil {
+		return verr
+	}
+	l, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.fanout != nil {
+		h.fanout.NotifyListCreated(c.Context(), uid, l.Visibility, l.ID, l.Name)
 	}
 	return c.Status(fiber.StatusCreated).JSON(l)
 }
@@ -73,10 +82,11 @@ func (h *ListHandler) Get(c *fiber.Ctx) error {
 }
 
 type updateListBody struct {
-	Name         string  `json:"name"`
-	Description  string  `json:"description"`
-	IsPublic     *bool   `json:"is_public"`
-	CoverArtURL  *string `json:"cover_art_url"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Visibility  *string `json:"visibility"`
+	IsPublic    *bool   `json:"is_public"`
+	CoverArtURL *string `json:"cover_art_url"`
 }
 
 func (h *ListHandler) Update(c *fiber.Ctx) error {
@@ -92,7 +102,11 @@ func (h *ListHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	l, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.IsPublic, body.CoverArtURL)
+	vis, verr := resolveVisibility(body.Visibility, body.IsPublic)
+	if verr != nil {
+		return verr
+	}
+	l, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL)
 	if errors.Is(err, repository.ErrListNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}

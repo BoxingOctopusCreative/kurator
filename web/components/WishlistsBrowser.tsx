@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CircleHelp, Heart, Lock, Trash2 } from "lucide-react";
+import { CircleHelp, Heart, Lock, Trash2, Users } from "lucide-react";
 import {
   createWishlist,
+  DEFAULT_VISIBILITY,
   fetchCollections,
   fetchWishlists,
+  type Visibility,
+  visibilityOf,
   type Wishlist,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { DeleteEntryBucketDialog, type EntryDeleteSubject } from "@/components/DeleteEntryBucketDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { VisibilitySelect } from "@/components/VisibilitySelect";
 import {
   assertCollectionOrWishlistName,
   assertLooseMultilineText,
@@ -28,7 +32,7 @@ export function WishlistsBrowser() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [targetCol, setTargetCol] = useState<string>("");
-  const [newPublic, setNewPublic] = useState(true);
+  const [newVisibility, setNewVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
   const [deleteSubject, setDeleteSubject] = useState<EntryDeleteSubject | null>(null);
@@ -74,12 +78,13 @@ export function WishlistsBrowser() {
         name,
         description,
         target_collection_id: targetCol.trim() === "" ? undefined : targetCol.trim(),
-        is_public: newPublic,
+        visibility: newVisibility,
+        is_public: newVisibility !== "private",
       });
       setNewName("");
       setNewDesc("");
       setTargetCol("");
-      setNewPublic(true);
+      setNewVisibility(DEFAULT_VISIBILITY);
       setFormMsg("Wishlist created.");
       reload();
     } catch (err) {
@@ -110,8 +115,8 @@ export function WishlistsBrowser() {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Wishlists</h1>
         <p className="mt-1 text-sm text-kurator-muted">
-          Track what you want. Public wishlists appear for other signed-in members; private ones are only yours.
-          Link a list to a collection so items move to the right shelf when you get them.
+          Track what you want. Choose who can see each wishlist — yourself only, your followers, or just mutuals.
+          Link a wishlist to a collection so items move to the right shelf when you get them.
         </p>
       </header>
 
@@ -171,15 +176,14 @@ export function WishlistsBrowser() {
               </select>
             </div>
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-kurator-muted md:col-span-2">
-            <input
-              type="checkbox"
-              checked={newPublic}
-              onChange={(e) => setNewPublic(e.target.checked)}
-              className="rounded-sm border-kurator-border"
+          <div className="md:col-span-2">
+            <VisibilitySelect
+              name="new-wishlist-visibility"
+              legend="Visibility"
+              value={newVisibility}
+              onChange={setNewVisibility}
             />
-            Public (visible to other signed-in users)
-          </label>
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
@@ -223,7 +227,7 @@ export function WishlistsBrowser() {
                       entry_count: w.entry_count,
                     });
                   }}
-                  className="absolute right-2 top-2 z-10 rounded-lg border border-kurator-border bg-kurator-bg/95 p-2 text-kurator-muted shadow-sm hover:border-red-500/50 hover:text-red-300"
+                  className="absolute right-2 top-2 z-10 rounded-lg bg-kurator-bg/95 p-2 text-kurator-muted shadow-sm transition-colors hover:bg-red-500/15 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
@@ -233,7 +237,7 @@ export function WishlistsBrowser() {
                 className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                  <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                     {w.cover_art_url ? (
                       <ItemCoverImage url={w.cover_art_url} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -253,12 +257,19 @@ export function WishlistsBrowser() {
                           Member
                         </span>
                       )}
-                      {user != null && w.user_id === user.id && w.is_public === false && (
-                        <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                          <Lock className="h-3 w-3" aria-hidden />
-                          Private
-                        </span>
-                      )}
+                      {user != null && w.user_id === user.id &&
+                        (() => {
+                          const v = visibilityOf(w);
+                          if (v === "followers") return null;
+                          const Icon = v === "private" ? Lock : Users;
+                          const label = v === "private" ? "Private" : "Friends";
+                          return (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                              <Icon className="h-3 w-3" aria-hidden />
+                              {label}
+                            </span>
+                          );
+                        })()}
                     </p>
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 export const metadata: Metadata = {
-  title: "Add item",
+  title: "Add Item",
 };
 
 export default function AddItemLayout({ children }: { children: React.ReactNode }) {

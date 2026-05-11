@@ -49,6 +49,36 @@ func TestSanitizeItemMetadata_videoFormat(t *testing.T) {
 	}
 }
 
+func TestSanitizeItemMetadata_tvEdition(t *testing.T) {
+	_, err := SanitizeItemMetadata(models.CategoryTV, []byte(`{"tv_edition":"box_set"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = SanitizeItemMetadata(models.CategoryTV, []byte(`{"tv_edition":"single_season","tv_season":3}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = SanitizeItemMetadata(models.CategoryTV, []byte(`{"tv_edition":"single_season"}`))
+	if err == nil {
+		t.Fatal("expected error without tv_season")
+	}
+	_, err = SanitizeItemMetadata(models.CategoryTV, []byte(`{"tv_edition":"box_set","tv_season":1}`))
+	if err == nil {
+		t.Fatal("expected error tv_season with box_set")
+	}
+	_, err = SanitizeItemMetadata(models.CategoryMovies, []byte(`{"tv_edition":"box_set"}`))
+	if err == nil {
+		t.Fatal("expected error tv_edition on movies")
+	}
+}
+
+func TestSanitizeItemMetadata_tvOrphanSeason(t *testing.T) {
+	_, err := SanitizeItemMetadata(models.CategoryTV, []byte(`{"tv_season":2}`))
+	if err == nil {
+		t.Fatal("expected error orphan tv_season")
+	}
+}
+
 func TestCollectionSort_default(t *testing.T) {
 	s, err := CollectionSort("")
 	if err != nil || s != "name_asc" {

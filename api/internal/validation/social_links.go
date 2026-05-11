@@ -18,12 +18,13 @@ type normalizedSocialLink struct {
 }
 
 var allowedSocialPlatforms = map[string]struct{}{
-	"github": {}, "gitlab": {}, "linkedin": {}, "instagram": {}, "facebook": {},
-	"youtube": {}, "twitch": {}, "discord": {}, "reddit": {}, "medium": {},
-	"spotify": {}, "soundcloud": {}, "tiktok": {}, "pinterest": {}, "dribbble": {},
-	"figma": {}, "mastodon": {}, "threads": {}, "bsky.app": {}, "linktree": {},
-	"patreon": {}, "vimeo": {}, "dev.to": {}, "stackoverflow": {}, "slack": {},
-	"substack": {}, "x": {}, "custom": {},
+	"github": {}, "instagram": {}, "facebook": {},
+	"youtube": {}, "twitch": {}, "discord": {}, "reddit": {},
+	"spotify": {}, "soundcloud": {}, "tiktok": {},
+	"threads": {}, "bsky.app": {}, "mastodon": {}, "linktree": {},
+	"patreon": {}, "substack": {},
+	"goodreads": {}, "imdb": {}, "discogs": {}, "hey.cafe": {}, "ehnw.ca": {},
+	"custom": {},
 }
 
 func allowedSocialPlatform(p string) bool {
@@ -36,12 +37,6 @@ func inferPlatformFromURL(u *url.URL) string {
 	switch {
 	case strings.HasSuffix(host, "github.com") || host == "gist.github.com":
 		return "github"
-	case strings.Contains(host, "gitlab"):
-		return "gitlab"
-	case strings.Contains(host, "linkedin.com"):
-		return "linkedin"
-	case host == "x.com" || host == "twitter.com":
-		return "x"
 	case strings.Contains(host, "instagram.com"):
 		return "instagram"
 	case strings.Contains(host, "facebook.com") || host == "fb.com" || host == "m.facebook.com":
@@ -54,20 +49,12 @@ func inferPlatformFromURL(u *url.URL) string {
 		return "discord"
 	case strings.Contains(host, "reddit.com"):
 		return "reddit"
-	case strings.Contains(host, "medium.com"):
-		return "medium"
 	case strings.Contains(host, "spotify.com"):
 		return "spotify"
 	case strings.Contains(host, "soundcloud.com"):
 		return "soundcloud"
 	case strings.Contains(host, "tiktok.com"):
 		return "tiktok"
-	case strings.Contains(host, "pinterest.com"):
-		return "pinterest"
-	case strings.Contains(host, "dribbble.com"):
-		return "dribbble"
-	case strings.Contains(host, "figma.com"):
-		return "figma"
 	case host == "threads.net":
 		return "threads"
 	case strings.Contains(host, "bsky.app"):
@@ -76,16 +63,18 @@ func inferPlatformFromURL(u *url.URL) string {
 		return "linktree"
 	case strings.Contains(host, "patreon.com"):
 		return "patreon"
-	case strings.Contains(host, "vimeo.com"):
-		return "vimeo"
-	case host == "dev.to":
-		return "dev.to"
-	case strings.Contains(host, "stackoverflow.com") || strings.Contains(host, "stackexchange.com"):
-		return "stackoverflow"
-	case strings.Contains(host, "slack.com"):
-		return "slack"
 	case strings.Contains(host, "substack.com"):
 		return "substack"
+	case host == "hey.cafe":
+		return "hey.cafe"
+	case host == "ehnw.ca":
+		return "ehnw.ca"
+	case strings.Contains(host, "goodreads.com"):
+		return "goodreads"
+	case strings.Contains(host, "imdb.com"):
+		return "imdb"
+	case strings.Contains(host, "discogs.com"):
+		return "discogs"
 	case strings.Contains(host, "mastodon"):
 		return "mastodon"
 	default:
@@ -105,12 +94,6 @@ func platformMatchesURL(platform string, u *url.URL) bool {
 		return inferred == "mastodon" || inferred == "custom"
 	case "github":
 		return strings.HasSuffix(host, "github.com") || host == "gist.github.com"
-	case "gitlab":
-		return strings.Contains(host, "gitlab")
-	case "linkedin":
-		return strings.Contains(host, "linkedin.com")
-	case "x":
-		return host == "x.com" || host == "twitter.com"
 	case "instagram":
 		return strings.Contains(host, "instagram.com")
 	case "facebook":
@@ -123,20 +106,12 @@ func platformMatchesURL(platform string, u *url.URL) bool {
 		return strings.Contains(host, "discord.")
 	case "reddit":
 		return strings.Contains(host, "reddit.com")
-	case "medium":
-		return strings.Contains(host, "medium.com")
 	case "spotify":
 		return strings.Contains(host, "spotify.com")
 	case "soundcloud":
 		return strings.Contains(host, "soundcloud.com")
 	case "tiktok":
 		return strings.Contains(host, "tiktok.com")
-	case "pinterest":
-		return strings.Contains(host, "pinterest.com")
-	case "dribbble":
-		return strings.Contains(host, "dribbble.com")
-	case "figma":
-		return strings.Contains(host, "figma.com")
 	case "threads":
 		return host == "threads.net"
 	case "bsky.app":
@@ -145,14 +120,16 @@ func platformMatchesURL(platform string, u *url.URL) bool {
 		return strings.Contains(host, "linktr.ee") || strings.Contains(host, "linktree.com")
 	case "patreon":
 		return strings.Contains(host, "patreon.com")
-	case "vimeo":
-		return strings.Contains(host, "vimeo.com")
-	case "dev.to":
-		return host == "dev.to"
-	case "stackoverflow":
-		return strings.Contains(host, "stackoverflow.com") || strings.Contains(host, "stackexchange.com")
-	case "slack":
-		return strings.Contains(host, "slack.com")
+	case "goodreads":
+		return strings.Contains(host, "goodreads.com")
+	case "imdb":
+		return strings.Contains(host, "imdb.com")
+	case "discogs":
+		return strings.Contains(host, "discogs.com")
+	case "hey.cafe":
+		return host == "hey.cafe"
+	case "ehnw.ca":
+		return host == "ehnw.ca"
 	case "substack":
 		return strings.Contains(host, "substack.com")
 	default:

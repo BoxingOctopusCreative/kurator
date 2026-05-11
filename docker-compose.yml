@@ -97,6 +97,8 @@ services:
       NEXT_PUBLIC_API_URL: http://10.0.0.200:8080
       NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID: $NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID
       NEXT_PUBLIC_SENTRY_DSN: $NEXT_PUBLIC_SENTRY_DSN
+      # Optional: Brandfetch Logo CDN (https://docs.brandfetch.com/get-started)
+      NEXT_PUBLIC_BRANDFETCH_CLIENT_ID: $NEXT_PUBLIC_BRANDFETCH_CLIENT_ID
       NODE_ENV: production
       CLOUDFLARE_TURNSTILE_ENABLED: false
       CLOUDFLARE_TURNSTILE_SITEKEY: $CLOUDFLARE_TURNSTILE_SITEKEY
@@ -104,6 +106,12 @@ services:
       NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY: $NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY
       # Landing page background (https://unsplash.com/oauth/applications)
       UNSPLASH_ACCESS_KEY: $UNSPLASH_ACCESS_KEY
+      ## S3 compatible store (same bucket as API user uploads — also used for `/privacy`; object key fixed in web/lib/privacyPolicyMarkdown.ts)
+      S3_BUCKET: $S3_BUCKET
+      S3_REGION: $S3_REGION
+      S3_ENDPOINT: $S3_ENDPOINT
+      S3_ACCESS_KEY_ID: $S3_ACCESS_KEY_ID
+      S3_SECRET_ACCESS_KEY: $S3_SECRET_ACCESS_KEY
     depends_on:
       - api
     # Node is always present: built-in http client (no curl/wget in image).

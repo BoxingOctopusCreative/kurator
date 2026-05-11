@@ -16,10 +16,11 @@ import (
 )
 
 type CollectionHandler struct {
-	svc   *service.CollectionService
-	auth  *service.AuthService
-	items *service.ItemService
-	coll  *repository.PostgresCollectionRepository
+	svc    *service.CollectionService
+	auth   *service.AuthService
+	items  *service.ItemService
+	coll   *repository.PostgresCollectionRepository
+	fanout *service.ActivityFanout
 }
 
 func NewCollectionHandler(
@@ -27,8 +28,9 @@ func NewCollectionHandler(
 	auth *service.AuthService,
 	items *service.ItemService,
 	coll *repository.PostgresCollectionRepository,
+	fanout *service.ActivityFanout,
 ) *CollectionHandler {
-	return &CollectionHandler{svc: svc, auth: auth, items: items, coll: coll}
+	return &CollectionHandler{svc: svc, auth: auth, items: items, coll: coll, fanout: fanout}
 }
 
 func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID string) (int64, error) {
@@ -93,7 +95,8 @@ func (h *CollectionHandler) ImportItemsCSV(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	if _, err := h.assertCollectionOwner(c, id); err != nil {
+	uid, err := h.assertCollectionOwner(c, id)
+	if err != nil {
 		return err
 	}
 	file, err := c.FormFile("file")
@@ -106,14 +109,15 @@ func (h *CollectionHandler) ImportItemsCSV(c *fiber.Ctx) error {
 	}
 	defer fh.Close()
 
-	res, err := h.items.ImportCollectionItemsFromCSV(c.Context(), id, fh)
+	res, err := h.items.ImportCollectionItemsFromCSV(c.Context(), id, &uid, fh)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	return c.JSON(res)
 }
 
-// List supports optional auth. Public shelves are visible to everyone; private shelves only to their owner.
+// List supports optional auth. Public user-owned shelves are visible only to their owner or users
+// with a follow relationship in either direction; unsigned callers only see non–user-owned public shelves.
 // @Summary List collections
 // @Tags collections
 // @Produce json
@@ -202,7 +206,10 @@ func (h *CollectionHandler) Get(c *fiber.Ctx) error {
 type CreateCollectionBody struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	IsPublic    *bool  `json:"is_public"`
+	// Visibility is one of "private", "followers", or "friends". When omitted the legacy
+	// is_public boolean is consulted; otherwise the service layer applies the default.
+	Visibility *string `json:"visibility"`
+	IsPublic   *bool   `json:"is_public"`
 	// Category optionally pins this shelf to one item type (e.g. "movies"). Omit for a flex shelf until the first item pins it.
 	Category *models.Category `json:"category"`
 }
@@ -226,19 +233,27 @@ func (h *CollectionHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	col, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.IsPublic, body.Category)
+	vis, verr := resolveVisibility(body.Visibility, body.IsPublic)
+	if verr != nil {
+		return verr
+	}
+	col, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis, body.Category)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.fanout != nil {
+		h.fanout.NotifyCollectionCreated(c.Context(), uid, col.Visibility, col.ID, col.Name)
 	}
 	return c.Status(fiber.StatusCreated).JSON(col)
 }
 
 // PatchCollectionBody is the JSON body for PATCH /collections/:id.
 type PatchCollectionBody struct {
-	Name         *string `json:"name"`
-	Description  *string `json:"description"`
-	IsPublic     *bool   `json:"is_public"`
-	CoverArtURL  *string `json:"cover_art_url"`
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	Visibility  *string `json:"visibility"`
+	IsPublic    *bool   `json:"is_public"`
+	CoverArtURL *string `json:"cover_art_url"`
 }
 
 // Patch updates a collection owned by the signed-in user.
@@ -255,7 +270,11 @@ func (h *CollectionHandler) Patch(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	col, err := h.svc.Patch(c.Context(), uid, id, body.Name, body.Description, body.IsPublic, body.CoverArtURL)
+	vis, verr := resolveVisibility(body.Visibility, body.IsPublic)
+	if verr != nil {
+		return verr
+	}
+	col, err := h.svc.Patch(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL)
 	if errors.Is(err, repository.ErrCollectionNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
@@ -293,9 +312,9 @@ func (h *CollectionHandler) Delete(c *fiber.Ctx) error {
 	var conflict *service.CollectionDeleteConflict
 	if errors.As(err, &conflict) && conflict != nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error":                   "collection_has_items",
-			"item_count":              conflict.ItemCount,
-			"eligible_move_targets":   conflict.EligibleMoveTargets,
+			"error":                 "collection_has_items",
+			"item_count":            conflict.ItemCount,
+			"eligible_move_targets": conflict.EligibleMoveTargets,
 		})
 	}
 	if errors.Is(err, repository.ErrCollectionNotFound) {

@@ -64,16 +64,19 @@ type RatingUpdate struct {
 }
 
 type Collection struct {
-	ID          string     `json:"id"`
-	UserID      *int64     `json:"user_id,omitempty"`
-	Name        string     `json:"name"`
-	Description *string    `json:"description,omitempty"`
+	ID          string  `json:"id"`
+	UserID      *int64  `json:"user_id,omitempty"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
 	// Category pins this shelf to one item type when set; omitted or null means legacy / not yet pinned.
 	Category *Category `json:"category,omitempty"`
 	// CoverArtURL is an absolute http(s) image URL or same-origin path from image upload.
-	CoverArtURL *string   `json:"cover_art_url,omitempty"`
-	IsPublic    bool      `json:"is_public"`
-	ItemCount   int64     `json:"item_count"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CoverArtURL *string `json:"cover_art_url,omitempty"`
+	// Visibility is the source of truth for who can see this shelf: private, followers, or friends.
+	Visibility Visibility `json:"visibility"`
+	// IsPublic is kept for backward compatibility with older clients; derived from Visibility.
+	IsPublic  bool      `json:"is_public"`
+	ItemCount int64     `json:"item_count"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

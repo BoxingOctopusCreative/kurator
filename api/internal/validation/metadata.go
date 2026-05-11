@@ -59,7 +59,7 @@ func validateCategoryMetadata(cat models.Category, m map[string]interface{}) err
 	case models.CategoryGame:
 		return validateGameMetadata(m)
 	case models.CategoryMovies, models.CategoryTV, models.CategoryAnime:
-		return validateVideoMetadata(m)
+		return validateVideoMetadata(cat, m)
 	case models.CategoryBook, models.CategoryManga:
 		return validateBookMetadata(m)
 	case models.CategoryComicBook:
@@ -88,7 +88,7 @@ func validateGameMetadata(m map[string]interface{}) error {
 	return validateCoverArt(m)
 }
 
-func validateVideoMetadata(m map[string]interface{}) error {
+func validateVideoMetadata(cat models.Category, m map[string]interface{}) error {
 	if err := validateYearKey(m, "year"); err != nil {
 		return err
 	}
@@ -102,7 +102,86 @@ func validateVideoMetadata(m map[string]interface{}) error {
 			return err
 		}
 	}
+	if cat != models.CategoryTV {
+		if _, ok := m["tv_edition"]; ok && m["tv_edition"] != nil {
+			return Invalidf("tv_edition is only valid for TV items")
+		}
+		if _, ok := m["tv_season"]; ok && m["tv_season"] != nil {
+			return Invalidf("tv_season is only valid for TV items")
+		}
+	} else {
+		if err := validateTVEditionMetadata(m); err != nil {
+			return err
+		}
+	}
 	return validateCoverArt(m)
+}
+
+func validateTVEditionMetadata(m map[string]interface{}) error {
+	edVal, hasEd := m["tv_edition"]
+	if !hasEd || edVal == nil {
+		if v, ok := m["tv_season"]; ok && v != nil {
+			return Invalidf("tv_season requires tv_edition single_season")
+		}
+		return nil
+	}
+	s, ok := edVal.(string)
+	if !ok {
+		return Invalidf("tv_edition must be a string")
+	}
+	switch strings.TrimSpace(s) {
+	case "":
+		if v, ok := m["tv_season"]; ok && v != nil {
+			return Invalidf("tv_season requires tv_edition single_season")
+		}
+		return nil
+	case "box_set":
+		if v, ok := m["tv_season"]; ok && v != nil {
+			return Invalidf("tv_season is not used with box_set")
+		}
+		return nil
+	case "single_season":
+		v, ok := m["tv_season"]
+		if !ok || v == nil {
+			return Invalidf("tv_season is required for single_season")
+		}
+		n, err := parseTVSeasonNumber(v)
+		if err != nil {
+			return err
+		}
+		if n < 1 || n > 999 {
+			return Invalidf("tv_season must be between 1 and 999")
+		}
+		return nil
+	default:
+		return Invalidf("invalid tv_edition")
+	}
+}
+
+func parseTVSeasonNumber(v interface{}) (int, error) {
+	switch x := v.(type) {
+	case float64:
+		if math.IsNaN(x) || math.IsInf(x, 0) {
+			return 0, Invalidf("tv_season is invalid")
+		}
+		ni := int(x)
+		if float64(ni) != x {
+			return 0, Invalidf("tv_season must be a whole number")
+		}
+		return ni, nil
+	case string:
+		s := strings.TrimSpace(x)
+		if s == "" {
+			return 0, Invalidf("tv_season is required for single_season")
+		}
+		ni, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, Invalidf("tv_season must be a number")
+		}
+		return ni, nil
+	default:
+		return 0, Invalidf("tv_season must be a number")
+	}
 }
 
 func validateBookMetadata(m map[string]interface{}) error {

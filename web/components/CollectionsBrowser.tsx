@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { CircleHelp, Layers, Lock, Trash2 } from "lucide-react";
-import type { Category, Collection, CollectionListResponse } from "@/lib/api";
-import { createCollection, fetchCollections } from "@/lib/api";
+import { CircleHelp, Layers, Lock, Trash2, Users } from "lucide-react";
+import type {
+  Category,
+  Collection,
+  CollectionListResponse,
+  Visibility,
+} from "@/lib/api";
+import {
+  createCollection,
+  DEFAULT_VISIBILITY,
+  fetchCollections,
+  visibilityOf,
+} from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { DeleteCollectionDialog, type DeleteCollectionSubject } from "@/components/DeleteCollectionDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { VisibilitySelect } from "@/components/VisibilitySelect";
 import type { CollectionsListFilters } from "@/lib/collectionsListUrl";
 import {
   parseCollectionsListSearchString,
@@ -61,7 +72,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
 
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const [newPublic, setNewPublic] = useState(true);
+  const [newVisibility, setNewVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
   const [newShelfCategory, setNewShelfCategory] = useState<Category>("game");
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
@@ -149,10 +160,16 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
       const description = descRaw
         ? assertLooseMultilineText(newDesc, LIMITS.description, "Description")
         : undefined;
-      await createCollection({ name, description, is_public: newPublic, category: newShelfCategory });
+      await createCollection({
+        name,
+        description,
+        visibility: newVisibility,
+        is_public: newVisibility !== "private",
+        category: newShelfCategory,
+      });
       setNewName("");
       setNewDesc("");
-      setNewPublic(true);
+      setNewVisibility(DEFAULT_VISIBILITY);
       setNewShelfCategory("game");
       setFormMsg("Collection created.");
       setListVersion((v) => v + 1);
@@ -184,8 +201,8 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Collections</h1>
           <p className="mt-1 text-sm text-kurator-muted">
-            Public shelves are visible to everyone. Private shelves are only visible to you. Follow people
-            under People to see their public collections in the Following tab.
+            Choose who can see each shelf: yourself only, your followers, or just mutuals. Follow people under
+            People to see their shelves in the Following tab.
           </p>
         </div>
       </div>
@@ -199,7 +216,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
           <button
             type="button"
             className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
-            aria-label="New collection shelves appear in this list and in Add item → Collection."
+            aria-label="New collection shelves appear in this list and in Add Item → Collection."
           >
             <CircleHelp className="h-3.5 w-3.5" aria-hidden />
           </button>
@@ -207,7 +224,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
             role="tooltip"
             className="pointer-events-none invisible absolute bottom-full left-0 z-50 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
           >
-            New collection shelves appear in this list and in Add item → Collection.
+            New collection shelves appear in this list and in Add Item → Collection.
           </span>
         </div>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
@@ -260,15 +277,6 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
               ))}
             </select>
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-kurator-muted">
-            <input
-              type="checkbox"
-              checked={newPublic}
-              onChange={(e) => setNewPublic(e.target.checked)}
-              className="rounded-sm border-kurator-border"
-            />
-            Public
-          </label>
           <button
             type="submit"
             disabled={creating}
@@ -276,6 +284,14 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
           >
             {creating ? "Creating…" : "Create"}
           </button>
+        </div>
+        <div className="mt-4 max-w-md">
+          <VisibilitySelect
+            name="new-collection-visibility"
+            legend="Visibility"
+            value={newVisibility}
+            onChange={setNewVisibility}
+          />
         </div>
         {formMsg && (
           <p
@@ -396,7 +412,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
                       e.stopPropagation();
                       setDeleteSubject({ id: c.id, name: c.name, item_count: c.item_count });
                     }}
-                    className="absolute right-2 top-2 z-10 rounded-lg border border-kurator-border bg-kurator-bg/95 p-2 text-kurator-muted shadow-sm hover:border-red-500/50 hover:text-red-300"
+                    className="absolute right-2 top-2 z-10 rounded-lg bg-kurator-bg/95 p-2 text-kurator-muted shadow-sm transition-colors hover:bg-red-500/15 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
                   >
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
@@ -406,7 +422,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
                   className="flex h-full flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs transition-colors hover:border-kurator-accent/50 hover:bg-kurator-bg/80"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                       {c.cover_art_url ? (
                         <ItemCoverImage url={c.cover_art_url} alt="" className="h-full w-full object-cover" />
                       ) : (
@@ -421,12 +437,18 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
                         <span>
                           {c.item_count} {c.item_count === 1 ? "item" : "items"}
                         </span>
-                        {c.is_public === false && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                            <Lock className="h-3 w-3" aria-hidden />
-                            Private
-                          </span>
-                        )}
+                        {(() => {
+                          const v = visibilityOf(c);
+                          if (v === "followers") return null;
+                          const Icon = v === "private" ? Lock : Users;
+                          const label = v === "private" ? "Private" : "Friends";
+                          return (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                              <Icon className="h-3 w-3" aria-hidden />
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </p>
                     </div>
                   </div>

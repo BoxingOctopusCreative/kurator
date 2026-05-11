@@ -14,11 +14,12 @@ import (
 )
 
 type WishlistHandler struct {
-	svc *service.WishlistService
+	svc    *service.WishlistService
+	fanout *service.ActivityFanout
 }
 
-func NewWishlistHandler(svc *service.WishlistService) *WishlistHandler {
-	return &WishlistHandler{svc: svc}
+func NewWishlistHandler(svc *service.WishlistService, fanout *service.ActivityFanout) *WishlistHandler {
+	return &WishlistHandler{svc: svc, fanout: fanout}
 }
 
 // List returns user's wishlists.
@@ -38,6 +39,7 @@ type createWishlistBody struct {
 	Name               string  `json:"name"`
 	Description        string  `json:"description"`
 	TargetCollectionID *string `json:"target_collection_id"`
+	Visibility         *string `json:"visibility"`
 	IsPublic           *bool   `json:"is_public"`
 }
 
@@ -50,9 +52,16 @@ func (h *WishlistHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	wl, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.TargetCollectionID, body.IsPublic)
+	vis, verr := resolveVisibility(body.Visibility, body.IsPublic)
+	if verr != nil {
+		return verr
+	}
+	wl, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.TargetCollectionID, vis)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.fanout != nil {
+		h.fanout.NotifyWishlistCreated(c.Context(), uid, wl.Visibility, wl.ID, wl.Name)
 	}
 	return c.Status(fiber.StatusCreated).JSON(wl)
 }
@@ -61,6 +70,7 @@ type updateWishlistBody struct {
 	Name               string  `json:"name"`
 	Description        string  `json:"description"`
 	TargetCollectionID *string `json:"target_collection_id"`
+	Visibility         *string `json:"visibility"`
 	IsPublic           *bool   `json:"is_public"`
 	CoverArtURL        *string `json:"cover_art_url"`
 }
@@ -78,7 +88,11 @@ func (h *WishlistHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	wl, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.TargetCollectionID, body.IsPublic, body.CoverArtURL)
+	vis, verr := resolveVisibility(body.Visibility, body.IsPublic)
+	if verr != nil {
+		return verr
+	}
+	wl, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.TargetCollectionID, vis, body.CoverArtURL)
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}

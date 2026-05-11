@@ -5,7 +5,7 @@ import { isCloudflareTurnstileEnabled } from "@/lib/turnstile-config";
 import { RegisterPageInner } from "./RegisterPageInner";
 
 export const metadata: Metadata = {
-  title: "Register",
+  title: "Create Account",
 };
 
 export default async function RegisterPage() {

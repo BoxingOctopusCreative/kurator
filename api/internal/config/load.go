@@ -1,29 +1,39 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
 	"github.com/pelletier/go-toml"
+	"github.com/spf13/afero"
 )
 
 // Load merges configuration from environment variables (highest precedence), then CLI (LoadOptions),
-// then an optional TOML file, then built-in defaults.
+// then an optional TOML file, then built-in defaults. The fs argument is the filesystem used for
+// reading the TOML file and for probing the default ./kurator.toml path; production code passes
+// afero.NewOsFs(), tests can pass afero.NewMemMapFs() (see config_test.go). A nil fs is treated as
+// the OS filesystem so existing callers keep working without code changes.
+//
 // Pass nil opts for CLI-only defaults (e.g. tools that do not register flags).
-func Load(opts *LoadOptions) (Config, error) {
+func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
+	if filesystem == nil {
+		filesystem = afero.NewOsFs()
+	}
 	if opts == nil {
 		opts = &LoadOptions{SessionMaxAge: -1}
 	}
 
-	path, err := resolveConfigPath(opts.ConfigFile)
+	path, err := resolveConfigPath(filesystem, opts.ConfigFile)
 	if err != nil {
 		return Config{}, err
 	}
 
 	var fc fileConfig
 	if path != "" {
-		b, err := os.ReadFile(path)
+		b, err := afero.ReadFile(filesystem, path)
 		if err != nil {
 			return Config{}, fmt.Errorf("config file %q: %w", path, err)
 		}
@@ -169,16 +179,19 @@ func Load(opts *LoadOptions) (Config, error) {
 	return cfg, nil
 }
 
-func resolveConfigPath(cliPath string) (string, error) {
+// resolveConfigPath picks the TOML config file path, in order: explicit CLI override, KURATOR_CONFIG
+// env var, then ./kurator.toml when present on filesystem. Returns ("", nil) when no config file is
+// configured and the default file does not exist.
+func resolveConfigPath(filesystem afero.Fs, cliPath string) (string, error) {
 	if p := strings.TrimSpace(cliPath); p != "" {
 		return p, nil
 	}
 	if p := strings.TrimSpace(os.Getenv("KURATOR_CONFIG")); p != "" {
 		return p, nil
 	}
-	if _, err := os.Stat("kurator.toml"); err == nil {
+	if _, err := filesystem.Stat("kurator.toml"); err == nil {
 		return "kurator.toml", nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("kurator.toml: %w", err)
 	}
 	return "", nil

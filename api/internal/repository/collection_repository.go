@@ -68,11 +68,12 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 		viewerArg = addArg(*p.ViewerUserID)
 	}
 
-	// User-owned shelves: visible if public, or the viewer is the owner.
+	// Public user-owned shelves are only visible to the owner or users with a follow in either direction;
+	// unsigned viewers only see shelves with no owner that remain public (legacy catalog rows).
 	if p.ViewerUserID == nil {
-		where = append(where, "c.is_public")
+		where = append(where, CollectionRowVisibleAnonSQL())
 	} else {
-		where = append(where, fmt.Sprintf("(c.is_public OR c.user_id = $%d)", viewerArg))
+		where = append(where, CollectionRowVisibleSQL(fmt.Sprintf("$%d", viewerArg)))
 	}
 
 	if p.FollowingOnly {
@@ -129,12 +130,12 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 	offsetArg := addArg(p.Offset)
 
 	listSQL := fmt.Sprintf(`
-		SELECT c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at,
+		SELECT `+collectionSelectColumns+`,
 		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
 		FROM collections c
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
-		GROUP BY c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at
+		GROUP BY `+collectionGroupColumns+`
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
 	`, whereSQL, order, limitArg, offsetArg)
@@ -177,19 +178,19 @@ func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id string, v
 	}
 
 	if viewer == nil {
-		where = append(where, "c.is_public")
+		where = append(where, CollectionRowVisibleAnonSQL())
 	} else {
-		where = append(where, fmt.Sprintf("(c.is_public OR c.user_id = $%d)", viewerArg))
+		where = append(where, CollectionRowVisibleSQL(fmt.Sprintf("$%d", viewerArg)))
 	}
 
 	whereSQL := strings.Join(where, " AND ")
 	q := fmt.Sprintf(`
-		SELECT c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at,
+		SELECT `+collectionSelectColumns+`,
 		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
 		FROM collections c
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
-		GROUP BY c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.is_public, c.created_at, c.updated_at
+		GROUP BY `+collectionGroupColumns+`
 	`, whereSQL)
 
 	c, err := scanCollectionRow(r.pool.QueryRow(ctx, q, args...))
@@ -232,14 +233,58 @@ func (r *PostgresCollectionRepository) UserMayMutateCollectionContent(ctx contex
 	return owned, nil
 }
 
+// CollectionFanoutContext holds owner, visibility, and display name for activity notifications.
+type CollectionFanoutContext struct {
+	OwnerID    int64
+	Visibility models.Visibility
+	Name       string
+}
+
+// GetFanoutContextByCollectionID returns owner + visibility for a user-owned collection.
+// ErrCollectionNotFound when missing or user_id is NULL (legacy non-owned shelf).
+func (r *PostgresCollectionRepository) GetFanoutContextByCollectionID(ctx context.Context, collectionID string) (*CollectionFanoutContext, error) {
+	var owner sql.NullInt64
+	var vis string
+	var name string
+	err := r.pool.QueryRow(ctx, `
+		SELECT user_id, visibility::text, name FROM collections WHERE id = $1::uuid
+	`, collectionID).Scan(&owner, &vis, &name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrCollectionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("collection fanout context: %w", err)
+	}
+	if !owner.Valid || owner.Int64 < 1 {
+		return nil, ErrCollectionNotFound
+	}
+	v := models.Visibility(vis)
+	if !v.Valid() {
+		v = models.DefaultVisibility
+	}
+	return &CollectionFanoutContext{
+		OwnerID:    owner.Int64,
+		Visibility: v,
+		Name:       name,
+	}, nil
+}
+
+// collectionSelectColumns/collectionGroupColumns mirror the order scanCollectionRow expects (alias c in FROM).
+const collectionSelectColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.created_at, c.updated_at"
+const collectionGroupColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.created_at, c.updated_at"
+
+// collectionReturningColumns is the same column order as collectionSelectColumns for INSERT/UPDATE ... RETURNING (no table alias in scope).
+const collectionReturningColumns = "id, user_id, name, description, category, cover_art_url, visibility, created_at, updated_at"
+
 func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 	var c models.Collection
 	var uid sql.NullInt64
 	var desc sql.NullString
 	var cat sql.NullString
 	var cover sql.NullString
+	var vis string
 	if err := row.Scan(
-		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt, &c.ItemCount,
+		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &vis, &c.CreatedAt, &c.UpdatedAt, &c.ItemCount,
 	); err != nil {
 		return c, fmt.Errorf("scan collection: %w", err)
 	}
@@ -261,14 +306,22 @@ func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 		s := strings.TrimSpace(cover.String)
 		c.CoverArtURL = &s
 	}
+	c.Visibility = models.Visibility(vis)
+	if !c.Visibility.Valid() {
+		c.Visibility = models.DefaultVisibility
+	}
+	c.IsPublic = c.Visibility.IsPublic()
 	return c, nil
 }
 
 // Create inserts a collection owned by userID (personal shelf). category may be nil (flex shelf until first item pins it).
-func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64, name string, description *string, isPublic bool, category *models.Category) (*models.Collection, error) {
+func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64, name string, description *string, visibility models.Visibility, category *models.Category) (*models.Collection, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("name required")
+	}
+	if !visibility.Valid() {
+		visibility = models.DefaultVisibility
 	}
 	var descVal interface{}
 	if description != nil && strings.TrimSpace(*description) != "" {
@@ -278,48 +331,23 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 	if category != nil && category.Valid() {
 		catVal = string(*category)
 	}
-	var c models.Collection
-	var uid sql.NullInt64
-	var desc sql.NullString
-	var cat sql.NullString
-	var cover sql.NullString
-	err := r.pool.QueryRow(ctx, `
-		INSERT INTO collections (user_id, name, description, is_public, category)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, user_id, name, description, category, cover_art_url, is_public, created_at, updated_at
-	`, userID, name, descVal, isPublic, catVal).Scan(
-		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
-	)
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO collections (user_id, name, description, visibility, is_public, category)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING `+collectionReturningColumns+`, 0::bigint AS item_count
+	`, userID, name, descVal, string(visibility), visibility.IsPublic(), catVal)
+	c, err := scanCollectionRow(row)
 	if err != nil {
 		return nil, fmt.Errorf("create collection: %w", err)
 	}
-	if uid.Valid {
-		v := uid.Int64
-		c.UserID = &v
-	}
-	if desc.Valid {
-		s := desc.String
-		c.Description = &s
-	}
-	if cat.Valid && strings.TrimSpace(cat.String) != "" {
-		cc := models.Category(strings.TrimSpace(cat.String))
-		if cc.Valid() {
-			c.Category = &cc
-		}
-	}
-	if cover.Valid && strings.TrimSpace(cover.String) != "" {
-		s := strings.TrimSpace(cover.String)
-		c.CoverArtURL = &s
-	}
-	c.ItemCount = 0
 	return &c, nil
 }
 
 // UpdateByOwner updates name, description, visibility, and/or cover art for a collection owned by ownerID.
-func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerID int64, id string, name *string, description *string, isPublic *bool, coverArt *string) (*models.Collection, error) {
+func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerID int64, id string, name *string, description *string, visibility *models.Visibility, coverArt *string) (*models.Collection, error) {
 	setName := name != nil
 	setDesc := description != nil
-	setPublic := isPublic != nil
+	setVis := visibility != nil && (*visibility).Valid()
 	setCover := coverArt != nil
 
 	var nameVal interface{}
@@ -335,9 +363,9 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 			descVal = s
 		}
 	}
-	var pubVal interface{}
-	if setPublic {
-		pubVal = *isPublic
+	var visArg interface{}
+	if setVis {
+		visArg = string(*visibility)
 	}
 	var coverVal interface{}
 	if setCover {
@@ -348,52 +376,25 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 		}
 	}
 
-	var c models.Collection
-	var uid sql.NullInt64
-	var desc sql.NullString
-	var cat sql.NullString
-	var cover sql.NullString
-	err := r.pool.QueryRow(ctx, `
+	row := r.pool.QueryRow(ctx, `
 		UPDATE collections SET
 			name = CASE WHEN $3::boolean THEN $4::text ELSE name END,
 			description = CASE WHEN $5::boolean THEN $6::text ELSE description END,
-			is_public = CASE WHEN $7::boolean THEN $8::bool ELSE is_public END,
+			visibility = CASE WHEN $7::boolean THEN $8::text ELSE visibility END,
+			is_public = CASE WHEN $7::boolean THEN ($8::text <> 'private') ELSE is_public END,
 			cover_art_url = CASE WHEN $9::boolean THEN $10::text ELSE cover_art_url END,
 			updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
-		RETURNING id, user_id, name, description, category, cover_art_url, is_public, created_at, updated_at
-	`, id, ownerID, setName, nameVal, setDesc, descVal, setPublic, pubVal, setCover, coverVal).Scan(
-		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
-	)
+		RETURNING `+collectionReturningColumns+`,
+		         (SELECT COUNT(*) FROM items WHERE collection_id = collections.id)::bigint AS item_count
+	`, id, ownerID, setName, nameVal, setDesc, descVal, setVis, visArg, setCover, coverVal)
+	c, err := scanCollectionRow(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrCollectionNotFound
 		}
 		return nil, fmt.Errorf("update collection: %w", err)
 	}
-	if uid.Valid {
-		v := uid.Int64
-		c.UserID = &v
-	}
-	if desc.Valid {
-		s := desc.String
-		c.Description = &s
-	}
-	if cat.Valid && strings.TrimSpace(cat.String) != "" {
-		cc := models.Category(strings.TrimSpace(cat.String))
-		if cc.Valid() {
-			c.Category = &cc
-		}
-	}
-	if cover.Valid && strings.TrimSpace(cover.String) != "" {
-		s := strings.TrimSpace(cover.String)
-		c.CoverArtURL = &s
-	}
-	var cnt int64
-	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM items WHERE collection_id = $1`, id).Scan(&cnt); err != nil {
-		return nil, fmt.Errorf("count items: %w", err)
-	}
-	c.ItemCount = cnt
 	return &c, nil
 }
 
@@ -401,10 +402,10 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 // ListOwnerCollectionsExcept returns the signed-in user's other collections (for move targets when deleting a shelf).
 func (r *PostgresCollectionRepository) ListOwnerCollectionsExcept(ctx context.Context, ownerID int64, excludeID string) ([]models.Collection, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, user_id, name, description, category, cover_art_url, is_public, created_at, updated_at, 0::bigint AS item_count
-		FROM collections
-		WHERE user_id = $1 AND id <> $2::uuid
-		ORDER BY name ASC
+		SELECT `+collectionSelectColumns+`, 0::bigint AS item_count
+		FROM collections c
+		WHERE c.user_id = $1 AND c.id <> $2::uuid
+		ORDER BY c.name ASC
 	`, ownerID, excludeID)
 	if err != nil {
 		return nil, fmt.Errorf("list owner collections: %w", err)

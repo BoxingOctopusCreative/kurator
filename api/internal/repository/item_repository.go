@@ -21,14 +21,14 @@ type rowQuerier interface {
 }
 
 type ItemRepository interface {
-	ListLatest(ctx context.Context, limit int) ([]models.Item, error)
+	ListLatest(ctx context.Context, viewer *int64, limit int) ([]models.Item, error)
 	// ListByCollection lists items; consumptionFilter is "", "pending", or "done" (ignored when the column is absent).
-	ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error)
+	ListByCollection(ctx context.Context, collectionID string, viewer *int64, limit int, consumptionFilter string) ([]models.Item, error)
 	// ListByCollectionExport returns items in stable id order for CSV export (capped).
 	ListByCollectionExport(ctx context.Context, collectionID string, max int) ([]models.Item, error)
 	ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error)
 	ListRecentFromFollowedUsers(ctx context.Context, followerUserID int64, limit int) ([]models.Item, error)
-	GetByID(ctx context.Context, id string) (*models.Item, error)
+	GetByID(ctx context.Context, id string, viewer *int64) (*models.Item, error)
 	Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error)
 	CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error)
 	Update(ctx context.Context, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error)
@@ -102,7 +102,7 @@ func scanItemRow(scan func(dest ...any) error, withRating, withConsumption bool)
 	return it, nil
 }
 
-func (r *PostgresItemRepository) ListLatest(ctx context.Context, limit int) ([]models.Item, error) {
+func (r *PostgresItemRepository) ListLatest(ctx context.Context, viewer *int64, limit int) ([]models.Item, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
@@ -114,13 +114,44 @@ func (r *PostgresItemRepository) ListLatest(ctx context.Context, limit int) ([]m
 	if err != nil {
 		return nil, fmt.Errorf("list items: %w", err)
 	}
-	cols := selectItemColumns(withR, withC)
+	cols := selectItemColumnsAliased("i", withR, withC)
+	var vis string
+	var args []interface{}
+	if viewer == nil {
+		vis = CollectionRowVisibleAnonSQL()
+		args = []interface{}{limit}
+		rows, err := r.pool.Query(ctx, fmt.Sprintf(`
+		SELECT %s
+		FROM items i
+		INNER JOIN collections c ON c.id = i.collection_id
+		WHERE %s
+		ORDER BY i.created_at DESC
+		LIMIT $1
+	`, cols, vis), args...)
+		if err != nil {
+			return nil, fmt.Errorf("list items: %w", err)
+		}
+		defer rows.Close()
+		out := make([]models.Item, 0)
+		for rows.Next() {
+			it, err := scanItemRow(rows.Scan, withR, withC)
+			if err != nil {
+				return nil, fmt.Errorf("scan item: %w", err)
+			}
+			out = append(out, it)
+		}
+		return out, rows.Err()
+	}
+	vis = CollectionRowVisibleSQL("$1")
+	args = []interface{}{*viewer, limit}
 	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s
-		FROM items
-		ORDER BY created_at DESC
-		LIMIT $1
-	`, cols), limit)
+		FROM items i
+		INNER JOIN collections c ON c.id = i.collection_id
+		WHERE %s
+		ORDER BY i.created_at DESC
+		LIMIT $2
+	`, cols, vis), args...)
 	if err != nil {
 		return nil, fmt.Errorf("list items: %w", err)
 	}
@@ -138,7 +169,7 @@ func (r *PostgresItemRepository) ListLatest(ctx context.Context, limit int) ([]m
 	return out, rows.Err()
 }
 
-func (r *PostgresItemRepository) ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error) {
+func (r *PostgresItemRepository) ListByCollection(ctx context.Context, collectionID string, viewer *int64, limit int, consumptionFilter string) ([]models.Item, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
@@ -150,21 +181,29 @@ func (r *PostgresItemRepository) ListByCollection(ctx context.Context, collectio
 	if err != nil {
 		return nil, fmt.Errorf("list items by collection: %w", err)
 	}
-	cols := selectItemColumns(withR, withC)
-	where := "collection_id = $1"
+	cols := selectItemColumnsAliased("i", withR, withC)
+	where := "i.collection_id = $1"
 	args := []interface{}{collectionID}
 	nextArg := 2
+	if viewer == nil {
+		where += " AND " + CollectionRowVisibleAnonSQL()
+	} else {
+		where += " AND " + CollectionRowVisibleSQL(fmt.Sprintf("$%d", nextArg))
+		args = append(args, *viewer)
+		nextArg++
+	}
 	if withC && (consumptionFilter == "pending" || consumptionFilter == "done") {
-		where += fmt.Sprintf(" AND consumption_status = $%d", nextArg)
+		where += fmt.Sprintf(" AND i.consumption_status = $%d", nextArg)
 		args = append(args, consumptionFilter)
 		nextArg++
 	}
 	args = append(args, limit)
 	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s
-		FROM items
+		FROM items i
+		INNER JOIN collections c ON c.id = i.collection_id
 		WHERE %s
-		ORDER BY created_at DESC
+		ORDER BY i.created_at DESC
 		LIMIT $%d
 	`, cols, where, nextArg), args...)
 	if err != nil {
@@ -270,14 +309,16 @@ func (r *PostgresItemRepository) ListRecentFromFollowedUsers(ctx context.Context
 		return nil, fmt.Errorf("list items from followed users: %w", err)
 	}
 	cols := selectItemColumnsAliased("i", withR, withC)
+	// Reuse the central visibility helper. The viewer follows the owner (NOT NULL filter inside),
+	// so "followers" matches automatically and "friends" requires the mutual-follow check.
+	vis := OwnedShelfVisibleToViewerSQL("c.user_id", "c.visibility", "$1")
 	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s
 		FROM items i
 		INNER JOIN collections c ON c.id = i.collection_id
 		WHERE c.user_id IS NOT NULL
-		  AND c.is_public = TRUE
 		  AND c.user_id <> $1
-		  AND c.user_id IN (SELECT following_id FROM user_follows WHERE follower_id = $1)
+		  AND `+vis+`
 		ORDER BY i.created_at DESC
 		LIMIT $2
 	`, cols), followerUserID, limit)
@@ -296,7 +337,7 @@ func (r *PostgresItemRepository) ListRecentFromFollowedUsers(ctx context.Context
 	return out, rows.Err()
 }
 
-func (r *PostgresItemRepository) GetByID(ctx context.Context, id string) (*models.Item, error) {
+func (r *PostgresItemRepository) GetByID(ctx context.Context, id string, viewer *int64) (*models.Item, error) {
 	withR, err := itemsTableHasRatingColumn(ctx, r.pool)
 	if err != nil {
 		return nil, fmt.Errorf("get item: %w", err)
@@ -305,11 +346,22 @@ func (r *PostgresItemRepository) GetByID(ctx context.Context, id string) (*model
 	if err != nil {
 		return nil, fmt.Errorf("get item: %w", err)
 	}
-	cols := selectItemColumns(withR, withC)
+	cols := selectItemColumnsAliased("i", withR, withC)
+	where := "i.id = $1"
+	args := []interface{}{id}
+	nextArg := 2
+	if viewer == nil {
+		where += " AND " + CollectionRowVisibleAnonSQL()
+	} else {
+		where += " AND " + CollectionRowVisibleSQL(fmt.Sprintf("$%d", nextArg))
+		args = append(args, *viewer)
+	}
 	row := r.pool.QueryRow(ctx, fmt.Sprintf(`
 		SELECT %s
-		FROM items WHERE id = $1
-	`, cols), id)
+		FROM items i
+		INNER JOIN collections c ON c.id = i.collection_id
+		WHERE %s
+	`, cols, where), args...)
 	it, err := scanItemRow(row.Scan, withR, withC)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrItemNotFound

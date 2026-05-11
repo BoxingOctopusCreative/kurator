@@ -10,7 +10,14 @@ import (
 	"github.com/boxingoctopus/kurator/api/migrations"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/spf13/afero"
 )
+
+// migrationFS exposes the bundled SQL migrations through an afero.Fs so that all file lookups in
+// this package go through a single abstraction. The underlying source is still the compiled-in
+// embed.FS — afero.FromIOFS is just a read-only adapter — so the deployed binary remains
+// self-contained.
+var migrationFS afero.Fs = afero.FromIOFS{FS: migrations.SQL}
 
 const metaTable = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -65,7 +72,7 @@ func UpWithExistingPool(ctx context.Context, pool *pgxpool.Pool) (applied []stri
 			continue
 		}
 
-		body, err := migrations.SQL.ReadFile(name)
+		body, err := afero.ReadFile(migrationFS, name)
 		if err != nil {
 			return applied, fmt.Errorf("read %s: %w", name, err)
 		}
@@ -163,7 +170,7 @@ func statusAppliedFromPool(ctx context.Context, pool *pgxpool.Pool) ([]string, e
 }
 
 func listMigrationFiles() ([]string, error) {
-	entries, err := migrations.SQL.ReadDir(".")
+	entries, err := afero.ReadDir(migrationFS, ".")
 	if err != nil {
 		return nil, err
 	}

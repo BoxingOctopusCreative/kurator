@@ -294,6 +294,11 @@ type PatchMeBody struct {
 	Username        *string          `json:"username"`
 	ProfileIsPublic *bool            `json:"profile_is_public"`
 	ThemePreference *string          `json:"theme_preference"`
+	ColorScheme     *string          `json:"color_scheme"`
+	// AccessibleColorSchemesEnabled opts in to extra palettes designed for colour-vision accessibility.
+	AccessibleColorSchemesEnabled *bool   `json:"accessible_color_schemes_enabled"`
+	FontFamily                    *string `json:"font_family"`
+	AccessibleFontsEnabled        *bool   `json:"accessible_fonts_enabled"`
 }
 
 // PatchMe updates profile fields for the signed-in user.
@@ -384,6 +389,24 @@ func (h *AuthHandler) PatchMe(c *fiber.Ctx) error {
 	}
 	if body.ThemePreference != nil {
 		if err := h.auth.UpdateThemePreference(c.Context(), uid, *body.ThemePreference); err != nil {
+			var inv *validation.InvalidInputError
+			if errors.As(err, &inv) {
+				return fiber.NewError(fiber.StatusBadRequest, inv.Message)
+			}
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+	}
+	if body.ColorScheme != nil || body.AccessibleColorSchemesEnabled != nil {
+		if err := h.auth.UpdateColorPreferences(c.Context(), uid, body.ColorScheme, body.AccessibleColorSchemesEnabled); err != nil {
+			var inv *validation.InvalidInputError
+			if errors.As(err, &inv) {
+				return fiber.NewError(fiber.StatusBadRequest, inv.Message)
+			}
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+	}
+	if body.FontFamily != nil || body.AccessibleFontsEnabled != nil {
+		if err := h.auth.UpdateFontPreferences(c.Context(), uid, body.FontFamily, body.AccessibleFontsEnabled); err != nil {
 			var inv *validation.InvalidInputError
 			if errors.As(err, &inv) {
 				return fiber.NewError(fiber.StatusBadRequest, inv.Message)
@@ -555,23 +578,27 @@ func localUserID(c *fiber.Ctx) (int64, error) {
 
 func publicUser(u *models.User) fiber.Map {
 	m := fiber.Map{
-		"id":                 u.ID,
-		"email":              u.Email,
-		"username":           u.Username,
-		"username_locked":    u.UsernameLocked,
-		"profile_is_public":  u.ProfileIsPublic,
-		"display_name":       u.DisplayName,
-		"first_name":         u.FirstName,
-		"last_name":          u.LastName,
-		"first_name_public":  u.FirstNamePublic,
-		"last_name_public":   u.LastNamePublic,
-		"location":           u.Location,
-		"bio":                u.Bio,
-		"social_links":       socialLinksForResponse(u.SocialLinks),
-		"theme_preference":   u.ThemePreference,
-		"two_factor_enabled": u.TwoFactorEnabled,
-		"created_at":         u.CreatedAt,
-		"updated_at":         u.UpdatedAt,
+		"id":                               u.ID,
+		"email":                            u.Email,
+		"username":                         u.Username,
+		"username_locked":                  u.UsernameLocked,
+		"profile_is_public":                u.ProfileIsPublic,
+		"display_name":                     u.DisplayName,
+		"first_name":                       u.FirstName,
+		"last_name":                        u.LastName,
+		"first_name_public":                u.FirstNamePublic,
+		"last_name_public":                 u.LastNamePublic,
+		"location":                         u.Location,
+		"bio":                              u.Bio,
+		"social_links":                     socialLinksForResponse(u.SocialLinks),
+		"theme_preference":                 u.ThemePreference,
+		"color_scheme":                     u.ColorScheme,
+		"accessible_color_schemes_enabled": u.AccessibleColorSchemesEnabled,
+		"font_family":                      u.FontFamily,
+		"accessible_fonts_enabled":         u.AccessibleFontsEnabled,
+		"two_factor_enabled":               u.TwoFactorEnabled,
+		"created_at":                       u.CreatedAt,
+		"updated_at":                       u.UpdatedAt,
 	}
 	if u.AvatarURL != nil {
 		m["avatar_url"] = *u.AvatarURL

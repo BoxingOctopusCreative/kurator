@@ -26,17 +26,17 @@ const twoFAPendingTyp = "2fa_pending"
 const betaUnlockTyp = "beta_unlock"
 
 var (
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrWeakPassword       = errors.New("password must be at least 8 characters")
-	ErrInvalidEmail       = errors.New("invalid email address")
-	ErrInvalidTOTP        = errors.New("invalid two-factor code")
-	ErrInvalidPending     = errors.New("invalid or expired login token")
-	ErrTwoFactorAlreadyOn = errors.New("two-factor authentication is already enabled")
-	ErrUsernameImmutable  = errors.New("username cannot be changed")
-	ErrInvalidBetaKey     = errors.New("invalid beta access key")
-	ErrBetaKeyClaimed     = errors.New("beta access key already claimed")
-	ErrBetaUnlockRequired   = errors.New("complete beta access unlock before registering")
-	ErrBetaKeyClaimInvalid  = errors.New("beta access key is invalid or no longer available")
+	ErrInvalidCredentials  = errors.New("invalid email or password")
+	ErrWeakPassword        = errors.New("password must be at least 8 characters")
+	ErrInvalidEmail        = errors.New("invalid email address")
+	ErrInvalidTOTP         = errors.New("invalid two-factor code")
+	ErrInvalidPending      = errors.New("invalid or expired login token")
+	ErrTwoFactorAlreadyOn  = errors.New("two-factor authentication is already enabled")
+	ErrUsernameImmutable   = errors.New("username cannot be changed")
+	ErrInvalidBetaKey      = errors.New("invalid beta access key")
+	ErrBetaKeyClaimed      = errors.New("beta access key already claimed")
+	ErrBetaUnlockRequired  = errors.New("complete beta access unlock before registering")
+	ErrBetaKeyClaimInvalid = errors.New("beta access key is invalid or no longer available")
 )
 
 type LoginStep1Result struct {
@@ -507,6 +507,66 @@ func (s *AuthService) UpdateThemePreference(ctx context.Context, userID int64, r
 		return err
 	}
 	return s.users.UpdateThemePreference(ctx, userID, pref)
+}
+
+// UpdateFontPreferences updates UI font id and/or accessible-reading-font opt-in. Pass nil to leave unchanged.
+func (s *AuthService) UpdateFontPreferences(ctx context.Context, userID int64, fontFamily *string, accessibleEnabled *bool) error {
+	if fontFamily == nil && accessibleEnabled == nil {
+		return nil
+	}
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	acc := u.AccessibleFontsEnabled
+	if accessibleEnabled != nil {
+		acc = *accessibleEnabled
+	}
+	ff := u.FontFamily
+	if ff == "" {
+		ff = validation.FontFamilyDefault
+	}
+	if !acc && validation.IsAccessibleFontFamily(ff) {
+		ff = validation.FontFamilyDefault
+	}
+	if fontFamily != nil {
+		norm, err := validation.FontFamily(strings.TrimSpace(*fontFamily), acc)
+		if err != nil {
+			return err
+		}
+		ff = norm
+	}
+	return s.users.UpdateFontPreferences(ctx, userID, ff, acc)
+}
+
+// UpdateColorPreferences updates palette and/or accessible-palette opt-in. Pass nil for fields that should not change.
+func (s *AuthService) UpdateColorPreferences(ctx context.Context, userID int64, colorScheme *string, accessibleEnabled *bool) error {
+	if colorScheme == nil && accessibleEnabled == nil {
+		return nil
+	}
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	acc := u.AccessibleColorSchemesEnabled
+	if accessibleEnabled != nil {
+		acc = *accessibleEnabled
+	}
+	scheme := u.ColorScheme
+	if scheme == "" {
+		scheme = validation.ColorSchemeDefault
+	}
+	if !acc && validation.IsAccessibleColorScheme(scheme) {
+		scheme = validation.ColorSchemeDefault
+	}
+	if colorScheme != nil {
+		norm, err := validation.ColorScheme(strings.TrimSpace(*colorScheme), acc)
+		if err != nil {
+			return err
+		}
+		scheme = norm
+	}
+	return s.users.UpdateColorPreferences(ctx, userID, scheme, acc)
 }
 
 func (s *AuthService) VerifyPassword(ctx context.Context, userID int64, password string) error {

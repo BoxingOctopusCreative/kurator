@@ -4,6 +4,21 @@
  */
 
 import { ALLOWED_SOCIAL_PLATFORM_IDS } from "./socialPlatforms";
+import {
+  COLOR_SCHEMES_ACCESSIBLE,
+  COLOR_SCHEMES_BASE,
+  isAccessibleColorScheme,
+  type ColorScheme,
+} from "./colorScheme";
+import {
+  FONT_FAMILIES_ACCESSIBLE,
+  FONT_FAMILIES_BASE,
+  isAccessibleFontFamily,
+  type FontFamily,
+} from "./fontFamily";
+
+export type { ColorScheme, FontFamily };
+export { isAccessibleColorScheme, isAccessibleFontFamily };
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -173,6 +188,38 @@ export function assertThemePreference(raw: string): ThemePreference {
     return s;
   }
   throw new ValidationError("Theme must be system, light, or dark.");
+}
+
+export function assertColorScheme(raw: string, accessibleExtrasEnabled: boolean): ColorScheme {
+  const s = raw.trim().toLowerCase();
+  const baseOk = (COLOR_SCHEMES_BASE as readonly { value: string }[]).some((o) => o.value === s);
+  if (baseOk) {
+    return s as ColorScheme;
+  }
+  const accOk = (COLOR_SCHEMES_ACCESSIBLE as readonly { value: string }[]).some((o) => o.value === s);
+  if (accOk) {
+    if (!accessibleExtrasEnabled) {
+      throw new ValidationError("Turn on accessible colour schemes to use this palette.");
+    }
+    return s as ColorScheme;
+  }
+  throw new ValidationError("Unsupported colour scheme.");
+}
+
+export function assertFontFamily(raw: string, accessibleFontsEnabled: boolean): FontFamily {
+  const s = raw.trim().toLowerCase();
+  const baseOk = (FONT_FAMILIES_BASE as readonly { value: string }[]).some((o) => o.value === s);
+  if (baseOk) {
+    return s as FontFamily;
+  }
+  const accOk = (FONT_FAMILIES_ACCESSIBLE as readonly { value: string }[]).some((o) => o.value === s);
+  if (accOk) {
+    if (!accessibleFontsEnabled) {
+      throw new ValidationError("Turn on accessible fonts to use this reading face.");
+    }
+    return s as FontFamily;
+  }
+  throw new ValidationError("Unsupported font family.");
 }
 
 export function assertItemTitle(s: string): string {

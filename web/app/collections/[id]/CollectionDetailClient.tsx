@@ -12,15 +12,24 @@ import {
   Download,
   LayoutGrid,
   List,
+  Lock,
   MoreHorizontal,
   Pencil,
   Plus,
   Settings,
   Trash2,
   Upload,
+  Users,
 } from "lucide-react";
-import type { Category, Collection, ConsumptionStatus, Item } from "@/lib/api";
+import type {
+  Category,
+  Collection,
+  ConsumptionStatus,
+  Item,
+  Visibility,
+} from "@/lib/api";
 import {
+  DEFAULT_VISIBILITY,
   deleteItem,
   exportCollectionItemsCsv,
   fetchCollection,
@@ -29,6 +38,8 @@ import {
   importCollectionItemsCsv,
   patchCollection,
   updateItem,
+  visibilityLabel,
+  visibilityOf,
 } from "@/lib/api";
 import {
   assertCollectionOrWishlistName,
@@ -41,16 +52,34 @@ import { EditItemModal } from "@/components/EditItemModal";
 import { CoverArtEditModal } from "@/components/CoverArtEditModal";
 import { DeleteCollectionDialog } from "@/components/DeleteCollectionDialog";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
+import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
-import { consumptionBadgeText, normalizeConsumptionStatus } from "@/lib/consumptionLabels";
+import {
+  consumptionBadgeText,
+  normalizeConsumptionStatus,
+} from "@/lib/consumptionLabels";
 import { isEntityUuid } from "@/lib/entityId";
-import { getCoverArtUrl, getItemFormatLabel, getItemYear, itemMatchesSearch } from "@/lib/itemDisplay";
+import {
+  getCoverArtUrl,
+  getItemFormatColumnLabel,
+  getItemYear,
+  itemMatchesSearch,
+} from "@/lib/itemDisplay";
 
 const VIEW_STORAGE_KEY = "kurator_collection_items_view";
 
-const ALL_CATEGORIES: Category[] = ["game", "music", "book", "movies", "tv", "anime", "comic_book", "manga"];
+const ALL_CATEGORIES: Category[] = [
+  "game",
+  "music",
+  "book",
+  "movies",
+  "tv",
+  "anime",
+  "comic_book",
+  "manga",
+];
 
 type ListSortKey = "title" | "category" | "format" | "rating" | "year";
 
@@ -68,10 +97,14 @@ function parseRatingSort(item: Item): number {
 }
 
 function parseFormatSortKey(item: Item): string {
-  return getItemFormatLabel(item).toLowerCase();
+  return getItemFormatColumnLabel(item).toLowerCase();
 }
 
-function sortListItems(items: Item[], key: ListSortKey, dir: "asc" | "desc"): Item[] {
+function sortListItems(
+  items: Item[],
+  key: ListSortKey,
+  dir: "asc" | "desc",
+): Item[] {
   const out = [...items];
   out.sort((a, b) => {
     if (key === "year") {
@@ -121,7 +154,8 @@ export function CollectionDetailClient() {
   const router = useRouter();
   const { user } = useAuth();
   const idRaw = params.id;
-  const id = typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
+  const id =
+    typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
 
   const [collection, setCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -130,7 +164,9 @@ export function CollectionDetailClient() {
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
-  const [consumptionFilter, setConsumptionFilter] = useState<"all" | ConsumptionStatus>("all");
+  const [consumptionFilter, setConsumptionFilter] = useState<
+    "all" | ConsumptionStatus
+  >("all");
   const [viewMode, setViewMode] = useState<"list" | "tiles">("tiles");
   const [listSortKey, setListSortKey] = useState<ListSortKey>("title");
   const [listSortDir, setListSortDir] = useState<"asc" | "desc">("asc");
@@ -149,12 +185,16 @@ export function CollectionDetailClient() {
   const [editingDesc, setEditingDesc] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [itemBusy, setItemBusy] = useState<{ id: string; op: "move" | "remove" } | null>(null);
+  const [itemBusy, setItemBusy] = useState<{
+    id: string;
+    op: "move" | "remove";
+  } | null>(null);
   const [itemMsg, setItemMsg] = useState<string | null>(null);
   const [movePick, setMovePick] = useState<Record<string, string>>({});
   const [deleteShelfOpen, setDeleteShelfOpen] = useState(false);
   const [coverArtModalOpen, setCoverArtModalOpen] = useState(false);
-  const [collectionSettingsModalOpen, setCollectionSettingsModalOpen] = useState(false);
+  const [collectionSettingsModalOpen, setCollectionSettingsModalOpen] =
+    useState(false);
   const [addItemModalOpen, setAddItemModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<Item | null>(null);
 
@@ -178,7 +218,11 @@ export function CollectionDetailClient() {
   }, [editingDesc]);
 
   useEffect(() => {
-    if (!user || !collection || Number(collection.user_id) !== Number(user.id)) {
+    if (
+      !user ||
+      !collection ||
+      Number(collection.user_id) !== Number(user.id)
+    ) {
       setMyCollections([]);
       return;
     }
@@ -220,7 +264,8 @@ export function CollectionDetailClient() {
       fetchItems({
         collectionId: id,
         limit: 500,
-        consumptionStatus: consumptionFilter === "all" ? "all" : consumptionFilter,
+        consumptionStatus:
+          consumptionFilter === "all" ? "all" : consumptionFilter,
       }),
     ])
       .then(([col, its]) => {
@@ -230,7 +275,10 @@ export function CollectionDetailClient() {
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load collection.");
+        if (!cancelled)
+          setError(
+            e instanceof Error ? e.message : "Could not load collection.",
+          );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -246,7 +294,8 @@ export function CollectionDetailClient() {
       fetchItems({
         collectionId: id,
         limit: 500,
-        consumptionStatus: consumptionFilter === "all" ? "all" : consumptionFilter,
+        consumptionStatus:
+          consumptionFilter === "all" ? "all" : consumptionFilter,
       }),
     ]);
     setCollection(col);
@@ -345,7 +394,9 @@ export function CollectionDetailClient() {
     setShelfMsg(null);
     setShelfSaving(true);
     try {
-      const updated = await patchCollection(collection.id, { cover_art_url: url });
+      const updated = await patchCollection(collection.id, {
+        cover_art_url: url,
+      });
       setCollection(updated);
       setShelfMsg("Cover saved.");
       setCoverArtModalOpen(false);
@@ -369,7 +420,11 @@ export function CollectionDetailClient() {
     try {
       let description = "";
       if (trimmed) {
-        description = assertLooseMultilineText(shelfDesc, LIMITS.description, "Description");
+        description = assertLooseMultilineText(
+          shelfDesc,
+          LIMITS.description,
+          "Description",
+        );
       }
       const updated = await patchCollection(collection.id, { description });
       setCollection(updated);
@@ -382,7 +437,9 @@ export function CollectionDetailClient() {
         requestAnimationFrame(() => descTextareaRef.current?.focus());
       }
     } catch (err) {
-      setShelfMsg(err instanceof Error ? err.message : "Could not save description.");
+      setShelfMsg(
+        err instanceof Error ? err.message : "Could not save description.",
+      );
       setShelfDesc(collection.description ?? "");
       setEditingDesc(false);
     } finally {
@@ -419,7 +476,12 @@ export function CollectionDetailClient() {
   }
 
   async function onRemoveItemForever(item: Item) {
-    if (!window.confirm(`Remove “${item.title}” permanently? This cannot be undone.`)) return;
+    if (
+      !window.confirm(
+        `Remove “${item.title}” permanently? This cannot be undone.`,
+      )
+    )
+      return;
     setItemMsg(null);
     setItemBusy({ id: item.id, op: "remove" });
     try {
@@ -434,7 +496,8 @@ export function CollectionDetailClient() {
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
+      if (categoryFilter !== "all" && item.category !== categoryFilter)
+        return false;
       const st = normalizeConsumptionStatus(item);
       if (consumptionFilter !== "all" && st !== consumptionFilter) return false;
       return itemMatchesSearch(item, search);
@@ -447,8 +510,9 @@ export function CollectionDetailClient() {
   }, [filteredItems, viewMode, listSortKey, listSortDir]);
 
   const moveTargets = useMemo(
-    () => (collection ? myCollections.filter((c) => c.id !== collection.id) : []),
-    [myCollections, collection]
+    () =>
+      collection ? myCollections.filter((c) => c.id !== collection.id) : [],
+    [myCollections, collection],
   );
 
   function toggleListSort(key: ListSortKey) {
@@ -481,7 +545,10 @@ export function CollectionDetailClient() {
       {loading && <p className="text-sm text-kurator-muted">Loading…</p>}
 
       {error && (
-        <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
+        <p
+          className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -537,31 +604,31 @@ export function CollectionDetailClient() {
             >
               <div className="space-y-6">
                 <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
-                  <p className="text-sm font-medium text-kurator-fg">Visibility</p>
-                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-kurator-muted">
-                    <input
-                      type="checkbox"
-                      checked={collection.is_public !== false}
-                      disabled={privacySaving}
-                      onChange={async (e) => {
-                        const is_public = e.target.checked;
-                        setPrivacyMsg(null);
-                        setPrivacySaving(true);
-                        try {
-                          const updated = await patchCollection(collection.id, { is_public });
-                          setCollection(updated);
-                        } catch (err) {
-                          setPrivacyMsg(err instanceof Error ? err.message : "Could not update.");
-                        } finally {
-                          setPrivacySaving(false);
-                        }
-                      }}
-                      className="rounded-sm border-kurator-border"
-                    />
-                    {collection.is_public !== false
-                      ? "Public — listed for others and followers"
-                      : "Private — only you can open this shelf"}
-                  </label>
+                  <VisibilitySelect
+                    name="collection-settings-visibility"
+                    legend="Visibility"
+                    value={visibilityOf(collection) ?? DEFAULT_VISIBILITY}
+                    disabled={privacySaving}
+                    onChange={async (next: Visibility) => {
+                      setPrivacyMsg(null);
+                      setPrivacySaving(true);
+                      try {
+                        const updated = await patchCollection(collection.id, {
+                          visibility: next,
+                          is_public: next !== "private",
+                        });
+                        setCollection(updated);
+                      } catch (err) {
+                        setPrivacyMsg(
+                          err instanceof Error
+                            ? err.message
+                            : "Could not update.",
+                        );
+                      } finally {
+                        setPrivacySaving(false);
+                      }
+                    }}
+                  />
                   {privacyMsg && (
                     <p className="mt-2 text-sm text-amber-200/90" role="status">
                       {privacyMsg}
@@ -571,7 +638,9 @@ export function CollectionDetailClient() {
 
                 <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
                   <div className="group relative inline-flex items-center gap-1.5">
-                    <p className="text-sm font-medium text-kurator-fg">Import &amp; Export</p>
+                    <p className="text-sm font-medium text-kurator-fg">
+                      Import &amp; Export
+                    </p>
                     <button
                       type="button"
                       className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
@@ -583,8 +652,10 @@ export function CollectionDetailClient() {
                       role="tooltip"
                       className="pointer-events-none invisible absolute bottom-full left-0 z-60 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
                     >
-                      Spreadsheet columns: title, category, optional id (to update an item already on this shelf),
-                      optional rating and consumption_status (pending or done), and extra fields in one column.
+                      Spreadsheet columns: title, category, optional id (to
+                      update an item already on this shelf), optional rating and
+                      consumption_status (pending or done), and extra fields in
+                      one column.
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -616,7 +687,10 @@ export function CollectionDetailClient() {
                     />
                   </div>
                   {importMsg && (
-                    <p className="mt-2 text-sm text-kurator-muted" role="status">
+                    <p
+                      className="mt-2 text-sm text-kurator-muted"
+                      role="status"
+                    >
                       {importMsg}
                     </p>
                   )}
@@ -687,7 +761,8 @@ export function CollectionDetailClient() {
                       />
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-kurator-muted">
-                          Enter saves · Esc cancels · leaving the field saves if the name changed
+                          Enter saves · Esc cancels · leaving the field saves if
+                          the name changed
                         </p>
                         <div className="flex shrink-0 gap-2">
                           <button
@@ -718,7 +793,9 @@ export function CollectionDetailClient() {
                       disabled={shelfSaving}
                       className="group flex max-w-full items-start gap-2 rounded-lg text-left text-2xl font-semibold text-kurator-fg outline-hidden ring-kurator-accent hover:bg-kurator-border/40 focus-visible:ring-2 disabled:opacity-50 md:text-3xl"
                     >
-                      <span className="min-w-0 wrap-break-word">{collection.name}</span>
+                      <span className="min-w-0 wrap-break-word">
+                        {collection.name}
+                      </span>
                       <Pencil
                         className="mt-1.5 h-5 w-5 shrink-0 text-kurator-muted opacity-60 group-hover:opacity-100 md:mt-2 md:h-6 md:w-6"
                         aria-hidden
@@ -742,7 +819,10 @@ export function CollectionDetailClient() {
                           if (e.key === "Escape") {
                             e.preventDefault();
                             cancelDescEdit();
-                          } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                          } else if (
+                            (e.metaKey || e.ctrlKey) &&
+                            e.key === "Enter"
+                          ) {
                             e.preventDefault();
                             void commitDescEdit({ keepEditing: true });
                           }
@@ -754,7 +834,8 @@ export function CollectionDetailClient() {
                       />
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-kurator-muted">
-                          ⌘ or Ctrl+Enter saves and keeps you here · Esc cancels · Blur or Save closes the editor
+                          ⌘ or Ctrl+Enter saves and keeps you here · Esc cancels
+                          · Blur or Save closes the editor
                         </p>
                         <div className="flex shrink-0 gap-2">
                           <button
@@ -801,16 +882,22 @@ export function CollectionDetailClient() {
                   )
                 ) : (
                   collection.description && (
-                    <p className="mt-2 text-sm text-kurator-muted">{collection.description}</p>
+                    <p className="mt-2 text-sm text-kurator-muted">
+                      {collection.description}
+                    </p>
                   )
                 )}
 
                 <p className="mt-2 text-xs text-kurator-muted">
                   Shelf Type:{" "}
                   {collection.category ? (
-                    <span className="font-medium text-kurator-fg">{categoryLabel(collection.category)}</span>
+                    <span className="font-medium text-kurator-fg">
+                      {categoryLabel(collection.category)}
+                    </span>
                   ) : (
-                    <span className="text-kurator-fg/90">any category (first item pins this shelf)</span>
+                    <span className="text-kurator-fg/90">
+                      any category (first item pins this shelf)
+                    </span>
                   )}
                 </p>
 
@@ -821,15 +908,25 @@ export function CollectionDetailClient() {
                 )}
 
                 <p className="mt-2 text-xs text-kurator-muted/80">
-                  {collection.item_count} {collection.item_count === 1 ? "item" : "items"}
-                  {collection.is_public === false && (
-                    <span className="ml-2 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                      Private
-                    </span>
-                  )}
+                  {collection.item_count}{" "}
+                  {collection.item_count === 1 ? "item" : "items"}
+                  {(() => {
+                    const v = visibilityOf(collection);
+                    if (v === "followers") return null;
+                    const Icon = v === "private" ? Lock : Users;
+                    return (
+                      <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                        <Icon className="h-3 w-3" aria-hidden />
+                        {visibilityLabel(v)}
+                      </span>
+                    );
+                  })()}
                 </p>
                 {isOwner && itemMsg && (
-                  <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100/90" role="alert">
+                  <p
+                    className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100/90"
+                    role="alert"
+                  >
                     {itemMsg}
                   </p>
                 )}
@@ -840,9 +937,9 @@ export function CollectionDetailClient() {
                     type="button"
                     onClick={() => setAddItemModalOpen(true)}
                     aria-haspopup="dialog"
-                    aria-label="Add item"
-                    title="Add item"
-                    className="rounded-lg border border-kurator-border bg-kurator-bg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                    aria-label="Add Item"
+                    title="Add Item"
+                    className="rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
                   >
                     <Plus className="h-4 w-4 shrink-0" aria-hidden />
                   </button>
@@ -852,7 +949,7 @@ export function CollectionDetailClient() {
                     aria-haspopup="dialog"
                     aria-label="Collection settings"
                     title="Collection settings"
-                    className="rounded-lg border border-kurator-border bg-kurator-bg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                    className="rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
                   >
                     <Settings className="h-4 w-4 shrink-0" aria-hidden />
                   </button>
@@ -861,7 +958,7 @@ export function CollectionDetailClient() {
                     onClick={() => setDeleteShelfOpen(true)}
                     aria-label="Delete collection"
                     title="Delete collection"
-                    className="rounded-lg border border-red-500/40 p-2 text-red-200 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
+                    className="rounded-lg p-2 text-red-200 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
                   >
                     <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
                   </button>
@@ -899,12 +996,16 @@ export function CollectionDetailClient() {
                     autoComplete="off"
                   />
                 </label>
-                <label className="block w-full min-w-[160px] text-sm lg:max-w-xs">
+                <label className="block w-full min-w-40 text-sm lg:max-w-xs">
                   <span className="text-kurator-muted">Category</span>
                   <select
                     value={categoryFilter}
                     onChange={(e) =>
-                      setCategoryFilter(e.target.value === "all" ? "all" : (e.target.value as Category))
+                      setCategoryFilter(
+                        e.target.value === "all"
+                          ? "all"
+                          : (e.target.value as Category),
+                      )
                     }
                     className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   >
@@ -916,12 +1017,16 @@ export function CollectionDetailClient() {
                     ))}
                   </select>
                 </label>
-                <label className="block w-full min-w-[180px] text-sm lg:max-w-xs">
+                <label className="block w-full min-w-45 text-sm lg:max-w-xs">
                   <span className="text-kurator-muted">Status</span>
                   <select
                     value={consumptionFilter}
                     onChange={(e) =>
-                      setConsumptionFilter(e.target.value === "all" ? "all" : (e.target.value as ConsumptionStatus))
+                      setConsumptionFilter(
+                        e.target.value === "all"
+                          ? "all"
+                          : (e.target.value as ConsumptionStatus),
+                      )
                     }
                     className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                   >
@@ -959,7 +1064,7 @@ export function CollectionDetailClient() {
                 </p>
               ) : viewMode === "list" ? (
                 <div className="overflow-x-auto rounded-xl border border-kurator-border">
-                  <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                  <table className="w-full min-w-180 border-collapse text-left text-sm">
                     <thead>
                       <tr className="border-b border-kurator-border bg-kurator-surface/80 text-xs uppercase tracking-wide text-kurator-muted">
                         <th scope="col" className="w-24 px-3 py-3 font-medium">
@@ -984,12 +1089,21 @@ export function CollectionDetailClient() {
                             Title
                             {listSortKey === "title" ? (
                               listSortDir === "asc" ? (
-                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowUp
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               ) : (
-                                <ArrowDown className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowDown
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               )
                             ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                              <ArrowUpDown
+                                className="h-3.5 w-3.5 shrink-0 opacity-40"
+                                aria-hidden
+                              />
                             )}
                           </button>
                         </th>
@@ -1012,12 +1126,21 @@ export function CollectionDetailClient() {
                             Category
                             {listSortKey === "category" ? (
                               listSortDir === "asc" ? (
-                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowUp
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               ) : (
-                                <ArrowDown className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowDown
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               )
                             ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                              <ArrowUpDown
+                                className="h-3.5 w-3.5 shrink-0 opacity-40"
+                                aria-hidden
+                              />
                             )}
                           </button>
                         </th>
@@ -1040,16 +1163,28 @@ export function CollectionDetailClient() {
                             Format
                             {listSortKey === "format" ? (
                               listSortDir === "asc" ? (
-                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowUp
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               ) : (
-                                <ArrowDown className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowDown
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               )
                             ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                              <ArrowUpDown
+                                className="h-3.5 w-3.5 shrink-0 opacity-40"
+                                aria-hidden
+                              />
                             )}
                           </button>
                         </th>
-                        <th scope="col" className="w-36 px-3 py-3 text-xs font-medium uppercase tracking-wide text-kurator-muted">
+                        <th
+                          scope="col"
+                          className="w-36 px-3 py-3 text-xs font-medium uppercase tracking-wide text-kurator-muted"
+                        >
                           Status
                         </th>
                         <th
@@ -1071,12 +1206,21 @@ export function CollectionDetailClient() {
                             Rating
                             {listSortKey === "rating" ? (
                               listSortDir === "asc" ? (
-                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowUp
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               ) : (
-                                <ArrowDown className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowDown
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               )
                             ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                              <ArrowUpDown
+                                className="h-3.5 w-3.5 shrink-0 opacity-40"
+                                aria-hidden
+                              />
                             )}
                           </button>
                         </th>
@@ -1099,12 +1243,21 @@ export function CollectionDetailClient() {
                             Year
                             {listSortKey === "year" ? (
                               listSortDir === "asc" ? (
-                                <ArrowUp className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowUp
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               ) : (
-                                <ArrowDown className="h-3.5 w-3.5 shrink-0 text-kurator-accent" aria-hidden />
+                                <ArrowDown
+                                  className="h-3.5 w-3.5 shrink-0 text-kurator-accent"
+                                  aria-hidden
+                                />
                               )
                             ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
+                              <ArrowUpDown
+                                className="h-3.5 w-3.5 shrink-0 opacity-40"
+                                aria-hidden
+                              />
                             )}
                           </button>
                         </th>
@@ -1122,7 +1275,7 @@ export function CollectionDetailClient() {
                       {listOrderedItems.map((item) => {
                         const cover = getCoverArtUrl(item.metadata);
                         const year = getItemYear(item.metadata);
-                        const formatLabel = getItemFormatLabel(item);
+                        const formatLabel = getItemFormatColumnLabel(item);
                         return (
                           <tr
                             key={item.id}
@@ -1139,7 +1292,7 @@ export function CollectionDetailClient() {
                             }}
                           >
                             <td className="align-top px-3 py-3">
-                              <div className="h-20 w-16 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                              <div className="h-20 w-16 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                                 <ItemCoverImage
                                   url={cover}
                                   alt=""
@@ -1147,22 +1300,34 @@ export function CollectionDetailClient() {
                                 />
                               </div>
                             </td>
-                            <td className="align-top px-3 py-3 font-medium text-kurator-fg">{item.title}</td>
+                            <td className="align-top px-3 py-3 font-medium text-kurator-fg">
+                              {item.title}
+                            </td>
                             <td className="align-top px-3 py-3">
                               <span className="inline-flex rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">
                                 {categoryLabel(item.category)}
                               </span>
                             </td>
-                            <td className="align-top px-3 py-3 text-kurator-muted">{formatLabel || "—"}</td>
+                            <td className="align-top px-3 py-3 text-kurator-muted">
+                              {formatLabel || "—"}
+                            </td>
                             <td className="align-top px-3 py-3 text-kurator-muted">
                               <span className="inline-flex rounded-full border border-kurator-border/80 bg-kurator-bg px-2 py-0.5 text-[11px] font-medium text-kurator-fg">
-                                {consumptionBadgeText(item.category, normalizeConsumptionStatus(item))}
+                                {consumptionBadgeText(
+                                  item.category,
+                                  normalizeConsumptionStatus(item),
+                                )}
                               </span>
                             </td>
                             <td className="align-top px-3 py-3">
-                              <ItemStarRating value={item.rating ?? null} size="sm" />
+                              <ItemStarRating
+                                value={item.rating ?? null}
+                                size="sm"
+                              />
                             </td>
-                            <td className="align-top px-3 py-3 text-kurator-muted">{year || "—"}</td>
+                            <td className="align-top px-3 py-3 text-kurator-muted">
+                              {year || "—"}
+                            </td>
                             {isOwner && (
                               <td
                                 className="align-top px-3 py-3 text-right"
@@ -1198,17 +1363,23 @@ export function CollectionDetailClient() {
                                         movePick[item.id] === item.collection_id
                                       }
                                       onClick={() =>
-                                        void onMoveItemToShelf(item, movePick[item.id] ?? "")
+                                        void onMoveItemToShelf(
+                                          item,
+                                          movePick[item.id] ?? "",
+                                        )
                                       }
                                       className="rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50"
                                     >
-                                      {itemBusy?.id === item.id && itemBusy.op === "move"
+                                      {itemBusy?.id === item.id &&
+                                      itemBusy.op === "move"
                                         ? "Moving…"
                                         : "Move"}
                                     </button>
                                   </div>
                                 ) : (
-                                  <span className="text-xs text-kurator-muted">No other shelf</span>
+                                  <span className="text-xs text-kurator-muted">
+                                    No other shelf
+                                  </span>
                                 )}
                                 <div className="mt-2 flex flex-col gap-2 sm:mt-0 sm:ml-2 sm:inline-flex sm:flex-row sm:flex-wrap sm:justify-end">
                                   <button
@@ -1222,10 +1393,13 @@ export function CollectionDetailClient() {
                                   <button
                                     type="button"
                                     disabled={itemBusy?.id === item.id}
-                                    onClick={() => void onRemoveItemForever(item)}
+                                    onClick={() =>
+                                      void onRemoveItemForever(item)
+                                    }
                                     className="w-full rounded-lg border border-red-500/35 px-2 py-1.5 text-xs text-red-200/90 hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
                                   >
-                                    {itemBusy?.id === item.id && itemBusy.op === "remove"
+                                    {itemBusy?.id === item.id &&
+                                    itemBusy.op === "remove"
                                       ? "Removing…"
                                       : "Remove"}
                                   </button>
@@ -1244,7 +1418,7 @@ export function CollectionDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <div className="flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2">
+                        <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2">
                           <div className="flex shrink-0 items-start justify-between gap-2 p-4 pb-2">
                             <Link
                               href={`/items/${item.id}`}
@@ -1264,7 +1438,10 @@ export function CollectionDetailClient() {
                                 }}
                                 className="shrink-0 rounded-lg border border-kurator-border/80 p-1.5 text-kurator-muted hover:border-kurator-accent/50 hover:text-kurator-fg"
                               >
-                                <MoreHorizontal className="h-4 w-4" aria-hidden />
+                                <MoreHorizontal
+                                  className="h-4 w-4"
+                                  aria-hidden
+                                />
                               </button>
                             )}
                           </div>
@@ -1277,14 +1454,20 @@ export function CollectionDetailClient() {
                                 {categoryLabel(item.category)}
                               </span>
                               <span className="mt-1.5 inline-flex rounded-full border border-kurator-border/80 bg-kurator-bg px-2 py-0.5 text-[11px] font-medium text-kurator-fg">
-                                {consumptionBadgeText(item.category, normalizeConsumptionStatus(item))}
+                                {consumptionBadgeText(
+                                  item.category,
+                                  normalizeConsumptionStatus(item),
+                                )}
                               </span>
                               <div className="mt-1.5">
-                                <ItemStarRating value={item.rating ?? null} size="sm" />
+                                <ItemStarRating
+                                  value={item.rating ?? null}
+                                  size="sm"
+                                />
                               </div>
                             </div>
                             <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                              <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                              <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                                 <ItemCoverImage
                                   url={cover}
                                   alt={`Cover for ${item.title}`}
@@ -1323,16 +1506,24 @@ export function CollectionDetailClient() {
                                       !movePick[item.id] ||
                                       movePick[item.id] === item.collection_id
                                     }
-                                    onClick={() => void onMoveItemToShelf(item, movePick[item.id] ?? "")}
+                                    onClick={() =>
+                                      void onMoveItemToShelf(
+                                        item,
+                                        movePick[item.id] ?? "",
+                                      )
+                                    }
                                     className="rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50"
                                   >
-                                    {itemBusy?.id === item.id && itemBusy.op === "move"
+                                    {itemBusy?.id === item.id &&
+                                    itemBusy.op === "move"
                                       ? "Moving…"
-                                        : "Move to Shelf"}
+                                      : "Move to Shelf"}
                                   </button>
                                 </div>
                               ) : (
-                                <p className="text-xs text-kurator-muted">Create another collection to move items.</p>
+                                <p className="text-xs text-kurator-muted">
+                                  Create another collection to move items.
+                                </p>
                               )}
                               <button
                                 type="button"
@@ -1340,9 +1531,10 @@ export function CollectionDetailClient() {
                                 onClick={() => void onRemoveItemForever(item)}
                                 className="mt-2 w-full rounded-lg border border-red-500/35 px-2 py-1.5 text-xs text-red-200/90 hover:bg-red-500/10 disabled:opacity-50"
                               >
-                                {itemBusy?.id === item.id && itemBusy.op === "remove"
+                                {itemBusy?.id === item.id &&
+                                itemBusy.op === "remove"
                                   ? "Removing…"
-                                    : "Remove From Library"}
+                                  : "Remove From Library"}
                               </button>
                             </div>
                           )}

@@ -18,7 +18,7 @@ GOFLAGS := -trimpath
 help:
 	@echo "Kurator API — targets:"
 	@echo "  Migrations: the API applies bundled SQL migrations on boot; use ./cmd/migrate for DATABASE_URL-only runs"
-	@echo "  Config: env vars > CLI flags (-config, -database-url, …) > kurator.toml (see kurator.example.toml)"
+	@echo "  Config: env vars > CLI flags (-c/--config, -d/--database-url, …) > kurator.toml (see kurator.example.toml)"
 	@echo "  build              — current OS/arch -> $(BIN_DIR)/$(BINARY_NAME)"
 	@echo "  build-macos-native — macOS: auto amd64 (Intel) or arm64 (Apple Silicon)"
 	@echo "  build-darwin-amd64 — macOS Intel"
@@ -28,7 +28,7 @@ help:
 	@echo "  build-all          — all four cross-compiled binaries under $(BIN_DIR)/"
 	@echo "  test / vet / clean"
 	@echo "  build-betakeygen — $(BIN_DIR)/$(BETAKEYGEN_NAME) (private beta key CLI)"
-	@echo "  betakeygen       — go run betakeygen; pass flags: make betakeygen ARGS='-database-url \"...\"'"
+	@echo "  betakeygen       — go run betakeygen; pass flags: make betakeygen ARGS='--database-url \"...\"'"
 	@echo "  swagger          — print OpenAPI doc location (Swagger UI runs via infra compose, not the API binary)"
 
 swagger:
@@ -49,8 +49,8 @@ build: $(BIN_DIR)
 build-betakeygen: $(BIN_DIR)
 	CGO_ENABLED=0 go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BETAKEYGEN_NAME) $(BETAKEYGEN_PATH)
 
-# Example: make betakeygen ARGS='-config kurator.toml'
-# Example: make betakeygen ARGS='-database-url postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable'
+# Example: make betakeygen ARGS='-c kurator.toml'
+# Example: make betakeygen ARGS='--database-url postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable'
 betakeygen:
 	go run $(BETAKEYGEN_PATH) $(ARGS)
 

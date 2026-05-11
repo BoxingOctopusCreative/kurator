@@ -56,6 +56,35 @@ describe("buildItemMetadata", () => {
     });
   });
 
+  it("builds TV box set and single season metadata", () => {
+    expect(
+      buildItemMetadata("tv", {
+        format: "blu_ray",
+        video_type: "series",
+        tv_edition: "box_set",
+      }),
+    ).toMatchObject({ format: "blu_ray", video_type: "series", tv_edition: "box_set" });
+    expect(
+      buildItemMetadata("tv", {
+        format: "dvd",
+        video_type: "series",
+        tv_edition: "single_season",
+        tv_season: " 4 ",
+      }),
+    ).toEqual({
+      format: "dvd",
+      video_type: "series",
+      tv_edition: "single_season",
+      tv_season: 4,
+    });
+  });
+
+  it("requires season for TV single_season", () => {
+    expect(() =>
+      buildItemMetadata("tv", { tv_edition: "single_season", tv_season: "" }),
+    ).toThrow(ValidationError);
+  });
+
   it("includes notes; category fields take precedence over same key from notes slice only via category fields", () => {
     const out = buildItemMetadata("game", {
       platform: "SNES",
@@ -155,5 +184,17 @@ describe("metadataToCategoryFormSlice", () => {
     });
     const slice = metadataToCategoryFormSlice("comic_book", built);
     expect(buildItemMetadata("comic_book", slice)).toEqual(built);
+  });
+
+  it("round-trips TV edition and season", () => {
+    const built = buildItemMetadata("tv", {
+      format: "dvd",
+      video_type: "series",
+      year: "2010",
+      tv_edition: "single_season",
+      tv_season: "2",
+    });
+    const slice = metadataToCategoryFormSlice("tv", built);
+    expect(buildItemMetadata("tv", slice)).toEqual(built);
   });
 });

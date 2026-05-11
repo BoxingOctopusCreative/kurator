@@ -121,7 +121,7 @@ export function ForgotPasswordClient({ turnstileSiteKey, turnstileEnabled }: Pro
 
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="text-2xl font-semibold text-kurator-fg">Reset password</h1>
+      <h1 className="text-2xl font-semibold text-kurator-fg">Reset Password</h1>
       <p className="mt-1 text-sm text-kurator-muted">
         {step === 1 && "Enter your account email to receive a 6-digit code."}
         {step === 2 && "Enter the code from your email."}
@@ -280,7 +280,7 @@ export function ForgotPasswordClient({ turnstileSiteKey, turnstileEnabled }: Pro
 
       <p className="mt-8 text-center text-sm text-kurator-muted">
         <Link href="/login" className="text-kurator-accent hover:underline">
-          Back to log in
+          Back to Log In
         </Link>
       </p>
     </div>

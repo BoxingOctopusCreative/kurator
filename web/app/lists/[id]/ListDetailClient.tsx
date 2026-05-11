@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Plus, Settings, Trash2 } from "lucide-react";
+import { ArrowLeft, Lock, Plus, Settings, Trash2, Users } from "lucide-react";
 import {
   addListItem,
+  DEFAULT_VISIBILITY,
   fetchItems,
   fetchList,
   fetchListItems,
   removeListItem,
   updateList,
+  visibilityLabel,
+  visibilityOf,
   type Item,
   type List,
+  type Visibility,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import { CoverArtEditModal } from "@/components/CoverArtEditModal";
@@ -20,17 +24,23 @@ import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
+import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { isEntityUuid } from "@/lib/entityId";
 import { getCoverArtUrl } from "@/lib/itemDisplay";
-import { assertCollectionOrWishlistName, assertLooseMultilineText, LIMITS } from "@/lib/validation";
+import {
+  assertCollectionOrWishlistName,
+  assertLooseMultilineText,
+  LIMITS,
+} from "@/lib/validation";
 
 export function ListDetailClient() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const idRaw = params.id;
-  const id = typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
+  const id =
+    typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
 
   const [list, setList] = useState<List | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -44,7 +54,7 @@ export function ListDetailClient() {
 
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
-  const [editPublic, setEditPublic] = useState(true);
+  const [editVisibility, setEditVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
   const [savingMeta, setSavingMeta] = useState(false);
   const [metaMsg, setMetaMsg] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -69,9 +79,11 @@ export function ListDetailClient() {
         setMineItems(mine);
         setEditName(lst.name);
         setEditDesc(lst.description ?? "");
-        setEditPublic(lst.is_public !== false);
+        setEditVisibility(visibilityOf(lst));
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not load list."))
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "Could not load list."),
+      )
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -93,7 +105,8 @@ export function ListDetailClient() {
     });
   }, [listSettingsModalOpen]);
 
-  const isOwner = list != null && user != null && Number(list.user_id) === Number(user.id);
+  const isOwner =
+    list != null && user != null && Number(list.user_id) === Number(user.id);
 
   const onIds = new Set(items.map((i) => i.id));
   const addable = mineItems.filter((i) => !onIds.has(i.id));
@@ -153,13 +166,14 @@ export function ListDetailClient() {
       const updated = await updateList(id, {
         name,
         description,
-        is_public: editPublic,
+        visibility: editVisibility,
+        is_public: editVisibility !== "private",
         cover_art_url: coverTrim === "" ? "" : coverTrim,
       });
       setList(updated);
       setEditName(updated.name);
       setEditDesc(updated.description ?? "");
-      setEditPublic(updated.is_public !== false);
+      setEditVisibility(visibilityOf(updated));
       setMetaMsg("Saved.");
     } catch (err) {
       setMetaMsg(err instanceof Error ? err.message : "Save failed.");
@@ -181,13 +195,14 @@ export function ListDetailClient() {
       const updated = await updateList(id, {
         name,
         description,
-        is_public: editPublic,
+        visibility: editVisibility,
+        is_public: editVisibility !== "private",
         cover_art_url: url.trim() === "" ? "" : url.trim(),
       });
       setList(updated);
       setEditName(updated.name);
       setEditDesc(updated.description ?? "");
-      setEditPublic(updated.is_public !== false);
+      setEditVisibility(visibilityOf(updated));
       setMetaMsg("Cover saved.");
       setCoverArtModalOpen(false);
     } catch (err) {
@@ -212,10 +227,16 @@ export function ListDetailClient() {
   if (error && !list) {
     return (
       <div className="space-y-4">
-        <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
+        <p
+          className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+        >
           {error}
         </p>
-        <Link href="/lists" className="text-sm text-kurator-accent hover:underline">
+        <Link
+          href="/lists"
+          className="text-sm text-kurator-accent hover:underline"
+        >
           All lists
         </Link>
       </div>
@@ -272,15 +293,12 @@ export function ListDetailClient() {
                   onChange={(e) => setEditDesc(e.target.value)}
                 />
               </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-kurator-muted">
-                <input
-                  type="checkbox"
-                  checked={editPublic}
-                  onChange={(e) => setEditPublic(e.target.checked)}
-                  className="rounded-sm border-kurator-border"
-                />
-                Public list — other signed-in users can open this list (read-only)
-              </label>
+              <VisibilitySelect
+                name="list-settings-visibility"
+                legend="Visibility"
+                value={editVisibility}
+                onChange={setEditVisibility}
+              />
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   type="submit"
@@ -299,7 +317,8 @@ export function ListDetailClient() {
           >
             <form onSubmit={onAddItem} className="space-y-4">
               <p className="text-xs text-kurator-muted">
-                Recently updated items you can edit. Pick one, then add to this list.
+                Recently updated items you can edit. Pick one, then add to this
+                list.
               </p>
               <label className="block text-sm">
                 <span className="text-kurator-muted">Item</span>
@@ -310,7 +329,11 @@ export function ListDetailClient() {
                   onChange={(e) => setPickId(e.target.value)}
                   disabled={addable.length === 0}
                 >
-                  <option value="">{addable.length === 0 ? "Nothing new to add" : "Choose an item…"}</option>
+                  <option value="">
+                    {addable.length === 0
+                      ? "Nothing new to add"
+                      : "Choose an item…"}
+                  </option>
                   {addable.map((i) => (
                     <option key={i.id} value={i.id}>
                       {i.title} ({categoryLabel(i.category)})
@@ -343,7 +366,10 @@ export function ListDetailClient() {
       </Link>
 
       {error && (
-        <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
+        <p
+          className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -387,21 +413,27 @@ export function ListDetailClient() {
           ))}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold text-kurator-fg md:text-3xl">{list.name}</h1>
+            <h1 className="text-2xl font-semibold text-kurator-fg md:text-3xl">
+              {list.name}
+            </h1>
             {list.description ? (
-              <p className="mt-2 text-sm text-kurator-muted">{list.description}</p>
+              <p className="mt-2 text-sm text-kurator-muted">
+                {list.description}
+              </p>
             ) : null}
             <p className="mt-2 text-xs text-kurator-muted">
-              {list.item_count} {list.item_count === 1 ? "item" : "items"} · items can be any category
-              {list.is_public === false ? (
-                <span className="ml-2 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                  Private
-                </span>
-              ) : (
-                <span className="ml-2 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                  Public
-                </span>
-              )}
+              {list.item_count} {list.item_count === 1 ? "item" : "items"} ·
+              items can be any category
+              {(() => {
+                const v = visibilityOf(list);
+                const Icon = v === "private" ? Lock : Users;
+                return (
+                  <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                    <Icon className="h-3 w-3" aria-hidden />
+                    {visibilityLabel(v)}
+                  </span>
+                );
+              })()}
             </p>
             {isOwner && metaMsg && (
               <p className="mt-2 text-sm text-kurator-muted" role="status">
@@ -415,9 +447,9 @@ export function ListDetailClient() {
                 type="button"
                 onClick={() => setAddListModalOpen(true)}
                 aria-haspopup="dialog"
-                aria-label="Add item from your shelves"
-                title="Add item from your shelves"
-                className="rounded-lg border border-kurator-border bg-kurator-bg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                aria-label="Add Item from Your Shelves"
+                title="Add Item from Your Shelves"
+                className="rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
               >
                 <Plus className="h-4 w-4 shrink-0" aria-hidden />
               </button>
@@ -427,7 +459,7 @@ export function ListDetailClient() {
                 aria-haspopup="dialog"
                 aria-label="List settings"
                 title="List settings"
-                className="rounded-lg border border-kurator-border bg-kurator-bg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                className="rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
               >
                 <Settings className="h-4 w-4 shrink-0" aria-hidden />
               </button>
@@ -436,7 +468,7 @@ export function ListDetailClient() {
                 onClick={() => setDeleteOpen(true)}
                 aria-label="Delete list"
                 title="Delete list"
-                className="rounded-lg border border-red-500/40 p-2 text-red-200 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
+                className="rounded-lg p-2 text-red-200 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
               >
                 <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
               </button>
@@ -464,21 +496,25 @@ export function ListDetailClient() {
         <ul className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((it) => {
             const meta =
-              it.metadata && typeof it.metadata === "object" && !Array.isArray(it.metadata)
+              it.metadata &&
+              typeof it.metadata === "object" &&
+              !Array.isArray(it.metadata)
                 ? (it.metadata as Record<string, unknown>)
                 : {};
             const cover = getCoverArtUrl(meta);
             return (
               <li key={it.id}>
-                <div className="flex h-full min-h-[260px] flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs">
-                  <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                <div className="flex h-full min-h-65 flex-col rounded-xl border border-kurator-border bg-kurator-surface p-4 shadow-xs">
+                  <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                     <ItemCoverImage
                       url={cover}
                       alt={`Cover for ${it.title}`}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   </div>
-                  <h2 className="mt-3 line-clamp-2 text-base font-medium text-kurator-fg">{it.title}</h2>
+                  <h2 className="mt-3 line-clamp-2 text-base font-medium text-kurator-fg">
+                    {it.title}
+                  </h2>
                   <span className="mt-1 inline-flex self-start rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">
                     {categoryLabel(it.category)}
                   </span>

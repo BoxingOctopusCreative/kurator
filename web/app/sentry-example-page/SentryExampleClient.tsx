@@ -11,7 +11,7 @@ export function SentryExampleClient() {
   return (
     <div className="mx-auto max-w-lg space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg">Sentry verification</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg">Sentry Verification</h1>
         <p className="mt-2 text-sm text-kurator-muted">
           Use these actions to confirm errors reach your Sentry project. Remove this route when you are done.
         </p>
@@ -75,7 +75,7 @@ export function SentryExampleClient() {
 
       <p className="text-sm text-kurator-muted">
         <Link href="/" className="text-kurator-accent underline-offset-2 hover:underline">
-          Back home
+          Back to Home
         </Link>
       </p>
     </div>

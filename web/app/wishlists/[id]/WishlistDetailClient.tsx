@@ -3,7 +3,18 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CircleHelp, Download, Pencil, Plus, Settings, Trash2, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  CircleHelp,
+  Download,
+  Lock,
+  Pencil,
+  Plus,
+  Settings,
+  Trash2,
+  Upload,
+  Users,
+} from "lucide-react";
 import {
   CategoryMetadataFields,
   type CategoryFormSlice,
@@ -12,6 +23,7 @@ import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
 import {
   createWishlistEntry,
+  DEFAULT_VISIBILITY,
   deleteWishlistEntry,
   exportWishlistEntriesCsv,
   fetchCollections,
@@ -20,7 +32,10 @@ import {
   importWishlistEntriesCsv,
   obtainWishlistEntry,
   updateWishlist,
+  visibilityLabel,
+  visibilityOf,
   type Category,
+  type Visibility,
   type Wishlist,
   type WishlistEntry,
 } from "@/lib/api";
@@ -40,6 +55,7 @@ import { CoverArtEditModal } from "@/components/CoverArtEditModal";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
+import { VisibilitySelect } from "@/components/VisibilitySelect";
 
 const categories: { value: Category; label: string }[] = [
   { value: "game", label: "Game" },
@@ -61,9 +77,11 @@ type CollectionShelfOption = {
 
 function shelvesForEntryCategory(
   shelves: CollectionShelfOption[],
-  itemCategory: Category
+  itemCategory: Category,
 ): CollectionShelfOption[] {
-  return shelves.filter((c) => c.category == null || c.category === itemCategory);
+  return shelves.filter(
+    (c) => c.category == null || c.category === itemCategory,
+  );
 }
 
 export function WishlistDetailClient() {
@@ -71,7 +89,8 @@ export function WishlistDetailClient() {
   const router = useRouter();
   const { user } = useAuth();
   const idRaw = params.id;
-  const id = typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
+  const id =
+    typeof idRaw === "string" && isEntityUuid(idRaw) ? idRaw.trim() : "";
 
   const [wishlist, setWishlist] = useState<Wishlist | null>(null);
   const [entries, setEntries] = useState<WishlistEntry[]>([]);
@@ -91,7 +110,9 @@ export function WishlistDetailClient() {
   const descTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [destCollectionId, setDestCollectionId] = useState<string | null>(null);
-  const [entryObtainColl, setEntryObtainColl] = useState<Record<string, string>>({});
+  const [entryObtainColl, setEntryObtainColl] = useState<
+    Record<string, string>
+  >({});
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [visibilityMsg, setVisibilityMsg] = useState<string | null>(null);
 
@@ -109,7 +130,8 @@ export function WishlistDetailClient() {
   const [deleteWishlistOpen, setDeleteWishlistOpen] = useState(false);
   const [coverArtModalOpen, setCoverArtModalOpen] = useState(false);
   const [addWishlistModalOpen, setAddWishlistModalOpen] = useState(false);
-  const [wishlistSettingsModalOpen, setWishlistSettingsModalOpen] = useState(false);
+  const [wishlistSettingsModalOpen, setWishlistSettingsModalOpen] =
+    useState(false);
   const addTitleInputRef = useRef<HTMLInputElement>(null);
 
   const loadAll = useCallback(() => {
@@ -120,7 +142,11 @@ export function WishlistDetailClient() {
       fetchWishlist(id),
       fetchWishlistEntries(id),
       fetchCollections({ limit: 100, sort: "name_asc" }).then((r) =>
-        r.items.map((c) => ({ id: c.id, name: c.name, category: c.category ?? null }))
+        r.items.map((c) => ({
+          id: c.id,
+          name: c.name,
+          category: c.category ?? null,
+        })),
       ),
     ])
       .then(([wl, ent, cols]) => {
@@ -130,7 +156,10 @@ export function WishlistDetailClient() {
         setEditName(wl.name);
         setEditDesc(wl.description ?? "");
         setEditTarget(wl.target_collection_id ?? "");
-        if (wl.target_collection_id && cols.some((c) => c.id === wl.target_collection_id)) {
+        if (
+          wl.target_collection_id &&
+          cols.some((c) => c.id === wl.target_collection_id)
+        ) {
           setDestCollectionId(wl.target_collection_id);
         } else if (cols.length > 0) {
           setDestCollectionId(cols[0].id);
@@ -138,13 +167,18 @@ export function WishlistDetailClient() {
           setDestCollectionId(null);
         }
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not load wishlist."))
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "Could not load wishlist."),
+      )
       .finally(() => setLoading(false));
   }, [id]);
 
   const reloadWishlistEntries = useCallback(async () => {
     if (!id) return;
-    const [wl, ent] = await Promise.all([fetchWishlist(id), fetchWishlistEntries(id)]);
+    const [wl, ent] = await Promise.all([
+      fetchWishlist(id),
+      fetchWishlistEntries(id),
+    ]);
     setWishlist(wl);
     setEntries(ent);
   }, [id]);
@@ -175,7 +209,9 @@ export function WishlistDetailClient() {
   }, [addWishlistModalOpen]);
 
   const isOwner =
-    wishlist != null && user != null && Number(wishlist.user_id) === Number(user.id);
+    wishlist != null &&
+    user != null &&
+    Number(wishlist.user_id) === Number(user.id);
 
   function cancelTitleEdit() {
     if (!wishlist) return;
@@ -206,11 +242,14 @@ export function WishlistDetailClient() {
       const description = descRaw
         ? assertLooseMultilineText(editDesc, LIMITS.description, "Description")
         : "";
+      const v = visibilityOf(wishlist);
       const updated = await updateWishlist(id, {
         name,
         description,
-        target_collection_id: editTarget.trim() === "" ? null : editTarget.trim(),
-        is_public: wishlist.is_public !== false,
+        target_collection_id:
+          editTarget.trim() === "" ? null : editTarget.trim(),
+        visibility: v,
+        is_public: v !== "private",
       });
       setWishlist(updated);
       setEditName(updated.name);
@@ -219,7 +258,9 @@ export function WishlistDetailClient() {
       setEditingTitle(false);
       setSettingsMsg("Saved.");
     } catch (err) {
-      setSettingsMsg(err instanceof Error ? err.message : "Could not save name.");
+      setSettingsMsg(
+        err instanceof Error ? err.message : "Could not save name.",
+      );
       setEditName(wishlist.name);
       setEditingTitle(false);
     } finally {
@@ -242,11 +283,14 @@ export function WishlistDetailClient() {
       const description = trimmed
         ? assertLooseMultilineText(editDesc, LIMITS.description, "Description")
         : "";
+      const v = visibilityOf(wishlist);
       const updated = await updateWishlist(id, {
         name,
         description,
-        target_collection_id: editTarget.trim() === "" ? null : editTarget.trim(),
-        is_public: wishlist.is_public !== false,
+        target_collection_id:
+          editTarget.trim() === "" ? null : editTarget.trim(),
+        visibility: v,
+        is_public: v !== "private",
       });
       setWishlist(updated);
       setEditName(updated.name);
@@ -260,7 +304,9 @@ export function WishlistDetailClient() {
         requestAnimationFrame(() => descTextareaRef.current?.focus());
       }
     } catch (err) {
-      setSettingsMsg(err instanceof Error ? err.message : "Could not save description.");
+      setSettingsMsg(
+        err instanceof Error ? err.message : "Could not save description.",
+      );
       setEditDesc(wishlist.description ?? "");
       setEditingDesc(false);
     } finally {
@@ -273,24 +319,35 @@ export function WishlistDetailClient() {
     setSettingsMsg(null);
     setSavingSettings(true);
     try {
-      const name = assertCollectionOrWishlistName(wishlist.name, "Wishlist name");
+      const name = assertCollectionOrWishlistName(
+        wishlist.name,
+        "Wishlist name",
+      );
       const descSource = wishlist.description ?? "";
       const descRaw = descSource.trim();
       const description = descRaw
-        ? assertLooseMultilineText(descSource, LIMITS.description, "Description")
+        ? assertLooseMultilineText(
+            descSource,
+            LIMITS.description,
+            "Description",
+          )
         : "";
+      const v = visibilityOf(wishlist);
       const updated = await updateWishlist(id, {
         name,
         description,
         target_collection_id: wishlist.target_collection_id ?? null,
-        is_public: wishlist.is_public !== false,
+        visibility: v,
+        is_public: v !== "private",
         cover_art_url: url,
       });
       setWishlist(updated);
       setSettingsMsg("Cover saved.");
       setCoverArtModalOpen(false);
     } catch (err) {
-      setSettingsMsg(err instanceof Error ? err.message : "Could not save cover.");
+      setSettingsMsg(
+        err instanceof Error ? err.message : "Could not save cover.",
+      );
     } finally {
       setSavingSettings(false);
     }
@@ -302,17 +359,27 @@ export function WishlistDetailClient() {
     setShelfLinkMsg(null);
     setSavingSettings(true);
     try {
-      const name = assertCollectionOrWishlistName(wishlist.name, "Wishlist name");
+      const name = assertCollectionOrWishlistName(
+        wishlist.name,
+        "Wishlist name",
+      );
       const descSource = wishlist.description ?? "";
       const descRaw = descSource.trim();
       const description = descRaw
-        ? assertLooseMultilineText(descSource, LIMITS.description, "Description")
+        ? assertLooseMultilineText(
+            descSource,
+            LIMITS.description,
+            "Description",
+          )
         : "";
+      const v = visibilityOf(wishlist);
       const updated = await updateWishlist(id, {
         name,
         description,
-        target_collection_id: editTarget.trim() === "" ? null : editTarget.trim(),
-        is_public: wishlist.is_public !== false,
+        target_collection_id:
+          editTarget.trim() === "" ? null : editTarget.trim(),
+        visibility: v,
+        is_public: v !== "private",
       });
       setWishlist(updated);
       setEditName(updated.name);
@@ -345,7 +412,9 @@ export function WishlistDetailClient() {
     importFileRef.current?.click();
   }
 
-  async function onImportWishlistFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onImportWishlistFileChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -405,10 +474,18 @@ export function WishlistDetailClient() {
     const options = shelvesForEntryCategory(collections, entry.category);
     const allowed = new Set(options.map((c) => c.id));
     const fromEntry = entryObtainColl[entry.id];
-    if (fromEntry != null && fromEntry.trim() !== "" && allowed.has(fromEntry)) {
+    if (
+      fromEntry != null &&
+      fromEntry.trim() !== "" &&
+      allowed.has(fromEntry)
+    ) {
       return fromEntry.trim();
     }
-    if (destCollectionId != null && destCollectionId.trim() !== "" && allowed.has(destCollectionId)) {
+    if (
+      destCollectionId != null &&
+      destCollectionId.trim() !== "" &&
+      allowed.has(destCollectionId)
+    ) {
       return destCollectionId.trim();
     }
     const first = options[0]?.id;
@@ -430,7 +507,9 @@ export function WishlistDetailClient() {
       const wl = await fetchWishlist(id);
       setWishlist(wl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add to collection.");
+      setError(
+        err instanceof Error ? err.message : "Could not add to collection.",
+      );
     } finally {
       setObtainBusy(null);
     }
@@ -469,7 +548,10 @@ export function WishlistDetailClient() {
 
       {loading && <p className="text-sm text-kurator-muted">Loading…</p>}
       {error && !loading && (
-        <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
+        <p
+          className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -563,7 +645,8 @@ export function WishlistDetailClient() {
                       />
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-kurator-muted">
-                          Enter saves · Esc cancels · leaving the field saves if the name changed
+                          Enter saves · Esc cancels · leaving the field saves if
+                          the name changed
                         </p>
                         <div className="flex shrink-0 gap-2">
                           <button
@@ -594,7 +677,9 @@ export function WishlistDetailClient() {
                       disabled={savingSettings}
                       className="group flex max-w-full items-start gap-2 rounded-lg text-left text-2xl font-semibold text-kurator-fg outline-hidden ring-kurator-accent hover:bg-kurator-border/40 focus-visible:ring-2 disabled:opacity-50 md:text-3xl"
                     >
-                      <span className="min-w-0 wrap-break-word">{wishlist.name}</span>
+                      <span className="min-w-0 wrap-break-word">
+                        {wishlist.name}
+                      </span>
                       <Pencil
                         className="mt-1.5 h-5 w-5 shrink-0 text-kurator-muted opacity-60 group-hover:opacity-100 md:mt-2 md:h-6 md:w-6"
                         aria-hidden
@@ -618,7 +703,10 @@ export function WishlistDetailClient() {
                           if (e.key === "Escape") {
                             e.preventDefault();
                             cancelDescEdit();
-                          } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                          } else if (
+                            (e.metaKey || e.ctrlKey) &&
+                            e.key === "Enter"
+                          ) {
                             e.preventDefault();
                             void commitDescEdit({ keepEditing: true });
                           }
@@ -630,8 +718,8 @@ export function WishlistDetailClient() {
                       />
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-kurator-muted">
-                          ⌘ or Ctrl+Enter saves and keeps you here · Esc cancels · Blur or Save closes the
-                          editor
+                          ⌘ or Ctrl+Enter saves and keeps you here · Esc cancels
+                          · Blur or Save closes the editor
                         </p>
                         <div className="flex shrink-0 gap-2">
                           <button
@@ -678,7 +766,9 @@ export function WishlistDetailClient() {
                   )
                 ) : (
                   wishlist.description && (
-                    <p className="mt-2 text-sm text-kurator-muted">{wishlist.description}</p>
+                    <p className="mt-2 text-sm text-kurator-muted">
+                      {wishlist.description}
+                    </p>
                   )
                 )}
 
@@ -689,19 +779,23 @@ export function WishlistDetailClient() {
                 )}
 
                 <p className="mt-2 text-xs text-kurator-muted/80">
-                  {wishlist.entry_count} {wishlist.entry_count === 1 ? "item" : "items"} wished
-                  {wishlist.is_public === false ? (
-                    <span className="ml-2 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                      Private
-                    </span>
-                  ) : (
-                    <span className="ml-2 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                      Public
-                    </span>
-                  )}
+                  {wishlist.entry_count}{" "}
+                  {wishlist.entry_count === 1 ? "item" : "items"} wished
+                  {(() => {
+                    const v = visibilityOf(wishlist);
+                    const Icon = v === "private" ? Lock : Users;
+                    return (
+                      <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                        <Icon className="h-3 w-3" aria-hidden />
+                        {visibilityLabel(v)}
+                      </span>
+                    );
+                  })()}
                 </p>
                 {!isOwner && (
-                  <p className="mt-2 text-xs text-kurator-muted">You’re viewing another member’s public list (read-only).</p>
+                  <p className="mt-2 text-xs text-kurator-muted">
+                    You’re viewing another member’s public list (read-only).
+                  </p>
                 )}
               </div>
               {isOwner && (
@@ -710,9 +804,9 @@ export function WishlistDetailClient() {
                     type="button"
                     onClick={() => setAddWishlistModalOpen(true)}
                     aria-haspopup="dialog"
-                    aria-label="Add item"
-                    title="Add item"
-                    className="rounded-lg border border-kurator-border bg-kurator-bg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                    aria-label="Add Item"
+                    title="Add Item"
+                    className="rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
                   >
                     <Plus className="h-4 w-4 shrink-0" aria-hidden />
                   </button>
@@ -722,7 +816,7 @@ export function WishlistDetailClient() {
                     aria-haspopup="dialog"
                     aria-label="Wishlist settings"
                     title="Wishlist settings"
-                    className="rounded-lg border border-kurator-border bg-kurator-bg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+                    className="rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
                   >
                     <Settings className="h-4 w-4 shrink-0" aria-hidden />
                   </button>
@@ -731,7 +825,7 @@ export function WishlistDetailClient() {
                     onClick={() => setDeleteWishlistOpen(true)}
                     aria-label="Delete wishlist"
                     title="Delete wishlist"
-                    className="rounded-lg border border-red-500/40 p-2 text-red-200 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
+                    className="rounded-lg p-2 text-red-200 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
                   >
                     <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
                   </button>
@@ -741,41 +835,41 @@ export function WishlistDetailClient() {
           </header>
 
           {isOwner && (
-            <WishlistSettingsModal open={wishlistSettingsModalOpen} onOpenChange={setWishlistSettingsModalOpen}>
+            <WishlistSettingsModal
+              open={wishlistSettingsModalOpen}
+              onOpenChange={setWishlistSettingsModalOpen}
+            >
               <div className="space-y-6">
                 <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
-                  <p className="text-sm font-medium text-kurator-fg">Visibility</p>
-                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-kurator-muted">
-                    <input
-                      type="checkbox"
-                      checked={wishlist.is_public !== false}
-                      disabled={visibilitySaving}
-                      onChange={async (e) => {
-                        const is_public = e.target.checked;
-                        setVisibilityMsg(null);
-                        setVisibilitySaving(true);
-                        try {
-                          const updated = await updateWishlist(id, {
-                            name: wishlist.name,
-                            description: wishlist.description ?? "",
-                            target_collection_id: wishlist.target_collection_id ?? null,
-                            is_public,
-                          });
-                          setWishlist(updated);
-                        } catch (err) {
-                          setVisibilityMsg(
-                            err instanceof Error ? err.message : "Could not update visibility."
-                          );
-                        } finally {
-                          setVisibilitySaving(false);
-                        }
-                      }}
-                      className="rounded-sm border-kurator-border"
-                    />
-                    {wishlist.is_public !== false
-                      ? "Public — other signed-in users can browse this list (read-only)"
-                      : "Private — only you can open this list"}
-                  </label>
+                  <VisibilitySelect
+                    name="wishlist-settings-visibility"
+                    legend="Visibility"
+                    value={visibilityOf(wishlist) ?? DEFAULT_VISIBILITY}
+                    disabled={visibilitySaving}
+                    onChange={async (next: Visibility) => {
+                      setVisibilityMsg(null);
+                      setVisibilitySaving(true);
+                      try {
+                        const updated = await updateWishlist(id, {
+                          name: wishlist.name,
+                          description: wishlist.description ?? "",
+                          target_collection_id:
+                            wishlist.target_collection_id ?? null,
+                          visibility: next,
+                          is_public: next !== "private",
+                        });
+                        setWishlist(updated);
+                      } catch (err) {
+                        setVisibilityMsg(
+                          err instanceof Error
+                            ? err.message
+                            : "Could not update visibility.",
+                        );
+                      } finally {
+                        setVisibilitySaving(false);
+                      }
+                    }}
+                  />
                   {visibilityMsg && (
                     <p className="mt-2 text-sm text-amber-200/90" role="status">
                       {visibilityMsg}
@@ -785,7 +879,9 @@ export function WishlistDetailClient() {
 
                 <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
                   <div className="group relative inline-flex items-center gap-1.5">
-                    <p className="text-sm font-medium text-kurator-fg">Import &amp; Export</p>
+                    <p className="text-sm font-medium text-kurator-fg">
+                      Import &amp; Export
+                    </p>
                     <button
                       type="button"
                       className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
@@ -797,9 +893,10 @@ export function WishlistDetailClient() {
                       role="tooltip"
                       className="pointer-events-none invisible absolute bottom-full left-0 z-60 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
                     >
-                      Columns: title, category, optional id (to update an entry already on this list), optional
-                      metadata (JSON). Shelf exports with rating or consumption columns can be imported here;
-                      those columns are ignored.
+                      Columns: title, category, optional id (to update an entry
+                      already on this list), optional metadata (JSON). Shelf
+                      exports with rating or consumption columns can be imported
+                      here; those columns are ignored.
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -831,7 +928,10 @@ export function WishlistDetailClient() {
                     />
                   </div>
                   {importMsg && (
-                    <p className="mt-2 text-sm text-kurator-muted" role="status">
+                    <p
+                      className="mt-2 text-sm text-kurator-muted"
+                      role="status"
+                    >
                       {importMsg}
                     </p>
                   )}
@@ -841,13 +941,17 @@ export function WishlistDetailClient() {
                   onSubmit={onSaveLinkedCollection}
                   className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4"
                 >
-                  <h3 className="text-sm font-medium text-kurator-fg">Default shelf</h3>
+                  <h3 className="text-sm font-medium text-kurator-fg">
+                    Default shelf
+                  </h3>
                   <p className="mt-1 text-xs text-kurator-muted">
-                    Optional default collection for “Add to collection” on each wished item (each card can still
-                    pick another shelf).
+                    Optional default collection for “Add to collection” on each
+                    wished item (each card can still pick another shelf).
                   </p>
                   <label className="mt-4 block text-sm">
-                    <span className="text-kurator-muted">Linked collection</span>
+                    <span className="text-kurator-muted">
+                      Linked collection
+                    </span>
                     <select
                       className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                       value={editTarget}
@@ -902,17 +1006,28 @@ export function WishlistDetailClient() {
               <ul className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {entries.map((item) => {
                   const cover = getCoverArtUrl(item.metadata);
-                  const addToShelfOptions = shelvesForEntryCategory(collections, item.category);
-                  const addToShelfIds = new Set(addToShelfOptions.map((c) => c.id));
+                  const addToShelfOptions = shelvesForEntryCategory(
+                    collections,
+                    item.category,
+                  );
+                  const addToShelfIds = new Set(
+                    addToShelfOptions.map((c) => c.id),
+                  );
                   const pickRaw = entryObtainColl[item.id]?.trim() ?? "";
-                  const fromPick = pickRaw !== "" && addToShelfIds.has(pickRaw) ? pickRaw : null;
+                  const fromPick =
+                    pickRaw !== "" && addToShelfIds.has(pickRaw)
+                      ? pickRaw
+                      : null;
                   const defaultRaw = destCollectionId?.trim() ?? "";
                   const fromDefault =
-                    defaultRaw !== "" && addToShelfIds.has(defaultRaw) ? defaultRaw : null;
-                  const preferredShelfId = fromPick ?? fromDefault ?? addToShelfOptions[0]?.id ?? "";
+                    defaultRaw !== "" && addToShelfIds.has(defaultRaw)
+                      ? defaultRaw
+                      : null;
+                  const preferredShelfId =
+                    fromPick ?? fromDefault ?? addToShelfOptions[0]?.id ?? "";
                   return (
                     <li key={item.id}>
-                      <div className="flex h-full min-h-[280px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs">
+                      <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-xs">
                         <div className="shrink-0 space-y-2 p-4 pb-2">
                           <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
                             {item.title}
@@ -922,7 +1037,7 @@ export function WishlistDetailClient() {
                           </span>
                         </div>
                         <div className="mt-auto flex flex-1 flex-col justify-end p-4 pt-2">
-                          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                          <div className="relative aspect-2/3 w-full overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                             <ItemCoverImage
                               url={cover}
                               alt={`Cover for ${item.title}`}
@@ -937,7 +1052,10 @@ export function WishlistDetailClient() {
                                   className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg"
                                   value={preferredShelfId}
                                   onChange={(e) => {
-                                    setEntryObtainColl((m) => ({ ...m, [item.id]: e.target.value }));
+                                    setEntryObtainColl((m) => ({
+                                      ...m,
+                                      [item.id]: e.target.value,
+                                    }));
                                   }}
                                   disabled={addToShelfOptions.length === 0}
                                 >
@@ -967,7 +1085,9 @@ export function WishlistDetailClient() {
                                   onClick={() => onObtain(item)}
                                   className="flex-1 rounded-lg bg-kurator-accent px-3 py-2 text-center text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
                                 >
-                                  {obtainBusy === item.id ? "Adding…" : "Add to Collection"}
+                                  {obtainBusy === item.id
+                                    ? "Adding…"
+                                    : "Add to Collection"}
                                 </button>
                                 <button
                                   type="button"
@@ -989,7 +1109,10 @@ export function WishlistDetailClient() {
           )}
 
           {isOwner && (
-            <WishlistAddEntryModal open={addWishlistModalOpen} onOpenChange={setAddWishlistModalOpen}>
+            <WishlistAddEntryModal
+              open={addWishlistModalOpen}
+              onOpenChange={setAddWishlistModalOpen}
+            >
               <form onSubmit={onAddEntry} className="space-y-6">
                 <label className="block text-sm">
                   <span className="text-kurator-muted">Title</span>
@@ -1030,8 +1153,14 @@ export function WishlistDetailClient() {
                 </label>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-kurator-muted">Category fields</p>
-                  <CategoryMetadataFields category={addCategory} values={addSlice} onChange={setAddSlice} />
+                  <p className="text-sm font-medium text-kurator-muted">
+                    Category fields
+                  </p>
+                  <CategoryMetadataFields
+                    category={addCategory}
+                    values={addSlice}
+                    onChange={setAddSlice}
+                  />
                 </div>
 
                 {addMsg && (

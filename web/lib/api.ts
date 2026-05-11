@@ -14,6 +14,35 @@ export type Category =
 /** Whether the item is still queued vs finished for its category (wording depends on category). */
 export type ConsumptionStatus = "pending" | "done";
 
+/** Tri-state visibility for user-owned shelves (lists, collections, wishlists). */
+export type Visibility = "private" | "followers" | "friends";
+
+/** Default selected visibility used when the user hasn't picked one yet. */
+export const DEFAULT_VISIBILITY: Visibility = "followers";
+
+/** Reads visibility from an API payload. Older servers only return is_public; map it accordingly. */
+export function visibilityOf(value: {
+  visibility?: Visibility | null;
+  is_public?: boolean | null;
+}): Visibility {
+  if (value.visibility === "private" || value.visibility === "followers" || value.visibility === "friends") {
+    return value.visibility;
+  }
+  return value.is_public === false ? "private" : "followers";
+}
+
+/** Short user-facing label for a visibility value. */
+export function visibilityLabel(v: Visibility): string {
+  switch (v) {
+    case "private":
+      return "Private";
+    case "followers":
+      return "Followers";
+    case "friends":
+      return "Friends";
+  }
+}
+
 export type Item = {
   id: string;
   collection_id: string;
@@ -37,6 +66,9 @@ export type Collection = {
   category?: Category | null;
   /** Absolute image URL or same-origin path from upload. */
   cover_art_url?: string | null;
+  /** Tri-state visibility (source of truth on newer API builds). */
+  visibility?: Visibility;
+  /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
   item_count: number;
   created_at: string;
@@ -53,7 +85,7 @@ export type CollectionListResponse = {
 function itemsListHttpError(res: Response): Error {
   if (res.status >= 500) {
     return new Error(
-      "Could not load items (server error). If you run the API yourself, apply the latest database migrations and restart."
+      "Could not load items (server error). If you run the API yourself, apply the latest database migrations and restart.",
     );
   }
   return new Error(`Could not load items (${res.status}).`);
@@ -77,8 +109,13 @@ export async function fetchItems(opts?: {
   scope?: "mine" | "following";
 }): Promise<Item[]> {
   const sp = new URLSearchParams({ limit: String(opts?.limit ?? 48) });
-  if (opts?.collectionId != null) sp.set("collection_id", String(opts.collectionId));
-  if (opts?.consumptionStatus && opts?.consumptionStatus !== "all" && opts.collectionId != null) {
+  if (opts?.collectionId != null)
+    sp.set("collection_id", String(opts.collectionId));
+  if (
+    opts?.consumptionStatus &&
+    opts?.consumptionStatus !== "all" &&
+    opts.collectionId != null
+  ) {
     sp.set("consumption_status", opts.consumptionStatus);
   }
   if (opts?.scope && opts.collectionId == null) sp.set("scope", opts.scope);
@@ -101,7 +138,11 @@ export async function fetchItem(id: string): Promise<Item> {
 }
 
 /** Lists visible to the viewer that include this item (same visibility as the item itself). */
-export type ItemListRef = { id: string; name: string; cover_art_url?: string | null };
+export type ItemListRef = {
+  id: string;
+  name: string;
+  cover_art_url?: string | null;
+};
 
 export async function fetchItemLists(id: string): Promise<ItemListRef[]> {
   const res = await fetch(apiUrl(`/items/${id}/lists`), {
@@ -152,7 +193,9 @@ export async function fetchCollections(params: {
   if (params.owner_user_id != null && params.owner_user_id > 0) {
     sp.set("owner_user_id", String(params.owner_user_id));
   }
-  const res = await fetch(apiUrl(`/collections?${sp}`), { credentials: "include" });
+  const res = await fetch(apiUrl(`/collections?${sp}`), {
+    credentials: "include",
+  });
   if (res.status === 401 && params.scope === "following") {
     throw new Error("Sign in to see collections from people you follow.");
   }
@@ -165,7 +208,9 @@ export async function fetchCollections(params: {
 }
 
 export async function fetchCollection(id: string): Promise<Collection> {
-  const res = await fetch(apiUrl(`/collections/${id}`), { credentials: "include" });
+  const res = await fetch(apiUrl(`/collections/${id}`), {
+    credentials: "include",
+  });
   if (res.status === 404) throw new Error("Collection not found.");
   if (!res.ok) throw new Error(`collection: ${res.status}`);
   return res.json();
@@ -174,6 +219,8 @@ export async function fetchCollection(id: string): Promise<Collection> {
 export async function createCollection(body: {
   name: string;
   description?: string;
+  /** Tri-state visibility selector. Falls back to is_public on older API builds. */
+  visibility?: Visibility;
   is_public?: boolean;
   /** Pins the new shelf to one item type; omit for a flex shelf until the first item pins it. */
   category?: Category;
@@ -182,6 +229,7 @@ export async function createCollection(body: {
     name: body.name.trim(),
     description: body.description?.trim() ?? "",
   };
+  if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
   if (body.category !== undefined) payload.category = body.category;
   const res = await fetch(apiUrl("/collections"), {
@@ -202,7 +250,13 @@ export async function createCollection(body: {
 
 export async function patchCollection(
   id: string,
-  body: { name?: string; description?: string; is_public?: boolean; cover_art_url?: string }
+  body: {
+    name?: string;
+    description?: string;
+    visibility?: Visibility;
+    is_public?: boolean;
+    cover_art_url?: string;
+  },
 ): Promise<Collection> {
   const res = await fetch(apiUrl(`/collections/${id}`), {
     method: "PATCH",
@@ -239,7 +293,7 @@ export type DeleteCollectionOutcome =
 /** Delete a collection you own. Call with no options first when the shelf may have items: a 409 returns eligible shelves to move into. */
 export async function deleteCollection(
   id: string,
-  opts?: { move_items_to?: string; delete_items?: boolean }
+  opts?: { move_items_to?: string; delete_items?: boolean },
 ): Promise<DeleteCollectionOutcome> {
   const body: Record<string, unknown> = {};
   if (opts?.move_items_to) body.move_items_to = opts.move_items_to;
@@ -263,7 +317,9 @@ export async function deleteCollection(
       ok: false,
       conflict: {
         item_count: Number(j.item_count ?? 0),
-        eligible_move_targets: Array.isArray(j.eligible_move_targets) ? j.eligible_move_targets : [],
+        eligible_move_targets: Array.isArray(j.eligible_move_targets)
+          ? j.eligible_move_targets
+          : [],
       },
     };
   }
@@ -272,12 +328,15 @@ export async function deleteCollection(
 }
 
 /** CSV columns: id, title, category, metadata (JSON), optional rating, optional consumption_status. Owner-only. */
-export async function exportCollectionItemsCsv(collectionId: string): Promise<Blob> {
+export async function exportCollectionItemsCsv(
+  collectionId: string,
+): Promise<Blob> {
   const res = await fetch(apiUrl(`/collections/${collectionId}/items.csv`), {
     credentials: "include",
   });
   if (res.status === 401) throw new Error("Sign in to export.");
-  if (res.status === 403) throw new Error("Only the collection owner can export items.");
+  if (res.status === 403)
+    throw new Error("Only the collection owner can export items.");
   if (!res.ok) throw new Error(`export: ${res.status}`);
   return res.blob();
 }
@@ -290,7 +349,7 @@ export type ImportItemsResult = {
 
 export async function importCollectionItemsCsv(
   collectionId: string,
-  file: File
+  file: File,
 ): Promise<ImportItemsResult> {
   const fd = new FormData();
   fd.append("file", file);
@@ -300,7 +359,8 @@ export async function importCollectionItemsCsv(
     body: fd,
   });
   if (res.status === 401) throw new Error("Sign in to import.");
-  if (res.status === 403) throw new Error("Only the collection owner can import items.");
+  if (res.status === 403)
+    throw new Error("Only the collection owner can import items.");
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `import: ${res.status}`);
@@ -325,7 +385,9 @@ export type PublicUser = {
 };
 
 /** Non-empty legal name line from public first/last fields (API omits private parts). */
-export function publicLegalNameLine(u: Pick<PublicUser, "first_name" | "last_name">): string | null {
+export function publicLegalNameLine(
+  u: Pick<PublicUser, "first_name" | "last_name">,
+): string | null {
   const fn = (u.first_name ?? "").trim();
   const ln = (u.last_name ?? "").trim();
   if (fn && ln) return `${fn} ${ln}`;
@@ -348,9 +410,65 @@ export type UserListResponse = {
   page_size: number;
 };
 
+/** In-app activity notification (follow graph + shelf visibility). */
+export type NotificationFeedItem = {
+  id: number;
+  actor: PublicUser;
+  kind: string;
+  payload: Record<string, unknown>;
+  read: boolean;
+  created_at: string;
+};
+
+export type NotificationsListResponse = {
+  notifications: NotificationFeedItem[];
+  unread_count: number;
+};
+
+export async function fetchNotifications(opts?: {
+  limit?: number;
+  offset?: number;
+}): Promise<NotificationsListResponse> {
+  const sp = new URLSearchParams();
+  if (opts?.limit != null) sp.set("limit", String(opts.limit));
+  if (opts?.offset != null) sp.set("offset", String(opts.offset));
+  const q = sp.toString();
+  const res = await fetch(apiUrl(`/me/notifications${q ? `?${q}` : ""}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("Sign in to view notifications.");
+  if (!res.ok) throw new Error(`notifications: ${res.status}`);
+  const data = (await res.json()) as NotificationsListResponse;
+  if (!Array.isArray(data.notifications)) {
+    return { notifications: [], unread_count: data.unread_count ?? 0 };
+  }
+  return data;
+}
+
+export async function markNotificationRead(id: number): Promise<void> {
+  const res = await fetch(apiUrl(`/me/notifications/${id}/read`), {
+    method: "PATCH",
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (!res.ok) throw new Error(`notifications: ${res.status}`);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const res = await fetch(apiUrl("/me/notifications/read-all"), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (!res.ok) throw new Error(`notifications: ${res.status}`);
+}
+
 export async function searchUsers(q: string): Promise<PublicUser[]> {
   const sp = new URLSearchParams({ q: q.trim() });
-  const res = await fetch(apiUrl(`/users/search?${sp}`), { credentials: "include" });
+  const res = await fetch(apiUrl(`/users/search?${sp}`), {
+    credentials: "include",
+  });
   if (res.status === 401) throw new Error("Sign in to search for people.");
   if (!res.ok) throw new Error(`user search: ${res.status}`);
   const data: unknown = await res.json();
@@ -366,7 +484,9 @@ export async function fetchUserProfile(userRef: string): Promise<UserProfile> {
 }
 
 /** Fetch a user profile without requiring a session (public profiles only; private returns null). */
-export async function fetchPublicUserProfile(userRef: string): Promise<UserProfile | null> {
+export async function fetchPublicUserProfile(
+  userRef: string,
+): Promise<UserProfile | null> {
   const enc = encodeURIComponent(userRef.trim());
   const res = await fetch(apiUrl(`/users/${enc}`), { cache: "no-store" });
   if (res.status === 404) return null;
@@ -375,7 +495,9 @@ export async function fetchPublicUserProfile(userRef: string): Promise<UserProfi
 }
 
 /** Public collections for a user (no auth). */
-export async function fetchPublicCollectionsSnapshot(ownerUserId: number): Promise<CollectionListResponse> {
+export async function fetchPublicCollectionsSnapshot(
+  ownerUserId: number,
+): Promise<CollectionListResponse> {
   const sp = new URLSearchParams({
     owner_user_id: String(ownerUserId),
     limit: "48",
@@ -422,6 +544,9 @@ export type Wishlist = {
   description?: string | null;
   cover_art_url?: string | null;
   target_collection_id?: string | null;
+  /** Tri-state visibility (source of truth on newer API builds). */
+  visibility?: Visibility;
+  /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
   entry_count: number;
   created_at: string;
@@ -447,7 +572,9 @@ export async function fetchWishlists(): Promise<Wishlist[]> {
 }
 
 export async function fetchWishlist(id: string): Promise<Wishlist> {
-  const res = await fetch(apiUrl(`/wishlists/${id}`), { credentials: "include" });
+  const res = await fetch(apiUrl(`/wishlists/${id}`), {
+    credentials: "include",
+  });
   if (res.status === 404) throw new Error("Wishlist not found.");
   if (!res.ok) throw new Error(`wishlist: ${res.status}`);
   return res.json();
@@ -457,6 +584,7 @@ export async function createWishlist(body: {
   name: string;
   description?: string;
   target_collection_id?: string | null;
+  visibility?: Visibility;
   is_public?: boolean;
 }): Promise<Wishlist> {
   const payload: Record<string, unknown> = {
@@ -464,6 +592,7 @@ export async function createWishlist(body: {
     description: body.description?.trim() ?? "",
     target_collection_id: body.target_collection_id ?? undefined,
   };
+  if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
   const res = await fetch(apiUrl("/wishlists"), {
     method: "POST",
@@ -485,18 +614,24 @@ export async function updateWishlist(
     name: string;
     description?: string;
     target_collection_id?: string | null;
+    visibility?: Visibility;
     is_public?: boolean;
     /** Omit to leave unchanged; empty string clears the cover. */
     cover_art_url?: string;
-  }
+  },
 ): Promise<Wishlist> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
     description: body.description?.trim() ?? "",
   };
+  if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
-  if (body.cover_art_url !== undefined) payload.cover_art_url = body.cover_art_url;
-  if (body.target_collection_id === null || body.target_collection_id === undefined) {
+  if (body.cover_art_url !== undefined)
+    payload.cover_art_url = body.cover_art_url;
+  if (
+    body.target_collection_id === null ||
+    body.target_collection_id === undefined
+  ) {
     payload.target_collection_id = null;
   } else {
     payload.target_collection_id = body.target_collection_id;
@@ -529,7 +664,7 @@ export type DeleteWishlistOutcome =
 /** Delete a wishlist you own. Call with no options first when entries may exist to receive 409 + eligible targets. */
 export async function deleteWishlist(
   id: string,
-  opts?: { move_entries_to?: string; discard_entries?: boolean }
+  opts?: { move_entries_to?: string; discard_entries?: boolean },
 ): Promise<DeleteWishlistOutcome> {
   const body: Record<string, unknown> = {};
   if (opts?.move_entries_to) body.move_entries_to = opts.move_entries_to;
@@ -541,7 +676,8 @@ export async function deleteWishlist(
     body: JSON.stringify(body),
   });
   if (res.status === 204) return { ok: true };
-  if (res.status === 401) return { ok: false, message: "Sign in to delete a wishlist." };
+  if (res.status === 401)
+    return { ok: false, message: "Sign in to delete a wishlist." };
   if (res.status === 409) {
     const j = (await res.json()) as {
       entry_count?: number;
@@ -551,7 +687,9 @@ export async function deleteWishlist(
       ok: false,
       conflict: {
         entry_count: Number(j.entry_count ?? 0),
-        eligible_move_targets: Array.isArray(j.eligible_move_targets) ? j.eligible_move_targets : [],
+        eligible_move_targets: Array.isArray(j.eligible_move_targets)
+          ? j.eligible_move_targets
+          : [],
       },
     };
   }
@@ -559,8 +697,12 @@ export async function deleteWishlist(
   return { ok: false, message: t || `delete wishlist: ${res.status}` };
 }
 
-export async function fetchWishlistEntries(wishlistId: string): Promise<WishlistEntry[]> {
-  const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries`), { credentials: "include" });
+export async function fetchWishlistEntries(
+  wishlistId: string,
+): Promise<WishlistEntry[]> {
+  const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries`), {
+    credentials: "include",
+  });
   if (!res.ok) throw new Error(`wishlist entries: ${res.status}`);
   const data: unknown = await res.json();
   return Array.isArray(data) ? data : [];
@@ -568,7 +710,11 @@ export async function fetchWishlistEntries(wishlistId: string): Promise<Wishlist
 
 export async function createWishlistEntry(
   wishlistId: string,
-  body: { title: string; category: Category; metadata: Record<string, unknown> }
+  body: {
+    title: string;
+    category: Category;
+    metadata: Record<string, unknown>;
+  },
 ): Promise<WishlistEntry> {
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries`), {
     method: "POST",
@@ -587,28 +733,37 @@ export async function createWishlistEntry(
   return res.json();
 }
 
-export async function deleteWishlistEntry(wishlistId: string, entryId: string): Promise<void> {
-  const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries/${entryId}`), {
-    method: "DELETE",
-    credentials: "include",
-  });
+export async function deleteWishlistEntry(
+  wishlistId: string,
+  entryId: string,
+): Promise<void> {
+  const res = await fetch(
+    apiUrl(`/wishlists/${wishlistId}/entries/${entryId}`),
+    {
+      method: "DELETE",
+      credentials: "include",
+    },
+  );
   if (!res.ok) throw new Error(`delete entry: ${res.status}`);
 }
 
 /** CSV columns: id, title, category, metadata (JSON). Owner-only. */
-export async function exportWishlistEntriesCsv(wishlistId: string): Promise<Blob> {
+export async function exportWishlistEntriesCsv(
+  wishlistId: string,
+): Promise<Blob> {
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries.csv`), {
     credentials: "include",
   });
   if (res.status === 401) throw new Error("Sign in to export.");
-  if (res.status === 403) throw new Error("Only the wishlist owner can export entries.");
+  if (res.status === 403)
+    throw new Error("Only the wishlist owner can export entries.");
   if (!res.ok) throw new Error(`export: ${res.status}`);
   return res.blob();
 }
 
 export async function importWishlistEntriesCsv(
   wishlistId: string,
-  file: File
+  file: File,
 ): Promise<ImportItemsResult> {
   const fd = new FormData();
   fd.append("file", file);
@@ -618,7 +773,8 @@ export async function importWishlistEntriesCsv(
     body: fd,
   });
   if (res.status === 401) throw new Error("Sign in to import.");
-  if (res.status === 403) throw new Error("Only the wishlist owner can import entries.");
+  if (res.status === 403)
+    throw new Error("Only the wishlist owner can import entries.");
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `import: ${res.status}`);
@@ -629,16 +785,21 @@ export async function importWishlistEntriesCsv(
 export async function obtainWishlistEntry(
   wishlistId: string,
   entryId: string,
-  collectionId?: string
+  collectionId?: string,
 ): Promise<Item> {
-  const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries/${entryId}/obtain`), {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      collectionId != null && collectionId.trim() !== "" ? { collection_id: collectionId } : {}
-    ),
-  });
+  const res = await fetch(
+    apiUrl(`/wishlists/${wishlistId}/entries/${entryId}/obtain`),
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        collectionId != null && collectionId.trim() !== ""
+          ? { collection_id: collectionId }
+          : {},
+      ),
+    },
+  );
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `obtain: ${res.status}`);
@@ -652,6 +813,9 @@ export type List = {
   name: string;
   description?: string | null;
   cover_art_url?: string | null;
+  /** Tri-state visibility (source of truth on newer API builds). */
+  visibility?: Visibility;
+  /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
   item_count: number;
   created_at: string;
@@ -676,12 +840,14 @@ export async function fetchList(id: string): Promise<List> {
 export async function createList(body: {
   name: string;
   description?: string;
+  visibility?: Visibility;
   is_public?: boolean;
 }): Promise<List> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
     description: body.description?.trim() ?? "",
   };
+  if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
   const res = await fetch(apiUrl("/lists"), {
     method: "POST",
@@ -699,14 +865,22 @@ export async function createList(body: {
 
 export async function updateList(
   id: string,
-  body: { name: string; description?: string; is_public?: boolean; cover_art_url?: string }
+  body: {
+    name: string;
+    description?: string;
+    visibility?: Visibility;
+    is_public?: boolean;
+    cover_art_url?: string;
+  },
 ): Promise<List> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
     description: body.description?.trim() ?? "",
   };
+  if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
-  if (body.cover_art_url !== undefined) payload.cover_art_url = body.cover_art_url;
+  if (body.cover_art_url !== undefined)
+    payload.cover_art_url = body.cover_art_url;
   const res = await fetch(apiUrl(`/lists/${id}`), {
     method: "PUT",
     credentials: "include",
@@ -728,7 +902,7 @@ export type DeleteListOutcome =
 /** Delete a list you own. Call with no options first when the list has item links to receive 409 + eligible targets. */
 export async function deleteList(
   id: string,
-  opts?: { move_entries_to?: string; discard_entries?: boolean }
+  opts?: { move_entries_to?: string; discard_entries?: boolean },
 ): Promise<DeleteListOutcome> {
   const body: Record<string, unknown> = {};
   if (opts?.move_entries_to) body.move_entries_to = opts.move_entries_to;
@@ -740,7 +914,8 @@ export async function deleteList(
     body: JSON.stringify(body),
   });
   if (res.status === 204) return { ok: true };
-  if (res.status === 401) return { ok: false, message: "Sign in to delete a list." };
+  if (res.status === 401)
+    return { ok: false, message: "Sign in to delete a list." };
   if (res.status === 409) {
     const j = (await res.json()) as {
       entry_count?: number;
@@ -750,7 +925,9 @@ export async function deleteList(
       ok: false,
       conflict: {
         entry_count: Number(j.entry_count ?? 0),
-        eligible_move_targets: Array.isArray(j.eligible_move_targets) ? j.eligible_move_targets : [],
+        eligible_move_targets: Array.isArray(j.eligible_move_targets)
+          ? j.eligible_move_targets
+          : [],
       },
     };
   }
@@ -759,13 +936,18 @@ export async function deleteList(
 }
 
 export async function fetchListItems(listId: string): Promise<Item[]> {
-  const res = await fetch(apiUrl(`/lists/${listId}/items`), { credentials: "include" });
+  const res = await fetch(apiUrl(`/lists/${listId}/items`), {
+    credentials: "include",
+  });
   if (!res.ok) throw new Error(`list items: ${res.status}`);
   const data: unknown = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
-export async function addListItem(listId: string, itemId: string): Promise<void> {
+export async function addListItem(
+  listId: string,
+  itemId: string,
+): Promise<void> {
   const res = await fetch(apiUrl(`/lists/${listId}/items`), {
     method: "POST",
     credentials: "include",
@@ -774,7 +956,8 @@ export async function addListItem(listId: string, itemId: string): Promise<void>
   });
   if (res.status === 401) throw new Error("Sign in.");
   if (res.status === 404) throw new Error("Item not found.");
-  if (res.status === 403) throw new Error("You can only add items from shelves you can edit.");
+  if (res.status === 403)
+    throw new Error("You can only add items from shelves you can edit.");
   if (res.status === 409) throw new Error("That item is already on this list.");
   if (!res.ok) {
     const t = await res.text();
@@ -782,7 +965,10 @@ export async function addListItem(listId: string, itemId: string): Promise<void>
   }
 }
 
-export async function removeListItem(listId: string, itemId: string): Promise<void> {
+export async function removeListItem(
+  listId: string,
+  itemId: string,
+): Promise<void> {
   const res = await fetch(apiUrl(`/lists/${listId}/items/${itemId}`), {
     method: "DELETE",
     credentials: "include",
@@ -839,7 +1025,7 @@ export async function updateItem(
     consumption_status?: ConsumptionStatus;
     /** When set, moves the item to another collection you own (other fields still updated). */
     collection_id?: string;
-  }
+  },
 ): Promise<Item> {
   const payload: Record<string, unknown> = {
     title: body.title,
@@ -921,9 +1107,14 @@ export type MetadataLookupResponse = {
 };
 
 /** Search external catalogs by title (category selects the backend provider). */
-export async function fetchMetadataLookup(category: Category, q: string): Promise<MetadataLookupResponse> {
+export async function fetchMetadataLookup(
+  category: Category,
+  q: string,
+): Promise<MetadataLookupResponse> {
   const params = new URLSearchParams({ category, q });
-  const res = await fetch(apiUrl(`/metadata/lookup?${params}`), { cache: "no-store" });
+  const res = await fetch(apiUrl(`/metadata/lookup?${params}`), {
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error(`metadata: ${res.status}`);
   return res.json();
 }

@@ -42,13 +42,13 @@ export function LandingPage({ initialBackground = null }: Props) {
             href="/login"
             className="rounded-lg bg-kurator-accent px-6 py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90"
           >
-            Log in
+            Log In
           </Link>
           <Link
             href="/register"
             className="rounded-lg border border-kurator-border px-6 py-2.5 text-sm font-medium text-kurator-fg hover:bg-kurator-border/40"
           >
-            Create account
+            Create Account
           </Link>
         </div>
 

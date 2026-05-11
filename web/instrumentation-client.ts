@@ -9,7 +9,7 @@ if (dsn) {
   Sentry.init({
     dsn,
 
-    sendDefaultPii: true,
+    sendDefaultPii: false,
 
     tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
 

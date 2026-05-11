@@ -16,7 +16,7 @@ import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
 import { categoryLabel } from "@/lib/categoryLabels";
 import { isEntityUuid } from "@/lib/entityId";
-import { getCoverArtUrl, getItemYear } from "@/lib/itemDisplay";
+import { getCoverArtUrl, getItemYear, getTvEditionSummary } from "@/lib/itemDisplay";
 import { safeHttpUrl } from "@/lib/safeUrl";
 
 function formatMetaValue(value: unknown): string {
@@ -242,8 +242,15 @@ export function ItemDetailClient() {
   const cover = getCoverArtUrl(metaObj);
   const year = getItemYear(metaObj);
   const metaKeysAll = Object.keys(metaObj).sort((a, b) => a.localeCompare(b));
-  const metaKeys = metaKeysAll.filter((k) => k !== "cover_art" && !k.startsWith("catalog_"));
-  const hasDetailRows = metaKeys.length > 0;
+  const metaKeys = metaKeysAll.filter(
+    (k) =>
+      k !== "cover_art" &&
+      !k.startsWith("catalog_") &&
+      k !== "tv_edition" &&
+      k !== "tv_season",
+  );
+  const tvEditionLine = getTvEditionSummary(item);
+  const hasDetailRows = metaKeys.length > 0 || tvEditionLine !== "";
 
   const enrichmentMoreHref =
     enrichment?.synopsis && enrichment.source && enrichment.source_url
@@ -261,7 +268,7 @@ export function ItemDetailClient() {
       </Link>
 
       <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div className="mx-auto w-40 shrink-0 overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg sm:mx-0 sm:w-44">
+        <div className="mx-auto w-40 shrink-0 overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-xs sm:mx-0 sm:w-44">
           <ItemCoverImage
             url={cover}
             alt={`Cover for ${item.title}`}
@@ -388,7 +395,7 @@ export function ItemDetailClient() {
                 className="flex items-center gap-3 text-lg font-semibold text-kurator-fg"
               >
                 {list.cover_art_url ? (
-                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg">
+                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-xs">
                     <ItemCoverImage
                       url={list.cover_art_url}
                       alt=""
@@ -448,6 +455,12 @@ export function ItemDetailClient() {
           <p className="mt-4 text-sm text-kurator-muted">Nothing else recorded yet.</p>
         ) : (
           <dl className="mt-6 space-y-4">
+            {tvEditionLine ? (
+              <div className="border-b border-kurator-border/50 pb-4">
+                <dt className="text-xs font-medium uppercase tracking-wide text-kurator-muted">Set</dt>
+                <dd className="mt-1 text-sm text-kurator-fg">{tvEditionLine}</dd>
+              </div>
+            ) : null}
             {metaKeys.map((key) => (
               <div key={key} className="border-b border-kurator-border/50 pb-4 last:border-0 last:pb-0">
                 <dt className="font-mono text-xs font-medium text-kurator-accent">{key}</dt>

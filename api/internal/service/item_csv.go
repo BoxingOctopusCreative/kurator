@@ -21,8 +21,8 @@ const csvMaxImportRows = 20000
 
 // ImportItemsResult is returned from CSV import (partial success allowed).
 type ImportItemsResult struct {
-	Created int                 `json:"created"`
-	Updated int                 `json:"updated"`
+	Created int                `json:"created"`
+	Updated int                `json:"updated"`
 	Errors  []ImportItemRowErr `json:"errors,omitempty"`
 }
 
@@ -76,7 +76,7 @@ func (s *ItemService) ExportCollectionItemsCSV(ctx context.Context, collectionID
 
 // ImportCollectionItemsFromCSV parses CSV (header required) and creates or updates items in the collection.
 // Rows with an id update an existing item in this collection; rows without id create new items.
-func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collectionID string, r io.Reader) (*ImportItemsResult, error) {
+func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collectionID string, viewer *int64, r io.Reader) (*ImportItemsResult, error) {
 	cr := csv.NewReader(r)
 	cr.ReuseRecord = false
 	cr.LazyQuotes = true
@@ -197,7 +197,7 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 					continue
 				}
 				itemID := itemUUID.String()
-				existing, gerr := s.repo.GetByID(ctx, itemID)
+				existing, gerr := s.repo.GetByID(ctx, itemID, viewer)
 				if gerr != nil {
 					if errors.Is(gerr, repository.ErrItemNotFound) {
 						out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "item not found"})

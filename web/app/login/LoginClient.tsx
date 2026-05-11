@@ -71,7 +71,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
 
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="text-2xl font-semibold text-kurator-fg">Log in</h1>
+      <h1 className="text-2xl font-semibold text-kurator-fg">Log In</h1>
       <p className="mt-1 text-sm text-kurator-muted">
         Use the email and password for your Kurator account.
       </p>
@@ -98,7 +98,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
             <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
               <span className="text-kurator-muted">Password</span>
               <Link href="/forgot-password" className="text-kurator-accent hover:underline">
-                Forgot password?
+                Forgot Password?
               </Link>
             </div>
             <input
@@ -139,7 +139,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
             Enter the 6-digit code from your authenticator app.
           </p>
           <label className="block text-sm">
-            <span className="text-kurator-muted">Authenticator code</span>
+            <span className="text-kurator-muted">Authenticator Code</span>
             <input
               inputMode="numeric"
               pattern="[0-9]*"

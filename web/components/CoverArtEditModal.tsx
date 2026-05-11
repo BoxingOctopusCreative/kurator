@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect } from "react";
 import { CoverArtField } from "@/components/CoverArtField";
 
@@ -36,7 +37,7 @@ export function CoverArtEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onOpenChange(false);
@@ -46,7 +47,7 @@ export function CoverArtEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cover-art-dialog-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-lg"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -56,9 +57,10 @@ export function CoverArtEditModal({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="rounded-lg border border-kurator-border px-3 py-1.5 text-sm text-kurator-muted hover:bg-kurator-border/40 hover:text-kurator-fg"
+            className="rounded-lg p-2 text-kurator-muted transition-colors hover:bg-kurator-border/40 hover:text-kurator-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
+            aria-label="Close"
           >
-            Close
+            <X className="h-5 w-5 shrink-0" aria-hidden />
           </button>
         </div>
         <CoverArtField value={value} onChange={onChange} disabled={disabled} />

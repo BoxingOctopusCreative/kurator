@@ -14,6 +14,34 @@ const VIDEO_FORMAT_LABELS: Record<string, string> = {
   blu_ray: "Blu-ray",
 };
 
+/** TV-only: box set / season line from metadata; empty when unset or not TV. */
+export function getTvEditionSummary(item: Item): string {
+  if (item.category !== "tv") return "";
+  const meta = item.metadata;
+  if (!meta || typeof meta !== "object") return "";
+  const m = meta as Record<string, unknown>;
+  const ed = m.tv_edition;
+  if (typeof ed !== "string") return "";
+  const t = ed.trim();
+  if (t === "box_set") return "Box set";
+  if (t !== "single_season") return "";
+  const sn = m.tv_season;
+  let n: number | null = null;
+  if (typeof sn === "number" && Number.isFinite(sn)) {
+    n = Math.trunc(sn);
+  } else if (typeof sn === "string" && /^\d+$/.test(sn.trim())) {
+    n = parseInt(sn.trim(), 10);
+  }
+  if (n === null || n < 1 || n > 999) return "Single season";
+  return `Season ${n}`;
+}
+
+/** Physical format plus TV set type when relevant (shelf / table views). */
+export function getItemFormatColumnLabel(item: Item): string {
+  const parts = [getItemFormatLabel(item), getTvEditionSummary(item)].filter(Boolean);
+  return parts.join(" · ");
+}
+
 /** User-visible format from metadata (music / video categories); empty when unset. */
 export function getItemFormatLabel(item: Item): string {
   const meta = item.metadata;

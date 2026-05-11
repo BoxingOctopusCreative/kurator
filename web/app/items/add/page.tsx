@@ -105,7 +105,7 @@ export default function AddItemPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="text-2xl font-semibold text-kurator-fg">Add item</h1>
+      <h1 className="text-2xl font-semibold text-kurator-fg">Add Item</h1>
       <p className="mt-1 text-sm text-kurator-muted">
         Add a title, pick a type, and fill in what you know.
       </p>

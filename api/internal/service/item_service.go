@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
+	"github.com/jackc/pgx/v5"
 )
 
 type ItemService struct {
@@ -21,12 +23,12 @@ func NewItemService(repo repository.ItemRepository, coll *repository.PostgresCol
 	return &ItemService{repo: repo, coll: coll, search: search}
 }
 
-func (s *ItemService) ListLatest(ctx context.Context, limit int) ([]models.Item, error) {
-	return s.repo.ListLatest(ctx, limit)
+func (s *ItemService) ListLatest(ctx context.Context, viewer *int64, limit int) ([]models.Item, error) {
+	return s.repo.ListLatest(ctx, viewer, limit)
 }
 
-func (s *ItemService) ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error) {
-	return s.repo.ListByCollection(ctx, collectionID, limit, consumptionFilter)
+func (s *ItemService) ListByCollection(ctx context.Context, collectionID string, viewer *int64, limit int, consumptionFilter string) ([]models.Item, error) {
+	return s.repo.ListByCollection(ctx, collectionID, viewer, limit, consumptionFilter)
 }
 
 func (s *ItemService) ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error) {
@@ -37,17 +39,17 @@ func (s *ItemService) ListRecentFromFollowedUsers(ctx context.Context, followerU
 	return s.repo.ListRecentFromFollowedUsers(ctx, followerUserID, limit)
 }
 
-func (s *ItemService) Get(ctx context.Context, id string) (*models.Item, error) {
-	return s.repo.GetByID(ctx, id)
+func (s *ItemService) Get(ctx context.Context, id string, viewer *int64) (*models.Item, error) {
+	return s.repo.GetByID(ctx, id, viewer)
 }
 
 type CreateItemInput struct {
 	CollectionID string
-	Title          string
-	Category       models.Category
-	Metadata       json.RawMessage
-	Rating         *int
-	Consumption    *models.ConsumptionStatus
+	Title        string
+	Category     models.Category
+	Metadata     json.RawMessage
+	Rating       *int
+	Consumption  *models.ConsumptionStatus
 }
 
 func (s *ItemService) Create(ctx context.Context, in CreateItemInput) (*models.Item, error) {
@@ -110,11 +112,11 @@ func (s *ItemService) Create(ctx context.Context, in CreateItemInput) (*models.I
 }
 
 type UpdateItemInput struct {
-	Title            string
-	Category         models.Category
-	Metadata         json.RawMessage
-	Rating           *models.RatingUpdate
-	Consumption      *models.ConsumptionStatus
+	Title           string
+	Category        models.Category
+	Metadata        json.RawMessage
+	Rating          *models.RatingUpdate
+	Consumption     *models.ConsumptionStatus
 	NewCollectionID *string
 }
 
@@ -150,11 +152,7 @@ func (s *ItemService) Update(ctx context.Context, id string, in UpdateItemInput)
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	targetCollID := existing.CollectionID
+	targetCollID := ""
 	if in.NewCollectionID != nil && strings.TrimSpace(*in.NewCollectionID) != "" {
 		targetCollID = strings.TrimSpace(*in.NewCollectionID)
 	}
@@ -167,6 +165,17 @@ func (s *ItemService) Update(ctx context.Context, id string, in UpdateItemInput)
 			return nil, berr
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
+		var existingCollID string
+		qerr := tx.QueryRow(ctx, `SELECT collection_id::text FROM items WHERE id = $1::uuid FOR UPDATE`, id).Scan(&existingCollID)
+		if errors.Is(qerr, pgx.ErrNoRows) {
+			return nil, repository.ErrItemNotFound
+		}
+		if qerr != nil {
+			return nil, fmt.Errorf("lock item: %w", qerr)
+		}
+		if targetCollID == "" {
+			targetCollID = existingCollID
+		}
 		locked, lerr := repository.TxLockCollectionCategory(ctx, tx, targetCollID)
 		if lerr != nil {
 			return nil, lerr

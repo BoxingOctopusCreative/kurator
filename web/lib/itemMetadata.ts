@@ -12,6 +12,7 @@ import {
 const MUSIC_FORMAT = new Set(["vinyl", "cd", "tape", "other"]);
 const VIDEO_FORMAT = new Set(["vhs", "dvd", "blu_ray"]);
 const VIDEO_TYPE = new Set(["series", "movie", "anime"]);
+const TV_EDITION = new Set(["box_set", "single_season"]);
 
 function yearFromString(s: string | undefined, field: string): number | undefined {
   const t = s?.trim();
@@ -98,6 +99,30 @@ export function buildItemMetadata(category: Category, slice: CategoryFormSlice):
         throw new ValidationError("Catalog TMDB media type must be movie or tv.");
       }
       out.catalog_tmdb_media_type = tmt;
+    }
+  }
+
+  if (category === "tv") {
+    const te = slice.tv_edition?.trim();
+    if (te) {
+      if (!TV_EDITION.has(te)) {
+        throw new ValidationError("Invalid TV set type.");
+      }
+      out.tv_edition = te;
+      if (te === "single_season") {
+        const seasonStr = slice.tv_season?.trim();
+        if (!seasonStr) {
+          throw new ValidationError("Season number is required for a single-season release.");
+        }
+        if (!/^\d+$/.test(seasonStr)) {
+          throw new ValidationError("Season must be a whole number.");
+        }
+        const sn = parseInt(seasonStr, 10);
+        if (sn < 1 || sn > 999) {
+          throw new ValidationError("Season must be between 1 and 999.");
+        }
+        out.tv_season = sn;
+      }
     }
   }
 
@@ -236,6 +261,21 @@ export function metadataToCategoryFormSlice(category: Category, metadata: unknow
     if (tid) slice.catalog_tmdb_id = tid;
     const tmt = metaPlainString(m.catalog_tmdb_media_type);
     if (tmt === "movie" || tmt === "tv") slice.catalog_tmdb_media_type = tmt;
+  }
+
+  if (category === "tv") {
+    const te = metaPlainString(m.tv_edition);
+    if (te === "box_set" || te === "single_season") {
+      slice.tv_edition = te;
+    }
+    const sn = m.tv_season;
+    if (typeof sn === "number" && Number.isFinite(sn)) {
+      const n = Math.trunc(sn);
+      if (n >= 1 && n <= 999) slice.tv_season = String(n);
+    } else if (typeof sn === "string" && /^\d+$/.test(sn.trim())) {
+      const n = parseInt(sn.trim(), 10);
+      if (n >= 1 && n <= 999) slice.tv_season = String(n);
+    }
   }
 
   if (category === "book" || category === "manga") {

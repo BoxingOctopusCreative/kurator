@@ -5,7 +5,7 @@ import { isCloudflareTurnstileEnabled } from "@/lib/turnstile-config";
 import { LoginPageInner } from "./LoginPageInner";
 
 export const metadata: Metadata = {
-  title: "Login",
+  title: "Log In",
 };
 
 export default async function LoginPage() {

@@ -25,7 +25,7 @@ const (
 func newItemTestApp(t *testing.T, repo *handlerStubItemRepo) *fiber.App {
 	t.Helper()
 	svc := service.NewItemService(repo, nil, nil)
-	h := NewItemHandler(svc, nil, nil, nil, nil)
+	h := NewItemHandler(svc, nil, nil, nil, nil, nil)
 	app := fiber.New()
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals("userID", int64(1))
@@ -45,8 +45,8 @@ type handlerStubItemRepo struct {
 	getErr  error
 
 	lastCreateColl string
-	createItem       *models.Item
-	createErr        error
+	createItem     *models.Item
+	createErr      error
 
 	updateItem *models.Item
 	updateErr  error
@@ -54,11 +54,11 @@ type handlerStubItemRepo struct {
 	deleteErr error
 }
 
-func (s *handlerStubItemRepo) ListLatest(ctx context.Context, limit int) ([]models.Item, error) {
+func (s *handlerStubItemRepo) ListLatest(ctx context.Context, viewer *int64, limit int) ([]models.Item, error) {
 	return s.list, nil
 }
 
-func (s *handlerStubItemRepo) ListByCollection(ctx context.Context, collectionID string, limit int, consumptionFilter string) ([]models.Item, error) {
+func (s *handlerStubItemRepo) ListByCollection(ctx context.Context, collectionID string, viewer *int64, limit int, consumptionFilter string) ([]models.Item, error) {
 	return s.list, nil
 }
 
@@ -74,7 +74,7 @@ func (s *handlerStubItemRepo) ListRecentFromFollowedUsers(ctx context.Context, f
 	return s.list, nil
 }
 
-func (s *handlerStubItemRepo) GetByID(ctx context.Context, id string) (*models.Item, error) {
+func (s *handlerStubItemRepo) GetByID(ctx context.Context, id string, viewer *int64) (*models.Item, error) {
 	if s.getErr != nil {
 		return nil, s.getErr
 	}

@@ -17,11 +17,12 @@ import (
 )
 
 type ItemHandler struct {
-	svc  *service.ItemService
-	coll *repository.PostgresCollectionRepository
-	auth *service.AuthService
-	meta *service.MetadataService
-	list *service.ListService
+	svc    *service.ItemService
+	coll   *repository.PostgresCollectionRepository
+	auth   *service.AuthService
+	meta   *service.MetadataService
+	list   *service.ListService
+	fanout *service.ActivityFanout
 }
 
 func NewItemHandler(
@@ -30,8 +31,9 @@ func NewItemHandler(
 	auth *service.AuthService,
 	meta *service.MetadataService,
 	list *service.ListService,
+	fanout *service.ActivityFanout,
 ) *ItemHandler {
-	return &ItemHandler{svc: svc, coll: coll, auth: auth, meta: meta, list: list}
+	return &ItemHandler{svc: svc, coll: coll, auth: auth, meta: meta, list: list, fanout: fanout}
 }
 
 func (h *ItemHandler) requireUserID(c *fiber.Ctx) (int64, error) {
@@ -94,7 +96,7 @@ func (h *ItemHandler) List(c *fiber.Ctx) error {
 		if ferr != nil {
 			return fiber.NewError(fiber.StatusBadRequest, ferr.Error())
 		}
-		items, err = h.svc.ListByCollection(c.Context(), id, limit, cf)
+		items, err = h.svc.ListByCollection(c.Context(), id, viewer, limit, cf)
 	} else {
 		scope := strings.TrimSpace(strings.ToLower(c.Query("scope")))
 		switch scope {
@@ -113,7 +115,13 @@ func (h *ItemHandler) List(c *fiber.Ctx) error {
 				items, err = h.svc.ListRecentFromFollowedUsers(c.Context(), uid, limit)
 			}
 		case "":
-			items, err = h.svc.ListLatest(c.Context(), limit)
+			var viewer *int64
+			if raw := c.Cookies(middleware.SessionCookieName); raw != "" {
+				if uid, aerr := h.auth.UserIDFromSession(c.Context(), raw); aerr == nil {
+					viewer = &uid
+				}
+			}
+			items, err = h.svc.ListLatest(c.Context(), viewer, limit)
 		default:
 			return fiber.NewError(fiber.StatusBadRequest, "invalid scope (use mine or following)")
 		}
@@ -129,27 +137,20 @@ func (h *ItemHandler) Get(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	item, err := h.svc.Get(c.Context(), id)
+	var viewer *int64
+	raw := c.Cookies(middleware.SessionCookieName)
+	if raw != "" {
+		uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
+		if aerr == nil {
+			viewer = &uid
+		}
+	}
+	item, err := h.svc.Get(c.Context(), id, viewer)
 	if errors.Is(err, repository.ErrItemNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-	}
-	if h.coll != nil {
-		var viewer *int64
-		raw := c.Cookies(middleware.SessionCookieName)
-		if raw != "" {
-			uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
-			if aerr == nil {
-				viewer = &uid
-			}
-		}
-		if _, cerr := h.coll.GetByID(c.Context(), item.CollectionID, viewer); errors.Is(cerr, repository.ErrCollectionNotFound) {
-			return fiber.NewError(fiber.StatusNotFound, "not found")
-		} else if cerr != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, cerr.Error())
-		}
 	}
 	return c.JSON(item)
 }
@@ -160,13 +161,6 @@ func (h *ItemHandler) ListRefsContainingItem(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	item, err := h.svc.Get(c.Context(), id)
-	if errors.Is(err, repository.ErrItemNotFound) {
-		return fiber.NewError(fiber.StatusNotFound, "not found")
-	}
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-	}
 	var viewer *int64
 	raw := c.Cookies(middleware.SessionCookieName)
 	if raw != "" {
@@ -175,12 +169,10 @@ func (h *ItemHandler) ListRefsContainingItem(c *fiber.Ctx) error {
 			viewer = &uid
 		}
 	}
-	if h.coll != nil {
-		if _, cerr := h.coll.GetByID(c.Context(), item.CollectionID, viewer); errors.Is(cerr, repository.ErrCollectionNotFound) {
-			return fiber.NewError(fiber.StatusNotFound, "not found")
-		} else if cerr != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, cerr.Error())
-		}
+	if _, err := h.svc.Get(c.Context(), id, viewer); errors.Is(err, repository.ErrItemNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	} else if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	if h.list == nil {
 		return c.JSON([]models.ListRef{})
@@ -197,27 +189,20 @@ func (h *ItemHandler) Enrichment(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	item, err := h.svc.Get(c.Context(), id)
+	var viewer *int64
+	raw := c.Cookies(middleware.SessionCookieName)
+	if raw != "" {
+		uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
+		if aerr == nil {
+			viewer = &uid
+		}
+	}
+	item, err := h.svc.Get(c.Context(), id, viewer)
 	if errors.Is(err, repository.ErrItemNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-	}
-	if h.coll != nil {
-		var viewer *int64
-		raw := c.Cookies(middleware.SessionCookieName)
-		if raw != "" {
-			uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
-			if aerr == nil {
-				viewer = &uid
-			}
-		}
-		if _, cerr := h.coll.GetByID(c.Context(), item.CollectionID, viewer); errors.Is(cerr, repository.ErrCollectionNotFound) {
-			return fiber.NewError(fiber.StatusNotFound, "not found")
-		} else if cerr != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, cerr.Error())
-		}
 	}
 	if h.meta == nil {
 		return c.JSON(service.ItemEnrichment{Note: "Summaries aren’t available on this server yet."})
@@ -270,6 +255,11 @@ func (h *ItemHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
+	if h.fanout != nil && h.coll != nil {
+		if fctx, ferr := h.coll.GetFanoutContextByCollectionID(c.Context(), item.CollectionID); ferr == nil {
+			h.fanout.NotifyItemAdded(c.Context(), uid, fctx.OwnerID, fctx.Visibility, item.CollectionID, fctx.Name, item.ID, item.Title, item.Rating)
+		}
+	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
 
@@ -291,7 +281,7 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 	if err := json.Unmarshal(raw, &body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	existing, gerr := h.svc.Get(c.Context(), id)
+	existing, gerr := h.svc.Get(c.Context(), id, &uid)
 	if errors.Is(gerr, repository.ErrItemNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
@@ -349,11 +339,11 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 		consumption = &st
 	}
 	item, err := h.svc.Update(c.Context(), id, service.UpdateItemInput{
-		Title:            body.Title,
-		Category:         body.Category,
-		Metadata:         body.Metadata,
-		Rating:           ru,
-		Consumption:      consumption,
+		Title:           body.Title,
+		Category:        body.Category,
+		Metadata:        body.Metadata,
+		Rating:          ru,
+		Consumption:     consumption,
 		NewCollectionID: newColl,
 	})
 	if errors.Is(err, repository.ErrItemNotFound) {
@@ -361,6 +351,11 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.fanout != nil && h.coll != nil && ru != nil && !ru.SetNull {
+		if fctx, ferr := h.coll.GetFanoutContextByCollectionID(c.Context(), item.CollectionID); ferr == nil {
+			h.fanout.NotifyItemRated(c.Context(), uid, fctx.OwnerID, fctx.Visibility, item.CollectionID, fctx.Name, item.ID, item.Title, ru.Stars)
+		}
 	}
 	return c.JSON(item)
 }
@@ -374,7 +369,7 @@ func (h *ItemHandler) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	existing, gerr := h.svc.Get(c.Context(), id)
+	existing, gerr := h.svc.Get(c.Context(), id, &uid)
 	if errors.Is(gerr, repository.ErrItemNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
