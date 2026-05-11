@@ -4,17 +4,27 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
-import { fetchBetaAccessStatus, unlockBetaAccess } from "@/lib/auth";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { fetchBetaAccessStatus, requestBetaAccess } from "@/lib/auth";
 
-export function AuthBetaGate({ children }: { children: ReactNode }) {
+type Props = {
+  children: ReactNode;
+  turnstileEnabled?: boolean;
+  turnstileSiteKey?: string;
+};
+
+export function AuthBetaGate({ children, turnstileEnabled = false, turnstileSiteKey = "" }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const shouldGatePath = pathname?.startsWith("/register") ?? false;
   const [phase, setPhase] = useState<"loading" | "ready">("loading");
   const [showGate, setShowGate] = useState(false);
-  const [key, setKey] = useState("");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"muted" | "bad">("muted");
   const [busy, setBusy] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileMountKey, setTurnstileMountKey] = useState(0);
 
   useEffect(() => {
     if (!shouldGatePath) {
@@ -41,21 +51,49 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
     };
   }, [shouldGatePath]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !shouldGatePath) return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("beta_error") !== "invite") return;
+    setMessageTone("bad");
+    setMessage("This registration link is invalid or has expired. You can request access again below.");
+    sp.delete("beta_error");
+    const q = sp.toString();
+    const path = pathname ?? "/register";
+    router.replace(q ? `${path}?${q}` : path);
+  }, [pathname, router, shouldGatePath]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
-    const trimmed = key.trim();
+    setMessageTone("muted");
+    const trimmed = email.trim();
     if (!trimmed) {
-      setMessage("Enter your beta access key.");
+      setMessageTone("bad");
+      setMessage("Enter your email address.");
+      return;
+    }
+    if (turnstileEnabled && !turnstileToken) {
+      setMessageTone("bad");
+      setMessage("Complete the verification challenge below.");
       return;
     }
     setBusy(true);
     try {
-      await unlockBetaAccess(trimmed);
-      setShowGate(false);
-      router.refresh();
+      const res = await requestBetaAccess(trimmed, turnstileEnabled ? (turnstileToken ?? undefined) : undefined);
+      setMessageTone(res.ok ? "muted" : "bad");
+      setMessage(res.message ?? "Request received.");
+      setTurnstileToken(null);
+      if (turnstileEnabled) {
+        setTurnstileMountKey((k) => k + 1);
+      }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not validate key.");
+      setMessageTone("bad");
+      setMessage(err instanceof Error ? err.message : "Could not submit request.");
+      setTurnstileToken(null);
+      if (turnstileEnabled) {
+        setTurnstileMountKey((k) => k + 1);
+      }
     } finally {
       setBusy(false);
     }
@@ -84,34 +122,45 @@ export function AuthBetaGate({ children }: { children: ReactNode }) {
         </div>
         <h2 className="text-xl font-semibold text-kurator-fg">Private beta</h2>
         <p className="mt-1 text-sm text-kurator-muted">
-          Enter the beta access key you received. After it is accepted, you can continue creating your account.
+          Enter the email you would like to use for your account. We will notify the team; if your request is approved,
+          you will receive a link to continue registration at that address.
         </p>
         <form onSubmit={onSubmit} className="mt-8 space-y-3">
           <label className="block text-sm">
-            <span className="text-kurator-muted">Beta access key</span>
+            <span className="text-kurator-muted">Email</span>
             <input
-              type="text"
-              name="beta-key"
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="Paste your key"
+              type="email"
+              name="beta-request-email"
+              autoComplete="email"
+              required
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
             />
           </label>
+          {turnstileEnabled && turnstileSiteKey ? (
+            <TurnstileWidget
+              key={turnstileMountKey}
+              siteKey={turnstileSiteKey}
+              onToken={setTurnstileToken}
+              className="flex justify-center"
+            />
+          ) : null}
           {message ? (
-            <p className="text-sm text-red-400" role="alert">
+            <p
+              className={`text-sm ${messageTone === "bad" ? "text-red-400" : "text-kurator-muted"}`}
+              role="status"
+            >
               {message}
             </p>
           ) : null}
           <button
             type="submit"
-            disabled={busy || !key.trim()}
+            disabled={busy || !email.trim()}
             className="w-full rounded-lg bg-kurator-accent py-2.5 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? "Checking…" : "Continue"}
+            {busy ? "Sending…" : "Request access"}
           </button>
           <p className="pt-1 text-center text-sm text-kurator-muted">
             <Link href="/login" className="text-kurator-accent hover:underline">

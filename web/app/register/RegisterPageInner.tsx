@@ -59,7 +59,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
 
   return (
     <UnsplashMarketingShell initialBackground={initialBackground}>
-      <AuthBetaGate>
+      <AuthBetaGate turnstileEnabled={turnstileEnabled} turnstileSiteKey={turnstileSiteKey}>
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
           <div className="mb-4 flex justify-center">
             <Image

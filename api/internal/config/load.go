@@ -126,6 +126,24 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 			"",
 		),
 		BetaAccessRequired: mergeBool("BETA_ACCESS_REQUIRED", "", fc.Beta.AccessRequired, false),
+		BetaAdminEmail: mergeString(
+			"BETA_ADMIN_EMAIL",
+			"",
+			fc.Beta.AdminEmail,
+			"ryan.draga@boxingoctop.us",
+		),
+		PublicWebBaseURL: mergeString(
+			"PUBLIC_WEB_BASE_URL",
+			"",
+			fc.Beta.PublicWebBaseURL,
+			"",
+		),
+		BetaDiscordWebhookURL: mergeString(
+			"BETA_DISCORD_WEBHOOK",
+			"",
+			fc.Beta.DiscordWebhookURL,
+			"",
+		),
 		TurnstileEnabled: mergeBool(
 			"CLOUDFLARE_TURNSTILE_ENABLED",
 			opts.TurnstileEnabled,

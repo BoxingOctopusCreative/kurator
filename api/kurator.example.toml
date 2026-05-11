@@ -24,9 +24,13 @@ jwt_secret = "dev_only_change_me_in_production_use_long_random"
 session_max_age_seconds = 2592000
 cookie_secure = false
 
-# Private beta: set BETA_ACCESS_REQUIRED=true (or access_required below). Requires migrations through 024_beta_keys_key_hash.
+# Private beta: set BETA_ACCESS_REQUIRED=true (or access_required below). Requires migrations through 033_beta_access_invites.
+# Request flow emails BETA_ADMIN_EMAIL (default below). Set public_web_base_url or PUBLIC_WEB_BASE_URL to your app origin
+# (e.g. https://app.example.com) so approve/invite links work. Mailgun must be configured for emails to send.
 [beta]
 access_required = false
+admin_email = "ryan.draga@boxingoctop.us"
+public_web_base_url = "http://localhost:3000"
 
 # S3-compatible storage (MinIO, AWS S3, Cloudflare R2, etc.).
 # endpoint = S3 API URL for the server (e.g. R2 https://<id>.r2.cloudflarestorage.com or MinIO http://minio:9000).

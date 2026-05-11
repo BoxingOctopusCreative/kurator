@@ -139,18 +139,22 @@ export async function fetchBetaAccessStatus(): Promise<BetaAccessStatus> {
   return (await res.json()) as BetaAccessStatus;
 }
 
-export async function unlockBetaAccess(key: string) {
-  const trimmed = key.trim();
-  if (trimmed.length < 8) {
-    throw new Error("Beta access key looks too short.");
+/** Request private beta access; emails the configured admin when the API has Mailgun and URLs configured. */
+export async function requestBetaAccess(email: string, turnstileToken?: string) {
+  const safeEmail = assertEmail(email);
+  const payload: Record<string, string> = { email: safeEmail };
+  const ts = turnstileToken?.trim();
+  if (ts) {
+    payload.turnstile_token = assertTurnstileToken(ts);
   }
-  const res = await api("/auth/beta/unlock", {
+  const res = await api("/auth/beta/request-access", {
     method: "POST",
-    body: JSON.stringify({ key: trimmed }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     throw new Error(await readApiError(res));
   }
+  return (await res.json()) as { ok: boolean; message: string };
 }
 
 export async function register(

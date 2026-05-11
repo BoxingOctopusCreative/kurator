@@ -7,9 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/boxingoctopus/kurator/api/internal/mailgun"
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
@@ -37,6 +40,7 @@ var (
 	ErrBetaKeyClaimed      = errors.New("beta access key already claimed")
 	ErrBetaUnlockRequired  = errors.New("complete beta access unlock before registering")
 	ErrBetaKeyClaimInvalid = errors.New("beta access key is invalid or no longer available")
+	ErrBetaInviteEmailMismatch = errors.New("register using the same email address you requested beta access with")
 )
 
 type LoginStep1Result struct {
@@ -50,14 +54,31 @@ type TwoFASetupResult struct {
 	OtpauthURL string `json:"otpauth_url"`
 }
 
+// BetaUnlockCookie describes a valid kurator_beta_unlock session (legacy key row or email invite).
+type BetaUnlockCookie struct {
+	KeyID    *uuid.UUID
+	InviteID *uuid.UUID
+}
+
+// BetaRegisterProof is exactly one of key-based unlock (legacy) or approved email invite.
+type BetaRegisterProof struct {
+	KeyID    *uuid.UUID
+	InviteID *uuid.UUID
+}
+
 type AuthService struct {
-	users              repository.UserRepository
-	sessions           repository.SessionRepository
-	betaKeys           repository.BetaKeyRepository
-	pool               *pgxpool.Pool
-	betaAccessRequired bool
-	jwtSecret          []byte
-	sessionTTL         time.Duration
+	users                 repository.UserRepository
+	sessions              repository.SessionRepository
+	betaKeys              repository.BetaKeyRepository
+	betaInvites           repository.BetaAccessInviteRepository
+	mail                  *mailgun.Client
+	betaAdminEmail        string
+	betaDiscordWebhookURL string
+	publicWebBaseURL      string
+	pool                  *pgxpool.Pool
+	betaAccessRequired    bool
+	jwtSecret             []byte
+	sessionTTL            time.Duration
 }
 
 func NewAuthService(
@@ -65,6 +86,11 @@ func NewAuthService(
 	users repository.UserRepository,
 	sessions repository.SessionRepository,
 	betaKeys repository.BetaKeyRepository,
+	betaInvites repository.BetaAccessInviteRepository,
+	mail *mailgun.Client,
+	betaAdminEmail string,
+	betaDiscordWebhookURL string,
+	publicWebBaseURL string,
 	jwtSecret string,
 	sessionMaxAgeSeconds int,
 	betaAccessRequired bool,
@@ -72,17 +98,22 @@ func NewAuthService(
 	if sessionMaxAgeSeconds < 300 {
 		sessionMaxAgeSeconds = 30 * 24 * 3600
 	}
-	if betaAccessRequired && (pool == nil || betaKeys == nil) {
-		panic("NewAuthService: beta access requires non-nil pool and BetaKeyRepository")
+	if betaAccessRequired && (pool == nil || betaKeys == nil || betaInvites == nil) {
+		panic("NewAuthService: beta access requires non-nil pool, BetaKeyRepository, and BetaAccessInviteRepository")
 	}
 	return &AuthService{
-		users:              users,
-		sessions:           sessions,
-		betaKeys:           betaKeys,
-		pool:               pool,
-		betaAccessRequired: betaAccessRequired,
-		jwtSecret:          []byte(jwtSecret),
-		sessionTTL:         time.Duration(sessionMaxAgeSeconds) * time.Second,
+		users:                 users,
+		sessions:              sessions,
+		betaKeys:              betaKeys,
+		betaInvites:           betaInvites,
+		mail:                  mail,
+		betaAdminEmail:        strings.TrimSpace(betaAdminEmail),
+		betaDiscordWebhookURL: strings.TrimSpace(betaDiscordWebhookURL),
+		publicWebBaseURL:      strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/"),
+		pool:                  pool,
+		betaAccessRequired:    betaAccessRequired,
+		jwtSecret:             []byte(jwtSecret),
+		sessionTTL:            time.Duration(sessionMaxAgeSeconds) * time.Second,
 	}
 }
 
@@ -144,12 +175,23 @@ func registerUsernameCandidates(preferred, email string) ([]string, error) {
 	return out, nil
 }
 
-func (s *AuthService) Register(ctx context.Context, email, password, displayName, usernamePreferred string, claimKeyID *uuid.UUID) (*models.User, string, error) {
+func (s *AuthService) Register(ctx context.Context, email, password, displayName, usernamePreferred string, proof *BetaRegisterProof) (*models.User, string, error) {
 	if s.betaAccessRequired {
-		if claimKeyID == nil || *claimKeyID == uuid.Nil {
+		if proof == nil {
 			return nil, "", ErrBetaUnlockRequired
 		}
-		return s.registerWithBetaPostUnlock(ctx, email, password, displayName, usernamePreferred, *claimKeyID)
+		hasKey := proof.KeyID != nil && *proof.KeyID != uuid.Nil
+		hasInv := proof.InviteID != nil && *proof.InviteID != uuid.Nil
+		if !hasKey && !hasInv {
+			return nil, "", ErrBetaUnlockRequired
+		}
+		if hasKey && hasInv {
+			return nil, "", ErrBetaUnlockRequired
+		}
+		if hasKey {
+			return s.registerWithBetaPostUnlock(ctx, email, password, displayName, usernamePreferred, *proof.KeyID)
+		}
+		return s.registerWithBetaInvite(ctx, email, password, displayName, usernamePreferred, *proof.InviteID)
 	}
 
 	em, err := validation.Email(email, "Email")
@@ -285,6 +327,87 @@ func (s *AuthService) registerWithBetaPostUnlock(ctx context.Context, email, pas
 	return u, rawTok, nil
 }
 
+func (s *AuthService) registerWithBetaInvite(ctx context.Context, email, password, displayName, usernamePreferred string, inviteID uuid.UUID) (*models.User, string, error) {
+	em, err := validation.Email(email, "Email")
+	if err != nil {
+		return nil, "", ErrInvalidEmail
+	}
+	email = em
+	if len(password) < 8 {
+		return nil, "", ErrWeakPassword
+	}
+	if err := validation.Password(password, "Password"); err != nil {
+		return nil, "", err
+	}
+	ph, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return nil, "", err
+	}
+	dn := strings.TrimSpace(displayName)
+	if dn == "" {
+		dn = deriveDisplayName(email)
+	} else {
+		dn, err = validation.StrictPlainText(dn, validation.MaxName, "Display name", false)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	candidates, err := registerUsernameCandidates(usernamePreferred, email)
+	if err != nil {
+		return nil, "", err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	allowedEmail, err := s.betaInvites.LockApprovedForRegistrationTx(ctx, tx, inviteID)
+	if err != nil {
+		if errors.Is(err, repository.ErrBetaInviteNotFound) {
+			return nil, "", ErrBetaKeyClaimInvalid
+		}
+		return nil, "", err
+	}
+	if !strings.EqualFold(strings.TrimSpace(allowedEmail), email) {
+		return nil, "", ErrBetaInviteEmailMismatch
+	}
+
+	var u *models.User
+	for _, cand := range candidates {
+		u, err = s.users.CreateTx(ctx, tx, email, string(ph), dn, cand)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, repository.ErrEmailTaken) {
+			return nil, "", err
+		}
+		if errors.Is(err, repository.ErrUsernameTaken) {
+			continue
+		}
+		return nil, "", err
+	}
+	if u == nil {
+		return nil, "", repository.ErrUsernameTaken
+	}
+	if err := s.betaInvites.MarkConsumedTx(ctx, tx, inviteID); err != nil {
+		return nil, "", ErrBetaKeyClaimInvalid
+	}
+	rawTok, h, err := s.newSessionToken()
+	if err != nil {
+		return nil, "", err
+	}
+	exp := time.Now().Add(s.sessionTTL)
+	if err := s.sessions.CreateTx(ctx, tx, u.ID, h, exp); err != nil {
+		return nil, "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, "", err
+	}
+	return u, rawTok, nil
+}
+
 // ClaimBetaKeyForUnlock marks the key claimed in the database and returns its id for the unlock cookie.
 func (s *AuthService) ClaimBetaKeyForUnlock(ctx context.Context, rawKey string) (uuid.UUID, error) {
 	if s.betaKeys == nil {
@@ -317,8 +440,18 @@ func (s *AuthService) SignBetaUnlockToken(keyID uuid.UUID) (string, error) {
 	return tok.SignedString(s.jwtSecret)
 }
 
-// ParseBetaUnlockToken returns the beta_keys id from a signed unlock cookie.
-func (s *AuthService) ParseBetaUnlockToken(tokenStr string) (uuid.UUID, error) {
+// SignBetaUnlockInviteToken issues a cookie value after the user opened an approved invite link.
+func (s *AuthService) SignBetaUnlockInviteToken(inviteID uuid.UUID) (string, error) {
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"typ": betaUnlockTyp,
+		"iid": inviteID.String(),
+		"exp": time.Now().Add(7 * 24 * time.Hour).Unix(),
+	})
+	return tok.SignedString(s.jwtSecret)
+}
+
+// ParseBetaUnlockCookie returns key-based or invite-based unlock claims from the kurator_beta_unlock cookie.
+func (s *AuthService) ParseBetaUnlockCookie(tokenStr string) (*BetaUnlockCookie, error) {
 	tok, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method")
@@ -326,21 +459,172 @@ func (s *AuthService) ParseBetaUnlockToken(tokenStr string) (uuid.UUID, error) {
 		return s.jwtSecret, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil || !tok.Valid {
-		return uuid.Nil, ErrInvalidPending
+		return nil, ErrInvalidPending
 	}
 	claims, ok := tok.Claims.(jwt.MapClaims)
 	if !ok {
-		return uuid.Nil, ErrInvalidPending
+		return nil, ErrInvalidPending
 	}
 	if typ, _ := claims["typ"].(string); typ != betaUnlockTyp {
-		return uuid.Nil, ErrInvalidPending
+		return nil, ErrInvalidPending
 	}
-	kid, _ := claims["kid"].(string)
-	keyID, err := uuid.Parse(kid)
-	if err != nil || keyID == uuid.Nil {
-		return uuid.Nil, ErrInvalidPending
+	kidStr, _ := claims["kid"].(string)
+	iidStr, _ := claims["iid"].(string)
+	hasKid := strings.TrimSpace(kidStr) != ""
+	hasIid := strings.TrimSpace(iidStr) != ""
+	if hasKid == hasIid {
+		return nil, ErrInvalidPending
 	}
-	return keyID, nil
+	out := &BetaUnlockCookie{}
+	if hasKid {
+		keyID, err := uuid.Parse(kidStr)
+		if err != nil || keyID == uuid.Nil {
+			return nil, ErrInvalidPending
+		}
+		out.KeyID = &keyID
+		return out, nil
+	}
+	invID, err := uuid.Parse(iidStr)
+	if err != nil || invID == uuid.Nil {
+		return nil, ErrInvalidPending
+	}
+	out.InviteID = &invID
+	return out, nil
+}
+
+func tokenHashHex(raw string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(raw)))
+	return hex.EncodeToString(sum[:])
+}
+
+func randomURLToken() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+// RequestBetaAccess notifies the configured admin (Discord webhook or email) with an approve link.
+func (s *AuthService) RequestBetaAccess(ctx context.Context, requesterEmail string) error {
+	em, err := validation.Email(requesterEmail, "Email")
+	if err != nil {
+		return ErrInvalidEmail
+	}
+	if s.betaInvites == nil {
+		return errors.New("beta invites not configured")
+	}
+	adminTok, err := randomURLToken()
+	if err != nil {
+		return err
+	}
+	adminHash := tokenHashHex(adminTok)
+	if _, err := s.betaInvites.ReplacePendingInvite(ctx, em, adminHash); err != nil {
+		return err
+	}
+	if s.publicWebBaseURL == "" {
+		log.Printf("beta access request: invite queued for %q (no public_web_base_url configured)", em)
+		return nil
+	}
+	approveURL := fmt.Sprintf("%s/api/v1/auth/beta/approve-access?t=%s", s.publicWebBaseURL, adminTok)
+	log.Printf("beta access request: invite queued for %q, approve_url=%s", em, approveURL)
+
+	if s.betaDiscordWebhookURL != "" {
+		s.sendDiscordWebhook(ctx, fmt.Sprintf(
+			"**New Kurator beta access request**\nRequester: `%s`\nApprove: %s",
+			em, approveURL,
+		))
+		return nil
+	}
+
+	if s.mail != nil && s.betaAdminEmail != "" {
+		subject := "Kurator private beta access request"
+		body := fmt.Sprintf("Someone requested access to the Kurator private beta.\n\nRequester email: %s\n\nTo approve:\n%s\n\nIgnore if unrecognised.\n", em, approveURL)
+		if err := s.mail.Send(ctx, s.betaAdminEmail, subject, body); err != nil {
+			log.Printf("beta access request: mailgun send failed to %q: %v", s.betaAdminEmail, err)
+		}
+	}
+	return nil
+}
+
+// sendDiscordWebhook posts a plain content message to the configured Discord incoming webhook.
+func (s *AuthService) sendDiscordWebhook(ctx context.Context, content string) {
+	if s.betaDiscordWebhookURL == "" {
+		return
+	}
+	payload := fmt.Sprintf(`{"content":%q}`, content)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.betaDiscordWebhookURL, strings.NewReader(payload))
+	if err != nil {
+		log.Printf("beta discord webhook: build request failed: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("beta discord webhook: send failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("beta discord webhook: unexpected status %d", resp.StatusCode)
+	}
+}
+
+// ApproveBetaAccessFromAdminToken marks the request approved and emails the requester an unlock link.
+func (s *AuthService) ApproveBetaAccessFromAdminToken(ctx context.Context, adminToken string) error {
+	if s.betaInvites == nil {
+		return errors.New("beta invites not configured")
+	}
+	h := tokenHashHex(adminToken)
+	id, requester, err := s.betaInvites.FindPendingByAdminTokenHash(ctx, h)
+	if err != nil {
+		if errors.Is(err, repository.ErrBetaInviteNotFound) {
+			return ErrInvalidPending
+		}
+		return err
+	}
+	userTok, err := randomURLToken()
+	if err != nil {
+		return err
+	}
+	userHash := tokenHashHex(userTok)
+	exp := time.Now().Add(14 * 24 * time.Hour)
+	if err := s.betaInvites.ApprovePending(ctx, id, userHash, exp); err != nil {
+		return err
+	}
+	if s.mail == nil || s.publicWebBaseURL == "" {
+		return nil
+	}
+	openURL := fmt.Sprintf("%s/api/v1/auth/beta/open-invite?t=%s", s.publicWebBaseURL, userTok)
+	subject := "You're approved for the Kurator private beta"
+	body := fmt.Sprintf(`Your request for Kurator private beta access was approved.
+
+Open this link in your browser to continue creating your account (it unlocks registration on this device):
+
+%s
+
+This link expires in 14 days. If you did not request access, you can ignore this email.
+`, openURL)
+	if err := s.mail.Send(ctx, requester, subject, body); err != nil {
+		log.Printf("beta access approve: mailgun send failed to %q: %v", requester, err)
+	}
+	return nil
+}
+
+// OpenBetaInviteFromUserToken validates a post-approval token and returns a signed cookie value for kurator_beta_unlock.
+func (s *AuthService) OpenBetaInviteFromUserToken(ctx context.Context, userToken string) (cookieJWT string, err error) {
+	if s.betaInvites == nil {
+		return "", errors.New("beta invites not configured")
+	}
+	h := tokenHashHex(userToken)
+	id, _, _, err := s.betaInvites.FindApprovedByUserTokenHash(ctx, h)
+	if err != nil {
+		if errors.Is(err, repository.ErrBetaInviteNotFound) {
+			return "", ErrInvalidPending
+		}
+		return "", err
+	}
+	return s.SignBetaUnlockInviteToken(id)
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (*LoginStep1Result, error) {

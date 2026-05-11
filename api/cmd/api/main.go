@@ -178,7 +178,25 @@ func runAPI(cfg config.Config) error {
 		ComicVineAPIKey:  cfg.ComicVineAPIKey,
 	})
 	betaRepo := repository.NewPostgresBetaKeyRepository(pool)
-	authSvc := service.NewAuthService(pool, userRepo, sessionRepo, betaRepo, cfg.AuthJWTSecret, cfg.SessionMaxAge, cfg.BetaAccessRequired)
+	betaInviteRepo := repository.NewPostgresBetaAccessInviteRepository(pool)
+	publicWeb := strings.TrimRight(strings.TrimSpace(cfg.PublicWebBaseURL), "/")
+	if publicWeb == "" && len(cfg.CORSOrigins) > 0 {
+		publicWeb = strings.TrimRight(strings.TrimSpace(cfg.CORSOrigins[0]), "/")
+	}
+	authSvc := service.NewAuthService(
+		pool,
+		userRepo,
+		sessionRepo,
+		betaRepo,
+		betaInviteRepo,
+		mg,
+		cfg.BetaAdminEmail,
+		cfg.BetaDiscordWebhookURL,
+		publicWeb,
+		cfg.AuthJWTSecret,
+		cfg.SessionMaxAge,
+		cfg.BetaAccessRequired,
+	)
 	socialSvc := service.NewSocialService(userRepo, followRepo, activityFanout)
 
 	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc, activityFanout)
@@ -189,7 +207,7 @@ func runAPI(cfg config.Config) error {
 	notifH := handler.NewNotificationHandler(notifRepo)
 	searchH := handler.NewSearchHandler(searchSvc)
 	metaH := handler.NewMetadataHandler(metaSvc)
-	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey, cfg.BetaAccessRequired)
+	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey, cfg.BetaAccessRequired, publicWeb)
 	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	requireAuth := middleware.RequireAuth(authSvc)
 
@@ -222,6 +240,9 @@ func runAPI(cfg config.Config) error {
 	v1 := app.Group("/api/v1")
 	v1.Get("/auth/beta/status", authH.BetaAccessStatus)
 	v1.Post("/auth/beta/unlock", authH.BetaUnlock)
+	v1.Post("/auth/beta/request-access", authH.BetaRequestAccess)
+	v1.Get("/auth/beta/approve-access", authH.BetaApproveAccess)
+	v1.Get("/auth/beta/open-invite", authH.BetaOpenInvite)
 	v1.Post("/auth/register", authH.Register)
 	v1.Post("/auth/login", authH.Login)
 	v1.Post("/auth/login/2fa", authH.Login2FA)

@@ -25,7 +25,10 @@ type fileServer struct {
 }
 
 type fileBeta struct {
-	AccessRequired *bool `toml:"access_required"`
+	AccessRequired      *bool  `toml:"access_required"`
+	AdminEmail          string `toml:"admin_email"`
+	PublicWebBaseURL    string `toml:"public_web_base_url"`
+	DiscordWebhookURL   string `toml:"discord_webhook_url"`
 }
 
 type fileDatabase struct {

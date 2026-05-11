@@ -14,7 +14,6 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/turnstile"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -25,9 +24,10 @@ type AuthHandler struct {
 	turnstileEnabled   bool
 	turnstileSecretKey string
 	betaAccessRequired bool
+	publicWebBaseURL   string
 }
 
-func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeSec int, turnstileEnabled bool, turnstileSecretKey string, betaAccessRequired bool) *AuthHandler {
+func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeSec int, turnstileEnabled bool, turnstileSecretKey string, betaAccessRequired bool, publicWebBaseURL string) *AuthHandler {
 	return &AuthHandler{
 		auth:               auth,
 		cookieSecure:       cookieSecure,
@@ -36,6 +36,7 @@ func NewAuthHandler(auth *service.AuthService, cookieSecure bool, sessionMaxAgeS
 		turnstileEnabled:   turnstileEnabled,
 		turnstileSecretKey: strings.TrimSpace(turnstileSecretKey),
 		betaAccessRequired: betaAccessRequired,
+		publicWebBaseURL:   strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/"),
 	}
 }
 
@@ -66,19 +67,19 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if err := h.verifyTurnstile(c, body.TurnstileToken); err != nil {
 		return err
 	}
-	var claimKeyID *uuid.UUID
+	var proof *service.BetaRegisterProof
 	if h.betaAccessRequired {
 		raw := c.Cookies(middleware.BetaUnlockCookieName)
 		if raw == "" {
 			return fiber.NewError(fiber.StatusForbidden, service.ErrBetaUnlockRequired.Error())
 		}
-		kid, err := h.auth.ParseBetaUnlockToken(raw)
+		bc, err := h.auth.ParseBetaUnlockCookie(raw)
 		if err != nil {
 			return fiber.NewError(fiber.StatusForbidden, service.ErrBetaUnlockRequired.Error())
 		}
-		claimKeyID = &kid
+		proof = &service.BetaRegisterProof{KeyID: bc.KeyID, InviteID: bc.InviteID}
 	}
-	u, raw, err := h.auth.Register(c.Context(), body.Email, body.Password, body.DisplayName, body.Username, claimKeyID)
+	u, raw, err := h.auth.Register(c.Context(), body.Email, body.Password, body.DisplayName, body.Username, proof)
 	if err != nil {
 		if errors.Is(err, repository.ErrUsernameTaken) {
 			return fiber.NewError(fiber.StatusConflict, "username already taken")
@@ -94,6 +95,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 		if errors.Is(err, service.ErrBetaKeyClaimInvalid) {
 			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		if errors.Is(err, service.ErrBetaInviteEmailMismatch) {
+			return fiber.NewError(fiber.StatusConflict, err.Error())
 		}
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -118,10 +122,90 @@ func (h *AuthHandler) BetaAccessStatus(c *fiber.Ctx) error {
 	if raw == "" {
 		return c.JSON(fiber.Map{"required": true, "unlocked": false})
 	}
-	if _, err := h.auth.ParseBetaUnlockToken(raw); err != nil {
+	if _, err := h.auth.ParseBetaUnlockCookie(raw); err != nil {
 		return c.JSON(fiber.Map{"required": true, "unlocked": false})
 	}
 	return c.JSON(fiber.Map{"required": true, "unlocked": true})
+}
+
+// BetaRequestAccessBody is the JSON body for POST /api/v1/auth/beta/request-access.
+type BetaRequestAccessBody struct {
+	Email          string `json:"email"`
+	TurnstileToken string `json:"turnstile_token"`
+}
+
+// BetaRequestAccess queues a beta invite for the given email and notifies the admin when mail is configured.
+// @Router /api/v1/auth/beta/request-access [post]
+func (h *AuthHandler) BetaRequestAccess(c *fiber.Ctx) error {
+	if !h.betaAccessRequired {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	var body BetaRequestAccessBody
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	if err := h.verifyTurnstile(c, body.TurnstileToken); err != nil {
+		return err
+	}
+	em, err := validation.Email(body.Email, "Email")
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if err := h.auth.RequestBetaAccess(c.Context(), em); err != nil {
+		if errors.Is(err, service.ErrInvalidEmail) {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{
+		"ok":      true,
+		"message": "If this address is eligible for the beta, you will hear from us by email.",
+	})
+}
+
+// BetaApproveAccess approves a pending request from the emailed admin link.
+// @Router /api/v1/auth/beta/approve-access [get]
+func (h *AuthHandler) BetaApproveAccess(c *fiber.Ctx) error {
+	if !h.betaAccessRequired {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	tok := strings.TrimSpace(c.Query("t"))
+	if tok == "" {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(betaAdminResultPage(false))
+	}
+	if err := h.auth.ApproveBetaAccessFromAdminToken(c.Context(), tok); err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(betaAdminResultPage(false))
+	}
+	return c.Type("html").SendString(betaAdminResultPage(true))
+}
+
+func betaAdminResultPage(ok bool) string {
+	if ok {
+		return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kurator beta</title></head><body style="font-family:system-ui,sans-serif;padding:2rem;line-height:1.5"><p>Access approved. The requester has been emailed a link to create their account.</p></body></html>`
+	}
+	return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kurator beta</title></head><body style="font-family:system-ui,sans-serif;padding:2rem;line-height:1.5"><p>This approval link is invalid or has already been used.</p></body></html>`
+}
+
+// BetaOpenInvite sets the beta unlock cookie and redirects to registration.
+// @Router /api/v1/auth/beta/open-invite [get]
+func (h *AuthHandler) BetaOpenInvite(c *fiber.Ctx) error {
+	if !h.betaAccessRequired {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	tok := strings.TrimSpace(c.Query("t"))
+	regURL := "/register"
+	if h.publicWebBaseURL != "" {
+		regURL = h.publicWebBaseURL + "/register"
+	}
+	if tok == "" {
+		return c.Redirect(regURL+"?beta_error=invite", fiber.StatusFound)
+	}
+	jwtVal, err := h.auth.OpenBetaInviteFromUserToken(c.Context(), tok)
+	if err != nil {
+		return c.Redirect(regURL+"?beta_error=invite", fiber.StatusFound)
+	}
+	h.setBetaUnlockCookie(c, jwtVal)
+	return c.Redirect(regURL, fiber.StatusFound)
 }
 
 // BetaUnlockBody is the JSON body for POST /api/v1/auth/beta/unlock.

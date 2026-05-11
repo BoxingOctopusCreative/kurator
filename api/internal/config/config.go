@@ -29,6 +29,12 @@ type Config struct {
 	ComicVineAPIKey      string
 	// BetaAccessRequired enforces POST /auth/beta/unlock (marks key claimed) before register; registration consumes the key row (env: BETA_ACCESS_REQUIRED, default false).
 	BetaAccessRequired bool
+	// BetaAdminEmail receives POST /auth/beta/request-access notifications via Mailgun (env: BETA_ADMIN_EMAIL). Used only when BetaDiscordWebhookURL is empty.
+	BetaAdminEmail string
+	// PublicWebBaseURL is the browser-facing app origin for beta invite links (no trailing slash), e.g. https://app.example.com (env: PUBLIC_WEB_BASE_URL). Falls back to the first CORS origin when empty.
+	PublicWebBaseURL string
+	// BetaDiscordWebhookURL is a Discord incoming webhook URL; when set, request-access notifications go there instead of BetaAdminEmail (env: BETA_DISCORD_WEBHOOK).
+	BetaDiscordWebhookURL string
 	// TurnstileEnabled opts in to Cloudflare Turnstile on POST /auth/login and /auth/register (env: CLOUDFLARE_TURNSTILE_ENABLED, default false).
 	TurnstileEnabled bool
 	// TurnstileSecretKey is required when TurnstileEnabled is true (env: CLOUDFLARE_TURNSTILE_SECRETKEY).
