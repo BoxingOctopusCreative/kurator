@@ -170,7 +170,7 @@ services:
       - traefik.http.middlewares.kurator-web.headers.STSPreload=true
 
   meilisearch:
-    image: getmeili/meilisearch:latest
+    image: getmeili/meilisearch:v1.42.1
     networks:
       shared-network:
         ipv4_address: 10.0.0.202
