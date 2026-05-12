@@ -33,7 +33,8 @@ type Config struct {
 	BetaAdminEmail string
 	// PublicWebBaseURL is the browser-facing app origin for beta invite links (no trailing slash), e.g. https://app.example.com (env: PUBLIC_WEB_BASE_URL). Falls back to the first CORS origin when empty.
 	PublicWebBaseURL string
-	// BetaDiscordWebhookURL is a Discord incoming webhook URL; when set, request-access notifications go there instead of BetaAdminEmail (env: BETA_DISCORD_WEBHOOK).
+	// BetaDiscordWebhookURL is a Discord incoming webhook URL; when set, request-access notifications go there instead of BetaAdminEmail.
+	// Env (first non-empty): BETA_DISCORD_WEBHOOK, KURATOR_BETA_DISCORD_WEBHOOK, BETA_DISCORD_WEBHOOK_URL; TOML [beta].discord_webhook_url.
 	BetaDiscordWebhookURL string
 	// TurnstileEnabled opts in to Cloudflare Turnstile on POST /auth/login and /auth/register (env: CLOUDFLARE_TURNSTILE_ENABLED, default false).
 	TurnstileEnabled bool

@@ -19,6 +19,22 @@ func mergeString(envKey, cli, file, def string) string {
 	return def
 }
 
+// mergeStringFirstEnv tries each env key in order, then cli, file, def (same semantics as mergeString but multiple env aliases).
+func mergeStringFirstEnv(envKeys []string, cli, file, def string) string {
+	for _, k := range envKeys {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	if strings.TrimSpace(cli) != "" {
+		return strings.TrimSpace(cli)
+	}
+	if strings.TrimSpace(file) != "" {
+		return strings.TrimSpace(file)
+	}
+	return def
+}
+
 func mergeStringSlice(envKey, cliCSV string, fileSlice []string, def []string) []string {
 	if v := strings.TrimSpace(os.Getenv(envKey)); v != "" {
 		return splitCSV(v)

@@ -138,8 +138,12 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 			fc.Beta.PublicWebBaseURL,
 			"",
 		),
-		BetaDiscordWebhookURL: mergeString(
-			"BETA_DISCORD_WEBHOOK",
+		BetaDiscordWebhookURL: mergeStringFirstEnv(
+			[]string{
+				"BETA_DISCORD_WEBHOOK",
+				"KURATOR_BETA_DISCORD_WEBHOOK",
+				"BETA_DISCORD_WEBHOOK_URL",
+			},
 			"",
 			fc.Beta.DiscordWebhookURL,
 			"",

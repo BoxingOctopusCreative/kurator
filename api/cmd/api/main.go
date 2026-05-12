@@ -201,7 +201,7 @@ func runAPI(cfg config.Config) error {
 		if strings.TrimSpace(cfg.BetaDiscordWebhookURL) != "" {
 			logStartup("beta", "access requests: Discord webhook configured")
 		} else {
-			logStartup("beta", "access requests: no Discord webhook (set BETA_DISCORD_WEBHOOK or [beta].discord_webhook_url; admin email used if Mailgun is set)")
+			logStartup("beta", betaDiscordWebhookStartupHint())
 		}
 	}
 	socialSvc := service.NewSocialService(userRepo, followRepo, activityFanout)
@@ -382,6 +382,33 @@ func connectPostgres(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	}
 	logStartup("postgres", "failed: "+last.Error())
 	return nil, fmt.Errorf("postgres unavailable: %w", last)
+}
+
+func betaDiscordWebhookStartupHint() string {
+	envKeys := []string{
+		"BETA_DISCORD_WEBHOOK",
+		"KURATOR_BETA_DISCORD_WEBHOOK",
+		"BETA_DISCORD_WEBHOOK_URL",
+	}
+	for _, k := range envKeys {
+		raw, set := os.LookupEnv(k)
+		if !set {
+			continue
+		}
+		if strings.TrimSpace(raw) == "" {
+			return fmt.Sprintf(
+				"access requests: %s is present but empty after trim (fix Portainer/Compose substitution or remove the empty override)",
+				k,
+			)
+		}
+		// Variable is set and non-empty after trim, but config did not pick it up — should not happen.
+		return fmt.Sprintf(
+			"access requests: %s is set in the environment but the loaded webhook URL is empty (report as a bug)",
+			k,
+		)
+	}
+	return "access requests: no Discord webhook URL loaded; set BETA_DISCORD_WEBHOOK (or KURATOR_BETA_DISCORD_WEBHOOK) " +
+		"on this API container's environment, or [beta].discord_webhook_url in config; stack-level env alone does not reach the container unless the service inherits it"
 }
 
 func logStartup(component, detail string) {

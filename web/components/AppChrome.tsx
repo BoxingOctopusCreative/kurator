@@ -216,7 +216,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
         <aside
           className={`flex h-full overflow-x-hidden border-r border-solid bg-kurator-surface transition-[border-right-width,border-right-color] duration-150 ease-out md:flex md:flex-col md:overflow-hidden md:py-6 ${
             sidebarRailHot
-              ? "border-r-[4px] border-kurator-accent/35"
+              ? "border-r-4 border-kurator-accent/35"
               : "border-r border-kurator-border"
           }`}
         >
