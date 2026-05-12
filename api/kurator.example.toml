@@ -25,12 +25,13 @@ session_max_age_seconds = 2592000
 cookie_secure = false
 
 # Private beta: set BETA_ACCESS_REQUIRED=true (or access_required below). Requires migrations through 033_beta_access_invites.
-# Request flow emails BETA_ADMIN_EMAIL (default below). Set public_web_base_url or PUBLIC_WEB_BASE_URL to your app origin
-# (e.g. https://app.example.com) so approve/invite links work. Mailgun must be configured for emails to send.
+# Set public_web_base_url or PUBLIC_WEB_BASE_URL to your app origin (e.g. https://app.example.com) so approve/invite links work.
+# Prefer discord_webhook_url or BETA_DISCORD_WEBHOOK for "request access" admin notifications. If unset, admin_email + Mailgun is used.
 [beta]
 access_required = false
 admin_email = "ryan.draga@boxingoctop.us"
 public_web_base_url = "http://localhost:3000"
+discord_webhook_url = ""
 
 # S3-compatible storage (MinIO, AWS S3, Cloudflare R2, etc.).
 # endpoint = S3 API URL for the server (e.g. R2 https://<id>.r2.cloudflarestorage.com or MinIO http://minio:9000).

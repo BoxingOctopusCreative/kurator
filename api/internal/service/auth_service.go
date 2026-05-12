@@ -1,14 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -25,21 +29,24 @@ import (
 
 const bcryptCost = 12
 
+// Outbound Discord webhook calls must not inherit the Fiber request context (it can cancel before POST finishes).
+var betaDiscordHTTPClient = &http.Client{Timeout: 25 * time.Second}
+
 const twoFAPendingTyp = "2fa_pending"
 const betaUnlockTyp = "beta_unlock"
 
 var (
-	ErrInvalidCredentials  = errors.New("invalid email or password")
-	ErrWeakPassword        = errors.New("password must be at least 8 characters")
-	ErrInvalidEmail        = errors.New("invalid email address")
-	ErrInvalidTOTP         = errors.New("invalid two-factor code")
-	ErrInvalidPending      = errors.New("invalid or expired login token")
-	ErrTwoFactorAlreadyOn  = errors.New("two-factor authentication is already enabled")
-	ErrUsernameImmutable   = errors.New("username cannot be changed")
-	ErrInvalidBetaKey      = errors.New("invalid beta access key")
-	ErrBetaKeyClaimed      = errors.New("beta access key already claimed")
-	ErrBetaUnlockRequired  = errors.New("complete beta access unlock before registering")
-	ErrBetaKeyClaimInvalid = errors.New("beta access key is invalid or no longer available")
+	ErrInvalidCredentials      = errors.New("invalid email or password")
+	ErrWeakPassword            = errors.New("password must be at least 8 characters")
+	ErrInvalidEmail            = errors.New("invalid email address")
+	ErrInvalidTOTP             = errors.New("invalid two-factor code")
+	ErrInvalidPending          = errors.New("invalid or expired login token")
+	ErrTwoFactorAlreadyOn      = errors.New("two-factor authentication is already enabled")
+	ErrUsernameImmutable       = errors.New("username cannot be changed")
+	ErrInvalidBetaKey          = errors.New("invalid beta access key")
+	ErrBetaKeyClaimed          = errors.New("beta access key already claimed")
+	ErrBetaUnlockRequired      = errors.New("complete beta access unlock before registering")
+	ErrBetaKeyClaimInvalid     = errors.New("beta access key is invalid or no longer available")
 	ErrBetaInviteEmailMismatch = errors.New("register using the same email address you requested beta access with")
 )
 
@@ -530,7 +537,9 @@ func (s *AuthService) RequestBetaAccess(ctx context.Context, requesterEmail stri
 	log.Printf("beta access request: invite queued for %q, approve_url=%s", em, approveURL)
 
 	if s.betaDiscordWebhookURL != "" {
-		s.sendDiscordWebhook(ctx, fmt.Sprintf(
+		whCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		s.sendDiscordWebhook(whCtx, fmt.Sprintf(
 			"**New Kurator beta access request**\nRequester: `%s`\nApprove: %s",
 			em, approveURL,
 		))
@@ -552,22 +561,51 @@ func (s *AuthService) sendDiscordWebhook(ctx context.Context, content string) {
 	if s.betaDiscordWebhookURL == "" {
 		return
 	}
-	payload := fmt.Sprintf(`{"content":%q}`, content)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.betaDiscordWebhookURL, strings.NewReader(payload))
+	if err := validateDiscordWebhookURL(s.betaDiscordWebhookURL); err != nil {
+		log.Printf("beta discord webhook: invalid webhook URL: %v", err)
+		return
+	}
+	body, err := json.Marshal(map[string]string{"content": content})
+	if err != nil {
+		log.Printf("beta discord webhook: marshal failed: %v", err)
+		return
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.betaDiscordWebhookURL, bytes.NewReader(body))
 	if err != nil {
 		log.Printf("beta discord webhook: build request failed: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("User-Agent", "Kurator-API/beta-access")
+	resp, err := betaDiscordHTTPClient.Do(req)
 	if err != nil {
 		log.Printf("beta discord webhook: send failed: %v", err)
 		return
 	}
 	defer resp.Body.Close()
+	snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Printf("beta discord webhook: unexpected status %d", resp.StatusCode)
+		log.Printf("beta discord webhook: status=%d body=%q", resp.StatusCode, strings.TrimSpace(string(snippet)))
+		return
 	}
+	log.Printf("beta discord webhook: delivered ok (status=%d)", resp.StatusCode)
+}
+
+func validateDiscordWebhookURL(raw string) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("must be an https URL")
+	}
+	host := strings.ToLower(u.Hostname())
+	switch host {
+	case "discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com":
+	default:
+		return fmt.Errorf("host %q is not a Discord webhook host", host)
+	}
+	if !strings.HasPrefix(u.Path, "/api/webhooks/") {
+		return fmt.Errorf("path must start with /api/webhooks/")
+	}
+	return nil
 }
 
 // ApproveBetaAccessFromAdminToken marks the request approved and emails the requester an unlock link.

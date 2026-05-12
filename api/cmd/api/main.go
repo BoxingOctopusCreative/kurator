@@ -197,6 +197,13 @@ func runAPI(cfg config.Config) error {
 		cfg.SessionMaxAge,
 		cfg.BetaAccessRequired,
 	)
+	if cfg.BetaAccessRequired {
+		if strings.TrimSpace(cfg.BetaDiscordWebhookURL) != "" {
+			logStartup("beta", "access requests: Discord webhook configured")
+		} else {
+			logStartup("beta", "access requests: no Discord webhook (set BETA_DISCORD_WEBHOOK or [beta].discord_webhook_url; admin email used if Mailgun is set)")
+		}
+	}
 	socialSvc := service.NewSocialService(userRepo, followRepo, activityFanout)
 
 	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc, activityFanout)
