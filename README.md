@@ -1,120 +1,100 @@
 # Kurator
 
-Kurator is a collection tracker with a **Go (Fiber) API**, **Next.js** web UI, **PostgreSQL**, **Meilisearch**, and **Nginx** (load-balanced Next.js replicas) in Docker.
+Kurator is a collection tracker: a **Go (Fiber) REST API**, a **Next.js** web app (App Router), **PostgreSQL**, **Meilisearch** for search, optional **S3-compatible** object storage for covers and assets, and optional **Valkey (Redis)** for a durable outbound notification queue. Production traffic is fronted by **Traefik** (TLS, routing); the repo also ships an **infra** Compose file for local dependencies.
 
 ---
 
 ## Prerequisites
 
-- **Docker** and **Docker Compose** (recommended for running everything), or
-- **Go 1.23+** and **Node.js 22+** if you prefer to run the API and web locally against your own Postgres/Meilisearch.
+- **Go** (see `api/go.mod` `go` directive; currently **1.25**)
+- **Node.js 22+** for the web app (see `web/package.json` engines if present)
+- **Podman** or **Docker** with Compose v2 for containers (this workspace assumes **Podman** for local validation; `docker compose` and `podman compose` are interchangeable for the examples below)
 
 ---
 
-## Run the full stack (Docker)
+## Repository layout
 
-From the repository root:
-
-```bash
-docker compose up --build -d
-```
-
-### What starts
-
-| Service        | Role |
-|----------------|------|
-| **postgres**   | Database; SQL migrations from `api/migrations` run on first data directory init. |
-| **meilisearch**| Search index. |
-| **kurator-api**| REST API on host **8080**. |
-| **kurator-web-1 / kurator-web-2** | Two Next.js replicas behind Nginx. |
-| **nginx**      | Front door for the UI on host **80**. |
-
-### URLs (defaults)
-
-- **Web UI:** [http://localhost](http://localhost) (port 80)
-- **API:** [http://localhost:8080](http://localhost:8080) (e.g. `GET /api/v1/items`)
-- **Postgres:** `localhost:5432` (user `kurator`, password `kurator`, database `kurator`)
-- **Meilisearch:** [http://localhost:7700](http://localhost:7700)
-
-The browser calls the API directly (`NEXT_PUBLIC_API_URL` defaults to `http://localhost:8080` at **build** time for the web image).
-
-### Useful environment variables
-
-Set these in the shell or a `.env` file next to `docker-compose.yml` before `docker compose up`:
-
-| Variable | Purpose |
-|----------|---------|
-| `AUTH_JWT_SECRET` | Secret for short-lived 2FA pending JWTs. **Change this in production.** |
-| `MEILI_MASTER_KEY` | Meilisearch master key (default `dev_master_key` in compose). |
-| `NEXT_PUBLIC_API_URL` | Base URL baked into the Next.js client (default `http://localhost:8080`). |
-| `SESSION_MAX_AGE_SECONDS` | Session cookie lifetime for the API (default 30 days). |
-| `COOKIE_SECURE` | Set to `true` when the site is served over HTTPS. |
-
-Stop and remove containers (keeps named volumes):
-
-```bash
-docker compose down
-```
-
-To reset the database volume as well, remove the volume named for this project (inspect with `docker volume ls`) or use `docker compose down -v` (this deletes Postgres and Meilisearch data).
+| Path | Role |
+|------|------|
+| `api/` | Go API (`cmd/api`), internal packages, SQL migrations, OpenAPI `docs/swagger.json`, `Makefile` |
+| `web/` | Next.js app (`app/`, `components/`, Vitest unit tests) |
+| `docker-compose.yml` | **Production-style** stack: prebuilt images from GHCR, **Traefik** labels, external `shared-network`, Meilisearch, Valkey, optional Swagger UI sidecar |
+| `infra/docker-compose.yml` | **Local dependencies**: Postgres, MinIO (+ bucket init), Meilisearch, Swagger UI, Valkey |
+| `infra/nginx/nginx.conf` | **Optional** reference config for load-balancing multiple Next replicas (not wired into `infra/docker-compose.yml` today) |
+| `Makefile` | Shortcuts: `api-build`, `api-test`, `web-test`, etc. |
 
 ---
 
-## Postgres only (infra compose)
+## How the web app talks to the API
 
-For a standalone Postgres with the same migrations (e.g. local API development):
-
-```bash
-docker compose -f infra/docker-compose.yml up -d
-```
-
-Uses a separate Compose project name and volume so it does not collide with the main stack by default. If both stacks publish **5432**, run only one or set `POSTGRES_PORT` for the infra file (see `infra/docker-compose.yml`).
+- In the **browser**, the client uses same-origin paths under **`/api/v1/...`**. Next.js proxies those to the real API (`web/app/api/v1/[[...path]]/route.ts`) so the **session cookie** stays on the web origin (important for production and for local dev on `http://localhost:3000`).
+- **Server-side** rendering and server actions resolve the upstream API with **`API_INTERNAL_URL`** (or **`API_PROXY_TARGET`**), then **`NEXT_PUBLIC_API_URL`** as fallback (see `web/lib/apiUrl.ts`).
 
 ---
 
-## Build and run locally (without full Docker UI stack)
+## Production stack (`docker-compose.yml` at repo root)
 
-### API
+This file targets a host that already has an **external** Docker network (here: `shared-network`) and **Traefik** with TLS (e.g. Let’s Encrypt). It runs:
 
-Requires Postgres (and Meilisearch if you use search features) reachable from your machine.
+| Service | Role |
+|---------|------|
+| **api** | REST API on port 8080 inside the network; routes like `api.kuratorapp.cc` via Traefik labels |
+| **web** | Next.js on port 3000; `kuratorapp.cc` via Traefik; `API_INTERNAL_URL` points at the API container |
+| **meilisearch** | Search index |
+| **valkey** | Redis-compatible store for the notify queue (beta / registration emails, retries) |
+| **swagger-ui** | Serves OpenAPI from a mounted `swagger.json` (e.g. `swagger.kuratorapp.cc`) |
+
+Images default to **`ghcr.io/boxingoctopuscreative/kurator-api`** and **`kurator-web`** tags (`:latest`). Supply secrets and integration keys via environment (see service `environment` blocks): `DATABASE_URL`, `AUTH_JWT_SECRET`, Meilisearch keys, S3, Mailgun, Sentry, Turnstile, LaunchDarkly client id, etc.
+
+---
+
+## Local development (dependencies in Compose, API + web on the host)
+
+### 1. Start backing services
+
+From the repository root (Podman shown; use `docker compose` if you prefer):
+
+```bash
+podman compose -f infra/docker-compose.yml up -d
+```
+
+This starts **Postgres** (port **5432** by default), **MinIO** (**9000**), **Meilisearch** (**7700**), **Valkey** (**6379**), **Swagger UI** (host port **8081** by default, `SWAGGER_UI_PORT`), and a one-shot **minio-init** that creates a `kurator-covers` bucket.
+
+Schema: start the API once (it applies bundled migrations on boot), or use `go run ./cmd/migrate` from `api/` with `DATABASE_URL` set.
+
+### 2. API
 
 ```bash
 cd api
 export DATABASE_URL='postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable'
 export MEILISEARCH_HOST='http://localhost:7700'
-export MEILISEARCH_API_KEY='dev_master_key'   # match Meilisearch if set
+export MEILISEARCH_API_KEY='dev_master_key'
+export MEILISEARCH_INDEX='kurator_items'
 export AUTH_JWT_SECRET='your-local-secret'
-./bin/kurator-api   # after building, see below
-```
-
-Or run directly with Go:
-
-```bash
-cd api
+export REDIS_URL='redis://localhost:6379/0'
+# Optional S3 (match MinIO from infra compose):
+# export S3_BUCKET=... S3_ENDPOINT=... S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... S3_PUBLIC_BASE_URL=...
 go run ./cmd/api
 ```
 
-Build binaries with **Make** (from repo root or `api/`):
-
-```bash
-make api-build              # native OS/arch -> api/bin/kurator-api
-make -C api build-all     # darwin amd64/arm64 + linux amd64/arm64 under api/bin/
-```
-
-See `make -C api help` for all API targets.
-
-### Web (Next.js)
+### 3. Web
 
 ```bash
 cd web
 npm ci
-export NEXT_PUBLIC_API_URL='http://localhost:8080'   # must match where the API is reachable from the browser
-npm run dev        # http://localhost:3000
-# or production build:
-npm run build && npm start
+export NEXT_PUBLIC_API_URL='http://127.0.0.1:8080'
+export API_INTERNAL_URL='http://127.0.0.1:8080'
+npm run dev
 ```
 
-Ensure `CORS_ORIGINS` on the API includes your UI origin (e.g. `http://localhost:3000`) if it differs from the Docker defaults.
+Open **http://localhost:3000**. Ensure the API **`CORS_ORIGINS`** includes the web origin if you ever call the API **directly** from the browser; with the default proxy pattern, same-origin `/api/v1` avoids that for same-site dev.
+
+### 4. Tests
+
+```bash
+make api-test    # go test ./... in api/
+make web-test    # npm test (Vitest) in web/
+```
 
 ---
 
@@ -122,25 +102,30 @@ Ensure `CORS_ORIGINS` on the API includes your UI origin (e.g. `http://localhost
 
 | Command | Description |
 |---------|-------------|
-| `make help` | Lists API-related shortcuts. |
-| `make api-build` | Build API for current platform. |
-| `make api-build-macos` | Cross-build for this Mac (Intel or Apple Silicon). |
-| `make api-build-linux` | Linux `amd64` and `arm64` binaries. |
-| `make api-build-all` | All four cross-compiled API binaries. |
-| `make api-test` | `go test ./...` in `api/`. |
-| `make api-clean` | Remove `api/bin/`. |
+| `make help` | Lists shortcuts |
+| `make api-build` | Build API for current platform → `api/bin/kurator-api` |
+| `make api-build-macos` / `api-build-linux` / `make api-build-all` | Cross-compilation helpers |
+| `make api-test` | Go tests in `api/` |
+| `make api-clean` | Remove `api/bin/` |
+| `make web-test` | Vitest in `web/` |
+
+See `make -C api help` for API-only targets (including `swagger` notes for OpenAPI / Swagger UI).
+
+---
+
+## OpenAPI / Swagger
+
+- Spec file: `api/docs/swagger.json`
+- Local UI with infra compose: **http://localhost:8081** (unless `SWAGGER_UI_PORT` overrides); compose mounts the repo’s `swagger.json`.
 
 ---
 
 ## First-time auth
 
-Register a user from the UI (**Register**) or call `POST /api/v1/auth/register`. Sessions use an HTTP-only cookie scoped to the API origin (`http://localhost:8080` in the default Docker layout).
+Register from the UI or `POST /api/v1/auth/register`. Signed-in sessions use an HTTP-only **`kurator_session`** cookie. With the Next.js proxy, that cookie is set for the **web** origin in normal use; JWTs are used for short-lived flows (e.g. pending 2FA), not as the primary session mechanism.
 
 ---
 
-## Project layout
+## Legacy Nginx sample
 
-- `api/` — Go API (`cmd/api`), migrations, `Makefile`
-- `web/` — Next.js 15 app
-- `infra/` — Nginx config, optional `infra/docker-compose.yml` for Postgres alone
-- `docker-compose.yml` — full application stack
+`infra/nginx/nginx.conf` is a sample upstream for **two** Next.js replicas (`kurator-web-1`, `kurator-web-2`). It is not referenced by the current `infra/docker-compose.yml`; keep it if you assemble a custom local or self-hosted stack.

@@ -1,150 +1,90 @@
 # Kurator Project Memory
 
 ## Overview
-Kurator is a comprehensive collection tracker application that allows users to catalog and organize various media collections including games, music, books, movies, TV shows, anime, comics, and manga. It features a full-stack architecture with a Go API backend and Next.js frontend.
+
+Kurator is a collection tracker: users catalog games, music, books, movies, TV, anime, comics, and manga with category-specific metadata, consumption status, lists, wishlists, and light social features (follows, activity). Stack: **Go Fiber API**, **Next.js** (App Router), **PostgreSQL**, **Meilisearch**, optional **S3** (covers, avatars, optional privacy policy object), **Valkey** for a durable notification queue, **Mailgun** for email, **Sentry**, **Cloudflare Turnstile**, **LaunchDarkly** (web client SDK).
 
 ## Architecture
-- **Backend**: Go API built with Fiber framework (v2.52.12)
-- **Frontend**: Next.js 15 with React 19, TypeScript, and Tailwind CSS
-- **Database**: PostgreSQL
-- **Search**: Meilisearch for fast text search
-- **Reverse Proxy**: Traefik (load-balanced with SSL termination)
-- **Deployment**: Docker containers with docker-compose orchestration
 
-## Project Structure
+| Layer | Details |
+|-------|---------|
+| **API** | Go 1.25, Fiber v2, Cobra CLI, pgx, bundled SQL migrations on startup, optional Meilisearch indexer, optional S3 image service |
+| **Web** | Next.js 16, React 19, TypeScript, Tailwind 4; Turbopack for `dev` / `build`; Vitest + Testing Library for unit tests |
+| **Browser → API** | Same-origin **`/api/v1/*`** proxied by Next (`web/app/api/v1/[[...path]]/route.ts`) so session cookies stay on the web origin; server code uses `API_INTERNAL_URL` / `NEXT_PUBLIC_API_URL` (`web/lib/apiUrl.ts`) |
+| **Production edge** | Root **`docker-compose.yml`**: Traefik labels on `api`, `web`, `swagger-ui`; external **`shared-network`**; GHCR images; Valkey + Meilisearch colocated |
+| **Local dependencies** | **`infra/docker-compose.yml`**: Postgres, MinIO (+ init job), Meilisearch, Swagger UI, Valkey (Compose project name `kurator-infra`) |
+| **Optional** | **`infra/nginx/nginx.conf`** — sample load balancer for two Next replicas; not wired into current infra compose |
+
+## Project structure (high level)
+
 ```
 kurator/
-├── api/                    # Go backend API
-│   ├── cmd/api/           # API entry point
-│   ├── internal/          # Internal packages
-│   │   ├── config/        # Configuration management
-│   │   ├── handler/       # HTTP request handlers
-│   │   ├── middleware/    # HTTP middleware
-│   │   ├── models/        # Data models
-│   │   ├── repository/    # Database access layer
-│   │   └── service/       # Business logic
-│   ├── migrations/        # Database migrations
-│   └── Dockerfile
-├── web/                   # Next.js frontend
-│   ├── app/              # App router pages
-│   ├── components/       # React components
-│   ├── lib/              # Utility functions
-│   └── Dockerfile
-├── infra/                 # Infrastructure configurations
-│   └── docker-compose.yml # PostgreSQL-only setup
-├── docker-compose.yml    # Full stack setup
-└── Makefile             # Build and development shortcuts
+├── api/
+│   ├── cmd/api/           # HTTP server entry
+│   ├── cmd/migrate/     # DATABASE_URL-only migrations
+│   ├── cmd/betakeygen/  # Private beta key CLI
+│   ├── internal/
+│   │   ├── config/, handler/, middleware/, migrate/
+│   │   ├── repository/, service/, validation/, mailgun/, notifyqueue/, …
+│   ├── migrations/       # SQL migrations (applied by API on boot)
+│   └── docs/swagger.json # OpenAPI 2.0
+├── web/
+│   ├── app/              # App Router, API proxy route
+│   ├── components/, lib/
+│   └── content/privacy-policy.md  # Source for /privacy (see web/lib/privacyPolicyMarkdown.ts)
+├── docker-compose.yml    # Production-oriented Traefik stack
+├── infra/docker-compose.yml
+└── Makefile              # api-* and web-test entrypoints
 ```
 
-## Key Features
-- **Multi-category Collection Tracking**: Games, music, books, movies, TV, anime, comics, manga
-- **Authentication & Authorization**: JWT-based auth with 2FA support
-- **Search & Discovery**: Meilisearch-powered search
-- **Public & Private Collections**: User-controlled visibility settings
-- **Social Features**: Follow users, view public profiles
-- **Barcode Scanning**: HTML5-based QR/barcode scanning
-- **External Metadata Integration**: TMDB, Discogs, TheGamesDB, Google Books, ComicVine
-- **Image Storage**: S3-compatible storage for covers and avatars
-- **Beta Access System**: Key-based beta access control
+## Auth and security
 
-## API Endpoints
-- Authentication: `/api/v1/auth/*` (login, register, 2FA)
-- Users: `/api/v1/users/*` (profiles, settings)
-- Collections: `/api/v1/collections/*` (CRUD operations)
-- Items: `/api/v1/items/*` (CRUD operations)
-- Lists & Wishlists: `/api/v1/lists/*`, `/api/v1/wishlists/*`
-- Search: `/api/v1/search/*`
-- Social: `/api/v1/follows/*`
+- **Sessions**: HTTP-only **`kurator_session`** cookie; opaque token stored hashed in **`sessions`** table (not “JWT as primary auth”).
+- **JWT**: Short-lived tokens for **pending 2FA** after password step; **beta unlock** cookie when beta gate is enabled (`AUTH_JWT_SECRET`).
+- Passwords: bcrypt; optional **TOTP** 2FA.
+- **Turnstile** on sensitive auth routes when enabled.
+- CORS, parameterized SQL, validation package, rate limits where configured.
 
-## Data Models
+## Major API surface (prefix `/api/v1`)
 
-### Item Model
-- Categories: game, music, book, movies, tv, anime, comic_book, manga
-- Consumption status: pending, done
-- Rating system: 1-5 stars
-- Metadata: Category-specific JSON data
+Auth (`/auth/*`, login/register/logout/2FA, password recovery, beta flows), **`/me`**, collections, items, lists, wishlists, search, metadata lookup, images, notifications, follows / social. Full list in `api/docs/swagger.json`.
 
-### User Model
-- Authentication via email/password
-- Profile information: username, display name, bio, location
-- Social links (JSON)
-- Privacy controls for profile visibility
-- 2FA support with TOTP
+## Data model notes
 
-### Collection Model
-- Name and description
-- Optional category pinning
-- Cover art support
-- Public/private visibility toggle
-- Item count tracking
+- **Item categories** include: `game`, `music`, `book`, `movies`, `tv`, `anime`, `comic_book`, `manga` (see code and migrations for canonical enums).
+- **Consumption**: `pending` | `done` with category-specific UI labels in `web/lib/consumptionLabels.ts`.
+- **Collections**: visibility, optional pinned category, cover art.
 
-## Development Workflow
+## Development commands
 
-### API Development
-```bash
-cd api
-go run ./cmd/api  # Run directly
-make build       # Build binary
-```
+- API: `cd api && go run ./cmd/api` or `make api-build` then `./bin/kurator-api`
+- Web: `cd web && npm run dev` (Turbopack)
+- Full dependency stack (local): `podman compose -f infra/docker-compose.yml up -d` (or `docker compose`)
+- Tests: `make api-test`, `make web-test`
 
-### Web Development
-```bash
-cd web
-npm run dev      # Development server
-npm run build    # Production build
-```
+## Deployment (production compose)
 
-### Full Stack (Docker)
-```bash
-docker compose up --build -d  # Full stack
-```
+- Services bind on an internal network; **Traefik** publishes **api.**, **www.** / apex web host, **swagger.** as configured in labels.
+- Managed Postgres (e.g. Aiven): `DATABASE_URL` with TLS; optional **`PGSSLROOTCERT`** volume for verify-full.
+- Meilisearch data volume **`kurator_meili_data`** on the production compose file.
 
-## Database Schema
-- Tables: users, collections, items, wishlists, lists, follows, beta_keys
-- Migrations: Located in `api/migrations/`
-- Foreign key relationships maintain data integrity
+## Monitoring
 
-## Security Considerations
-- JWT-based authentication with secure cookies
-- Password hashing with bcrypt
-- 2FA support using TOTP
-- CORS restrictions
-- SQL injection prevention (parameterized queries)
-- Input validation
-- Rate limiting on sensitive endpoints
-- Cloudflare Turnstile integration for bot protection
+- **Sentry** in API (Fiber) and web (Next SDK).
+- **`GET /health`** on the API.
 
-## Deployment Architecture
-- API service (Go) on port 8080
-- Web service (Next.js) on port 3000 (load-balanced by Traefik)
-- Meilisearch on port 7700
-- PostgreSQL on port 5432
-- Traefik as reverse proxy with SSL termination and routing
-- External domains: kuratorapp.cc, api.kuratorapp.cc, swagger.kuratorapp.cc
-- Static assets hosted on assets.kuratorapp.cc and userassets.kuratorapp.cc
+## UI conventions (for agents)
 
-## Monitoring and Error Handling
-- Sentry integration for error tracking
-- Health checks for all services
-- Logging throughout the application
-- Graceful error handling in API responses
-
-## UI design
-
-- Prefer **borderless icon actions** (icon + hover/focus surface) over **bordered icon buttons** except where a border is required for accessibility or very strong affordance (e.g. destructive emphasis may use color/background only, not a heavy chrome border).
-- **Modals and dialog overlays** must **not** darken or dim the full page behind them (`bg-black/*` scrims are not used). Use a **transparent** full-screen capture layer for outside-click dismiss and stack **drop shadows** on the panel (`shadow-dropdown` / layered shadows in `globals.css`) so the modal reads as a floating card above the page.
-
-## UI Copy
-- Page titles (`metadata.title`, document title template segments) and navigation/menu link text use **Title Case** (capitalize principal words; short prepositions/conjunctions like *to*, *with*, *and* stay lowercase when not the first word—e.g. “Back to Dashboard”, “Confirm with Authenticator”, “Log In”, “Forgot Password?”).
+- Prefer **borderless icon actions** over bordered icon buttons unless accessibility or strong affordance needs a border.
+- **Modals**: no full-page dark scrim; transparent capture layer; floating panel with `shadow-dropdown` / layered shadows (`globals.css`).
+- **Copy**: page titles and nav use **Title Case** (short words like *to*, *with*, *and* lowercase when not first word).
 
 ## Privacy policy
 
-- **`web/content/privacy-policy.md`** is the source copy for `/privacy`, rendered via ReactMarkdown and Tailwind Typography; production optionally loads from S3 (see `web/lib/privacyPolicyMarkdown.ts`).
-- **Whenever you change behaviour that affects privacy or data collection** (new integrations, telemetry, cookies, stored fields, third-party flows, etc.), update this markdown in the **same plain-language style** already used there: factual and clear for readers, avoiding implementation detail (specific vendors, SDK options, env var names in user-facing prose) unless the team explicitly wants that surfaced.
+- **`web/content/privacy-policy.md`** backs `/privacy` (ReactMarkdown + Tailwind Typography); production may load from S3 (`web/lib/privacyPolicyMarkdown.ts`). Update that markdown when user-visible data collection or integrations change.
 
-## Development Notes
-- API uses clean architecture with handlers, services, and repositories
-- Next.js uses App Router with server components where appropriate
-- Image optimization disabled for remote images to serve them directly
-- Authentication uses HTTP-only cookies for sessions
-- The application supports both local development and containerized deployment
+## Implementation notes
+
+- Handlers → services → repositories; Fiber middleware for auth and recovery.
+- Image optimization choices for remote covers as implemented in the web app.
+- **Notify queue**: Valkey-backed queue for outbound notifications (retries / DLQ pattern in `api/internal/notifyqueue`).
