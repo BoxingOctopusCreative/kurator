@@ -71,6 +71,11 @@ domain = ""
 from = ""
 api_base = ""
 
+# Optional Valkey/Redis: when url is set, beta/registration outbound notifications are queued and retried (see REDIS_URL).
+[redis]
+url = ""
+notify_queue_key = "kurator:notify:jobs"
+
 # Optional error monitoring (https://docs.sentry.io/platforms/go/guides/fiber/).
 # Prefer env SENTRY_DSN in production instead of committing a DSN here.
 [sentry]

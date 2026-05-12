@@ -49,4 +49,8 @@ type Config struct {
 	SentryDSN string
 	// SentryEnvironment is optional (e.g. production, staging); env: SENTRY_ENVIRONMENT.
 	SentryEnvironment string
+	// RedisURL enables Valkey/Redis-backed durable notification queue (env: REDIS_URL). Empty = synchronous delivery only.
+	RedisURL string
+	// RedisNotifyQueueKey is the Redis list key for outbound notification jobs (env: REDIS_NOTIFY_QUEUE_KEY).
+	RedisNotifyQueueKey string
 }

@@ -87,6 +87,18 @@ services:
       - ../api/docs/swagger.json:/mnt/swagger.json:ro
     restart: unless-stopped
 
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: kurator-infra-valkey
+    cpus: "0.25"
+    mem_limit: 256m
+    environment:
+      VALKEY_SAVE_INTERVAL: "60"
+      VALKEY_MAX_RETRIES: "1"
+    restart: unless-stopped
+    ports:
+      - "${VALKEY_PORT:-6379}:6379"
+
 volumes:
   kurator_infra_pg_data:
   kurator_infra_minio:

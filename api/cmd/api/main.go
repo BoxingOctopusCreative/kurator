@@ -23,6 +23,7 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/mailgun"
 	"github.com/boxingoctopus/kurator/api/internal/middleware"
 	"github.com/boxingoctopus/kurator/api/internal/migrate"
+	"github.com/boxingoctopus/kurator/api/internal/notifyqueue"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/getsentry/sentry-go"
@@ -161,6 +162,25 @@ func runAPI(cfg config.Config) error {
 	sessionRepo := repository.NewPostgresSessionRepository(pool)
 	recoveryRepo := repository.NewPostgresPasswordRecoveryRepository(pool)
 	mg := mailgun.New(cfg.MailgunAPIKey, cfg.MailgunDomain, cfg.MailgunFrom, cfg.MailgunAPIBase)
+	notifyClient, err := notifyqueue.New(cfg.RedisURL, cfg.RedisNotifyQueueKey, notifyqueue.Deps{
+		DiscordWebhookURL: cfg.BetaDiscordWebhookURL,
+		BetaAdminEmail:    cfg.BetaAdminEmail,
+		Mail:              mg,
+	})
+	if err != nil {
+		log.Fatalf("notifyqueue: %v", err)
+	}
+	defer func() { _ = notifyClient.Close() }()
+	notifyClient.Start(context.Background())
+	if notifyClient.RedisEnabled() {
+		qk := strings.TrimSpace(cfg.RedisNotifyQueueKey)
+		if qk == "" {
+			qk = "kurator:notify:jobs"
+		}
+		logStartup("redis", "notification queue enabled (list="+qk+")")
+	} else {
+		logStartup("redis", "skipped (set REDIS_URL for durable outbound notification retries)")
+	}
 	recoverySvc := service.NewPasswordRecoveryService(userRepo, sessionRepo, recoveryRepo, mg, cfg.AuthJWTSecret)
 	itemSvc := service.NewItemService(itemRepo, collRepo, indexer)
 	collSvc := service.NewCollectionService(collRepo, itemRepo, indexer)
@@ -189,13 +209,11 @@ func runAPI(cfg config.Config) error {
 		sessionRepo,
 		betaRepo,
 		betaInviteRepo,
-		mg,
-		cfg.BetaAdminEmail,
-		cfg.BetaDiscordWebhookURL,
 		publicWeb,
 		cfg.AuthJWTSecret,
 		cfg.SessionMaxAge,
 		cfg.BetaAccessRequired,
+		notifyClient,
 	)
 	if cfg.BetaAccessRequired {
 		if strings.TrimSpace(cfg.BetaDiscordWebhookURL) != "" {

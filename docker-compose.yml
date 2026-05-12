@@ -42,6 +42,9 @@ services:
       BETA_ACCESS_REQUIRED: $BETA_ACCESS_REQUIRED
       PUBLIC_WEB_BASE_URL: https://kuratorapp.cc
       BETA_DISCORD_WEBHOOK: $BETA_DISCORD_WEBHOOK
+      ## Valkey/Redis — optional durable queue for beta + registration outbound notifications (retries, dead-letter).
+      REDIS_URL: redis://10.0.0.204:6379/0
+      REDIS_NOTIFY_QUEUE_KEY: kurator:notify:jobs
       ## Mailgun
       MAILGUN_API_KEY: $MAILGUN_API_KEY
       MAILGUN_DOMAIN: $MAILGUN_DOMAIN
@@ -56,6 +59,8 @@ services:
     depends_on:
       meilisearch:
         condition: service_started
+      valkey:
+        condition: service_healthy
     # Alpine base: BusyBox nc + printf (no curl/wget in image). $$ is a literal $ for Compose.
     healthcheck:
       test:
@@ -85,6 +90,22 @@ services:
       - traefik.http.middlewares.kurator-api.headers.SSLHost=api.kuratorapp.cc
       - traefik.http.middlewares.kurator-api.headers.STSIncludeSubdomains=true
       - traefik.http.middlewares.kurator-api.headers.STSPreload=true
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    networks:
+      shared-network:
+        ipv4_address: 10.0.0.204
+    expose:
+      - "6379"
+    command: ["valkey-server", "--save", "60", "1", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
 
   web:
     image: ghcr.io/boxingoctopuscreative/kurator-web:latest

@@ -13,6 +13,7 @@ type fileConfig struct {
 	Turnstile   fileTurnstile   `toml:"turnstile"`
 	Mailgun     fileMailgun     `toml:"mailgun"`
 	Sentry      fileSentry      `toml:"sentry"`
+	Redis       fileRedis       `toml:"redis"`
 }
 
 type fileSentry struct {
@@ -25,10 +26,10 @@ type fileServer struct {
 }
 
 type fileBeta struct {
-	AccessRequired      *bool  `toml:"access_required"`
-	AdminEmail          string `toml:"admin_email"`
-	PublicWebBaseURL    string `toml:"public_web_base_url"`
-	DiscordWebhookURL   string `toml:"discord_webhook_url"`
+	AccessRequired    *bool  `toml:"access_required"`
+	AdminEmail        string `toml:"admin_email"`
+	PublicWebBaseURL  string `toml:"public_web_base_url"`
+	DiscordWebhookURL string `toml:"discord_webhook_url"`
 }
 
 type fileDatabase struct {
@@ -80,4 +81,9 @@ type fileMailgun struct {
 	Domain  string `toml:"domain"`
 	From    string `toml:"from"`
 	APIBase string `toml:"api_base"`
+}
+
+type fileRedis struct {
+	URL            string `toml:"url"`
+	NotifyQueueKey string `toml:"notify_queue_key"`
 }

@@ -1,23 +1,18 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
-	"github.com/boxingoctopus/kurator/api/internal/mailgun"
 	"github.com/boxingoctopus/kurator/api/internal/models"
+	"github.com/boxingoctopus/kurator/api/internal/notifyqueue"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/validation"
 	"github.com/golang-jwt/jwt/v5"
@@ -28,9 +23,6 @@ import (
 )
 
 const bcryptCost = 12
-
-// Outbound Discord webhook calls must not inherit the Fiber request context (it can cancel before POST finishes).
-var betaDiscordHTTPClient = &http.Client{Timeout: 25 * time.Second}
 
 const twoFAPendingTyp = "2fa_pending"
 const betaUnlockTyp = "beta_unlock"
@@ -74,18 +66,16 @@ type BetaRegisterProof struct {
 }
 
 type AuthService struct {
-	users                 repository.UserRepository
-	sessions              repository.SessionRepository
-	betaKeys              repository.BetaKeyRepository
-	betaInvites           repository.BetaAccessInviteRepository
-	mail                  *mailgun.Client
-	betaAdminEmail        string
-	betaDiscordWebhookURL string
-	publicWebBaseURL      string
-	pool                  *pgxpool.Pool
-	betaAccessRequired    bool
-	jwtSecret             []byte
-	sessionTTL            time.Duration
+	users              repository.UserRepository
+	sessions           repository.SessionRepository
+	betaKeys           repository.BetaKeyRepository
+	betaInvites        repository.BetaAccessInviteRepository
+	publicWebBaseURL   string
+	pool               *pgxpool.Pool
+	betaAccessRequired bool
+	jwtSecret          []byte
+	sessionTTL         time.Duration
+	notify             *notifyqueue.Client
 }
 
 func NewAuthService(
@@ -94,13 +84,11 @@ func NewAuthService(
 	sessions repository.SessionRepository,
 	betaKeys repository.BetaKeyRepository,
 	betaInvites repository.BetaAccessInviteRepository,
-	mail *mailgun.Client,
-	betaAdminEmail string,
-	betaDiscordWebhookURL string,
 	publicWebBaseURL string,
 	jwtSecret string,
 	sessionMaxAgeSeconds int,
 	betaAccessRequired bool,
+	notify *notifyqueue.Client,
 ) *AuthService {
 	if sessionMaxAgeSeconds < 300 {
 		sessionMaxAgeSeconds = 30 * 24 * 3600
@@ -109,18 +97,27 @@ func NewAuthService(
 		panic("NewAuthService: beta access requires non-nil pool, BetaKeyRepository, and BetaAccessInviteRepository")
 	}
 	return &AuthService{
-		users:                 users,
-		sessions:              sessions,
-		betaKeys:              betaKeys,
-		betaInvites:           betaInvites,
-		mail:                  mail,
-		betaAdminEmail:        strings.TrimSpace(betaAdminEmail),
-		betaDiscordWebhookURL: strings.TrimSpace(betaDiscordWebhookURL),
-		publicWebBaseURL:      strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/"),
-		pool:                  pool,
-		betaAccessRequired:    betaAccessRequired,
-		jwtSecret:             []byte(jwtSecret),
-		sessionTTL:            time.Duration(sessionMaxAgeSeconds) * time.Second,
+		users:              users,
+		sessions:           sessions,
+		betaKeys:           betaKeys,
+		betaInvites:        betaInvites,
+		publicWebBaseURL:   strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/"),
+		pool:               pool,
+		betaAccessRequired: betaAccessRequired,
+		jwtSecret:          []byte(jwtSecret),
+		sessionTTL:         time.Duration(sessionMaxAgeSeconds) * time.Second,
+		notify:             notify,
+	}
+}
+
+func (s *AuthService) notifyUserRegistered(_ context.Context, u *models.User) {
+	if s.notify == nil || u == nil {
+		return
+	}
+	bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.notify.EnqueueUserRegistered(bg, u.ID, u.Email); err != nil {
+		log.Printf("user_registered: enqueue failed: %v", err)
 	}
 }
 
@@ -254,6 +251,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	if err := s.sessions.Create(ctx, u.ID, h, exp); err != nil {
 		return nil, "", err
 	}
+	s.notifyUserRegistered(ctx, u)
 	return u, raw, nil
 }
 
@@ -331,6 +329,7 @@ func (s *AuthService) registerWithBetaPostUnlock(ctx context.Context, email, pas
 	if err := tx.Commit(ctx); err != nil {
 		return nil, "", err
 	}
+	s.notifyUserRegistered(ctx, u)
 	return u, rawTok, nil
 }
 
@@ -412,6 +411,7 @@ func (s *AuthService) registerWithBetaInvite(ctx context.Context, email, passwor
 	if err := tx.Commit(ctx); err != nil {
 		return nil, "", err
 	}
+	s.notifyUserRegistered(ctx, u)
 	return u, rawTok, nil
 }
 
@@ -536,74 +536,12 @@ func (s *AuthService) RequestBetaAccess(ctx context.Context, requesterEmail stri
 	approveURL := fmt.Sprintf("%s/api/v1/auth/beta/approve-access?t=%s", s.publicWebBaseURL, adminTok)
 	log.Printf("beta access request: invite queued for %q, approve_url=%s", em, approveURL)
 
-	if s.betaDiscordWebhookURL != "" {
-		whCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	if s.notify != nil {
+		bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		s.sendDiscordWebhook(whCtx, fmt.Sprintf(
-			"**New Kurator beta access request**\nRequester: `%s`\nApprove: %s",
-			em, approveURL,
-		))
-		return nil
-	}
-
-	if s.mail != nil && s.betaAdminEmail != "" {
-		subject := "Kurator private beta access request"
-		body := fmt.Sprintf("Someone requested access to the Kurator private beta.\n\nRequester email: %s\n\nTo approve:\n%s\n\nIgnore if unrecognised.\n", em, approveURL)
-		if err := s.mail.Send(ctx, s.betaAdminEmail, subject, body); err != nil {
-			log.Printf("beta access request: mailgun send failed to %q: %v", s.betaAdminEmail, err)
+		if err := s.notify.EnqueueBetaAccessRequest(bg, em, approveURL); err != nil {
+			log.Printf("beta access request: enqueue notification failed: %v", err)
 		}
-	}
-	return nil
-}
-
-// sendDiscordWebhook posts a plain content message to the configured Discord incoming webhook.
-func (s *AuthService) sendDiscordWebhook(ctx context.Context, content string) {
-	if s.betaDiscordWebhookURL == "" {
-		return
-	}
-	if err := validateDiscordWebhookURL(s.betaDiscordWebhookURL); err != nil {
-		log.Printf("beta discord webhook: invalid webhook URL: %v", err)
-		return
-	}
-	body, err := json.Marshal(map[string]string{"content": content})
-	if err != nil {
-		log.Printf("beta discord webhook: marshal failed: %v", err)
-		return
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.betaDiscordWebhookURL, bytes.NewReader(body))
-	if err != nil {
-		log.Printf("beta discord webhook: build request failed: %v", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Kurator-API/beta-access")
-	resp, err := betaDiscordHTTPClient.Do(req)
-	if err != nil {
-		log.Printf("beta discord webhook: send failed: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-	snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Printf("beta discord webhook: status=%d body=%q", resp.StatusCode, strings.TrimSpace(string(snippet)))
-		return
-	}
-	log.Printf("beta discord webhook: delivered ok (status=%d)", resp.StatusCode)
-}
-
-func validateDiscordWebhookURL(raw string) error {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme != "https" || u.Host == "" {
-		return fmt.Errorf("must be an https URL")
-	}
-	host := strings.ToLower(u.Hostname())
-	switch host {
-	case "discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com":
-	default:
-		return fmt.Errorf("host %q is not a Discord webhook host", host)
-	}
-	if !strings.HasPrefix(u.Path, "/api/webhooks/") {
-		return fmt.Errorf("path must start with /api/webhooks/")
 	}
 	return nil
 }
@@ -630,21 +568,16 @@ func (s *AuthService) ApproveBetaAccessFromAdminToken(ctx context.Context, admin
 	if err := s.betaInvites.ApprovePending(ctx, id, userHash, exp); err != nil {
 		return err
 	}
-	if s.mail == nil || s.publicWebBaseURL == "" {
+	if s.publicWebBaseURL == "" {
 		return nil
 	}
 	openURL := fmt.Sprintf("%s/api/v1/auth/beta/open-invite?t=%s", s.publicWebBaseURL, userTok)
-	subject := "You're approved for the Kurator private beta"
-	body := fmt.Sprintf(`Your request for Kurator private beta access was approved.
-
-Open this link in your browser to continue creating your account (it unlocks registration on this device):
-
-%s
-
-This link expires in 14 days. If you did not request access, you can ignore this email.
-`, openURL)
-	if err := s.mail.Send(ctx, requester, subject, body); err != nil {
-		log.Printf("beta access approve: mailgun send failed to %q: %v", requester, err)
+	if s.notify != nil {
+		bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.notify.EnqueueBetaAccessApproved(bg, requester, openURL); err != nil {
+			log.Printf("beta access approve: enqueue notification failed: %v", err)
+		}
 	}
 	return nil
 }

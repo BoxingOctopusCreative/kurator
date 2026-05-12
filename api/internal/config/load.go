@@ -196,6 +196,18 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 			fc.Sentry.Environment,
 			"",
 		),
+		RedisURL: mergeString(
+			"REDIS_URL",
+			"",
+			fc.Redis.URL,
+			"",
+		),
+		RedisNotifyQueueKey: mergeString(
+			"REDIS_NOTIFY_QUEUE_KEY",
+			"",
+			fc.Redis.NotifyQueueKey,
+			"kurator:notify:jobs",
+		),
 	}
 
 	return cfg, nil
