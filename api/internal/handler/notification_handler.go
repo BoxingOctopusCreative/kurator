@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
@@ -9,11 +10,18 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type NotificationHandler struct {
-	repo *repository.PostgresNotificationRepository
+type notificationRepository interface {
+	ListForUser(ctx context.Context, userID int64, limit, offset int) ([]models.NotificationFeedItem, error)
+	UnreadCount(ctx context.Context, userID int64) (int64, error)
+	MarkRead(ctx context.Context, notificationID int64, userID int64) error
+	MarkAllRead(ctx context.Context, userID int64) error
 }
 
-func NewNotificationHandler(repo *repository.PostgresNotificationRepository) *NotificationHandler {
+type NotificationHandler struct {
+	repo notificationRepository
+}
+
+func NewNotificationHandler(repo notificationRepository) *NotificationHandler {
 	return &NotificationHandler{repo: repo}
 }
 
@@ -39,6 +47,23 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(notificationsListResponse{Notifications: items, UnreadCount: unread})
+}
+
+type notificationUnreadCountResponse struct {
+	UnreadCount int64 `json:"unread_count"`
+}
+
+// UnreadCount returns only the unread in-app notification count (for lightweight polling).
+func (h *NotificationHandler) UnreadCount(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	n, err := h.repo.UnreadCount(c.Context(), uid)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(notificationUnreadCountResponse{UnreadCount: n})
 }
 
 func (h *NotificationHandler) MarkRead(c *fiber.Ctx) error {

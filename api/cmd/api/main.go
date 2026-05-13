@@ -285,6 +285,7 @@ func runAPI(cfg config.Config) error {
 	me := v1.Group("/me", requireAuth)
 	me.Get("/", authH.Me)
 	me.Patch("/", authH.PatchMe)
+	me.Get("/notifications/unread-count", notifH.UnreadCount)
 	me.Get("/notifications", notifH.List)
 	me.Patch("/notifications/:id/read", notifH.MarkRead)
 	me.Post("/notifications/read-all", notifH.MarkAllRead)

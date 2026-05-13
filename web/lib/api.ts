@@ -456,6 +456,22 @@ export type NotificationsListResponse = {
   unread_count: number;
 };
 
+/** Unread badge only; avoids loading notification rows. */
+export async function fetchNotificationUnreadCount(): Promise<number> {
+  const res = await fetch(apiUrl("/me/notifications/unread-count"), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("Sign in to view notifications.");
+  if (!res.ok) throw new Error(`notifications: ${res.status}`);
+  const data = (await res.json()) as { unread_count?: unknown };
+  const n = data.unread_count;
+  if (typeof n === "number" && Number.isFinite(n)) {
+    return Math.max(0, Math.trunc(n));
+  }
+  return 0;
+}
+
 export async function fetchNotifications(opts?: {
   limit?: number;
   offset?: number;

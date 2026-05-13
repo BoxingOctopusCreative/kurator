@@ -7,12 +7,86 @@ import { Bell } from "lucide-react";
 import {
   approveShelfAccessRequest,
   dismissShelfAccessRequest,
+  fetchNotificationUnreadCount,
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   publicLegalNameLine,
   type NotificationFeedItem,
 } from "@/lib/api";
+
+/** One poll + visibility/focus refresh for all instances (mobile + desktop each mount this component). */
+let sharedUnreadCached = 0;
+const sharedUnreadListeners = new Set<(n: number) => void>();
+let unreadPollRefCount = 0;
+let unreadPollTimer: ReturnType<typeof setInterval> | null = null;
+let lastThrottledUnreadFetch = 0;
+let unreadVisibilityHandler: (() => void) | null = null;
+
+function setSharedUnread(n: number) {
+  const v = Math.max(0, Math.trunc(Number(n)));
+  if (!Number.isFinite(v)) return;
+  sharedUnreadCached = v;
+  for (const l of sharedUnreadListeners) l(v);
+}
+
+function refreshSharedUnreadFromApi(): Promise<void> {
+  return fetchNotificationUnreadCount()
+    .then((n) => setSharedUnread(n))
+    .catch(() => {});
+}
+
+function throttledRefreshSharedUnread(minGapMs: number) {
+  const now = Date.now();
+  if (now - lastThrottledUnreadFetch < minGapMs) return;
+  lastThrottledUnreadFetch = now;
+  void refreshSharedUnreadFromApi();
+}
+
+function startSharedUnreadPolling() {
+  if (unreadPollTimer != null) return;
+  unreadPollTimer = setInterval(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    void refreshSharedUnreadFromApi();
+  }, 45_000);
+
+  unreadVisibilityHandler = () => {
+    if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+    throttledRefreshSharedUnread(2000);
+  };
+  document.addEventListener("visibilitychange", unreadVisibilityHandler);
+  window.addEventListener("focus", unreadVisibilityHandler);
+  void refreshSharedUnreadFromApi();
+}
+
+function stopSharedUnreadPolling() {
+  if (unreadPollTimer != null) {
+    clearInterval(unreadPollTimer);
+    unreadPollTimer = null;
+  }
+  if (unreadVisibilityHandler != null) {
+    document.removeEventListener("visibilitychange", unreadVisibilityHandler);
+    window.removeEventListener("focus", unreadVisibilityHandler);
+    unreadVisibilityHandler = null;
+  }
+}
+
+function subscribeSharedUnread(listener: (n: number) => void): () => void {
+  sharedUnreadListeners.add(listener);
+  listener(sharedUnreadCached);
+  unreadPollRefCount += 1;
+  if (unreadPollRefCount === 1) {
+    startSharedUnreadPolling();
+  }
+  return () => {
+    sharedUnreadListeners.delete(listener);
+    unreadPollRefCount -= 1;
+    if (unreadPollRefCount <= 0) {
+      unreadPollRefCount = 0;
+      stopSharedUnreadPolling();
+    }
+  };
+}
 
 function actorLabel(actor: NotificationFeedItem["actor"]): string {
   const legal = publicLegalNameLine(actor);
@@ -168,24 +242,27 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setLoading(true);
+    }
     setErr(null);
     try {
       const data = await fetchNotifications({ limit: 25 });
       setItems(data.notifications);
-      setUnread(data.unread_count);
+      setSharedUnread(data.unread_count);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load notifications.");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void fetchNotifications({ limit: 1 })
-      .then((d) => setUnread(d.unread_count))
-      .catch(() => {});
+    return subscribeSharedUnread(setUnread);
   }, []);
 
   useEffect(() => {
@@ -195,6 +272,15 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
   useEffect(() => {
     if (!open) return;
     void load();
+  }, [open, load]);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void load({ silent: true });
+    }, 30_000);
+    return () => clearInterval(id);
   }, [open, load]);
 
   useEffect(() => {
@@ -241,7 +327,7 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
         setItems((prev) =>
           prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)),
         );
-        setUnread((u) => Math.max(0, u - 1));
+        setSharedUnread(Math.max(0, sharedUnreadCached - 1));
       } catch {
         /* still navigate */
       }
@@ -253,7 +339,7 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
     try {
       await markAllNotificationsRead();
       setItems((prev) => prev.map((x) => ({ ...x, read: true })));
-      setUnread(0);
+      setSharedUnread(0);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not mark all read.");
     }
