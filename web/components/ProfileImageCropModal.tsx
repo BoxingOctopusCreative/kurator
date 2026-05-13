@@ -126,7 +126,7 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-kurator-border px-4 py-3">
-          <h2 id="crop-modal-title" className="text-base font-semibold text-kurator-fg">
+          <h2 id="crop-modal-title" className="kurator-panel-title text-kurator-fg">
             {title}
           </h2>
           <p className="mt-1 text-xs text-kurator-muted">{subtitle}</p>

@@ -21,6 +21,7 @@ type CollectionHandler struct {
 	items  *service.ItemService
 	coll   *repository.PostgresCollectionRepository
 	fanout *service.ActivityFanout
+	share  *service.ShelfShareService
 }
 
 func NewCollectionHandler(
@@ -29,8 +30,9 @@ func NewCollectionHandler(
 	items *service.ItemService,
 	coll *repository.PostgresCollectionRepository,
 	fanout *service.ActivityFanout,
+	share *service.ShelfShareService,
 ) *CollectionHandler {
-	return &CollectionHandler{svc: svc, auth: auth, items: items, coll: coll, fanout: fanout}
+	return &CollectionHandler{svc: svc, auth: auth, items: items, coll: coll, fanout: fanout, share: share}
 }
 
 func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID string) (int64, error) {
@@ -38,7 +40,7 @@ func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID str
 	if !ok || uid < 1 {
 		return 0, fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	ok, err := h.coll.UserMayMutateCollectionContent(c.Context(), collectionID, uid)
+	ok, err := h.coll.IsUserOwnedCollection(c.Context(), collectionID, uid)
 	if err != nil {
 		if errors.Is(err, repository.ErrCollectionNotFound) {
 			return 0, fiber.NewError(fiber.StatusNotFound, "not found")
@@ -212,6 +214,9 @@ type CreateCollectionBody struct {
 	IsPublic   *bool   `json:"is_public"`
 	// Category optionally pins this shelf to one item type (e.g. "movies"). Omit for a flex shelf until the first item pins it.
 	Category *models.Category `json:"category"`
+	// IsShared enables collaborators; invite_user_ids only applies when true.
+	IsShared        bool    `json:"is_shared"`
+	InviteUserIDs   []int64 `json:"invite_user_ids"`
 }
 
 // Create adds a collection for the signed-in user (requires session).
@@ -237,9 +242,17 @@ func (h *CollectionHandler) Create(c *fiber.Ctx) error {
 	if verr != nil {
 		return verr
 	}
-	col, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis, body.Category)
+	if len(body.InviteUserIDs) > 0 && !body.IsShared {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
+	}
+	col, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis, body.Category, body.IsShared)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.share != nil && body.IsShared && len(body.InviteUserIDs) > 0 {
+		if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindCollection, col.ID, body.InviteUserIDs); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
 	}
 	if h.fanout != nil {
 		h.fanout.NotifyCollectionCreated(c.Context(), uid, col.Visibility, col.ID, col.Name)
@@ -249,11 +262,13 @@ func (h *CollectionHandler) Create(c *fiber.Ctx) error {
 
 // PatchCollectionBody is the JSON body for PATCH /collections/:id.
 type PatchCollectionBody struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
-	Visibility  *string `json:"visibility"`
-	IsPublic    *bool   `json:"is_public"`
-	CoverArtURL *string `json:"cover_art_url"`
+	Name           *string `json:"name"`
+	Description    *string `json:"description"`
+	Visibility     *string `json:"visibility"`
+	IsPublic       *bool   `json:"is_public"`
+	CoverArtURL    *string `json:"cover_art_url"`
+	IsShared       *bool   `json:"is_shared"`
+	InviteUserIDs  []int64 `json:"invite_user_ids"`
 }
 
 // Patch updates a collection owned by the signed-in user.
@@ -274,12 +289,54 @@ func (h *CollectionHandler) Patch(c *fiber.Ctx) error {
 	if verr != nil {
 		return verr
 	}
-	col, err := h.svc.Patch(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL)
-	if errors.Is(err, repository.ErrCollectionNotFound) {
-		return fiber.NewError(fiber.StatusNotFound, "not found")
+	if len(body.InviteUserIDs) > 0 && body.IsShared != nil && !*body.IsShared {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
 	}
-	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+
+	hasMeta := body.Name != nil || body.Description != nil || vis != nil || body.CoverArtURL != nil || body.IsShared != nil
+	if !hasMeta && len(body.InviteUserIDs) == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "no changes")
+	}
+
+	var col *models.Collection
+	if hasMeta {
+		col, err = h.svc.Patch(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL, body.IsShared)
+		if errors.Is(err, repository.ErrCollectionNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "not found")
+		}
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+	} else {
+		okOwn, oerr := h.coll.IsUserOwnedCollection(c.Context(), id, uid)
+		if oerr != nil {
+			if errors.Is(oerr, repository.ErrCollectionNotFound) {
+				return fiber.NewError(fiber.StatusNotFound, "not found")
+			}
+			return fiber.NewError(fiber.StatusInternalServerError, oerr.Error())
+		}
+		if !okOwn {
+			return fiber.NewError(fiber.StatusNotFound, "not found")
+		}
+		v := uid
+		col, err = h.coll.GetByID(c.Context(), id, &v)
+		if errors.Is(err, repository.ErrCollectionNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, "not found")
+		}
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+	}
+
+	if len(body.InviteUserIDs) > 0 {
+		if !col.IsShared {
+			return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires a shared collection; set is_shared true")
+		}
+		if h.share != nil {
+			if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindCollection, col.ID, body.InviteUserIDs); err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			}
+		}
 	}
 	return c.JSON(col)
 }

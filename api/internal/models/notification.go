@@ -13,6 +13,7 @@ const (
 	NotificationKindItemAdded         = "item_added"
 	NotificationKindItemRated         = "item_rated"
 	NotificationKindNewFollower       = "new_follower"
+	NotificationKindShelfAccessRequest = "shelf_access_request"
 )
 
 // NotificationFeedItem is one row for GET /me/notifications.

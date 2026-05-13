@@ -1,6 +1,6 @@
 /** Core UI fonts — always selectable. */
 export const FONT_FAMILIES_BASE = [
-  { value: "default", label: "Kurator (Cabin)" },
+  { value: "default", label: "Kurator (Futura PT)" },
   { value: "sans", label: "System sans-serif" },
   { value: "serif", label: "Serif (Georgia / Times stack)" },
   { value: "mono", label: "Monospace / fixed width" },

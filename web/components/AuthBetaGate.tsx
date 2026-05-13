@@ -120,7 +120,7 @@ export function AuthBetaGate({ children, turnstileEnabled = false, turnstileSite
             priority
           />
         </div>
-        <h2 className="text-xl font-semibold text-kurator-fg">Private beta</h2>
+        <h2 className="kurator-panel-title text-kurator-fg">Private beta</h2>
         <p className="mt-1 text-sm text-kurator-muted">
           Enter the email you would like to use for your account. We will notify the team; if your request is approved,
           you will receive a link to continue registration at that address.

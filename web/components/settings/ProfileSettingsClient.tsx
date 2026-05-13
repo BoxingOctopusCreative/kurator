@@ -417,7 +417,7 @@ export function ProfileSettingsClient() {
         onSubmit={onSaveProfile}
         className="space-y-4 rounded-xl border border-kurator-border bg-kurator-surface p-6 sm:p-8"
       >
-        <h2 className="text-sm font-medium text-kurator-fg">Public Profile</h2>
+        <h2 className="kurator-panel-title text-kurator-fg">Public Profile</h2>
         <label className="block text-sm">
           <span className="text-kurator-muted">Display name</span>
           <input

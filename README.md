@@ -96,6 +96,20 @@ make api-test    # go test ./... in api/
 make web-test    # npm test (Vitest) in web/
 ```
 
+**API:** Go tests colocated as `*_test.go` under `api/internal/...` (and similar). **Web:** Vitest + Testing Library, `**/*.{test,spec}.{ts,tsx}`, `web/vitest.config.ts` and `vitest.setup.ts`. CI runs the same commands with `go test -count=1` and `npm ci && npm test` (see `.github/workflows/ci-release.yml`).
+
+---
+
+## GitHub Actions
+
+| Workflow | When it runs | Purpose |
+|----------|----------------|----------|
+| **`ci-release.yml`** | PRs, pushes to `main`, manual | Skip if latest commit is `CI:` or `INFO:`; **unit tests** (Go + Node 22 web); on **`main`** after tests: SemVer **tag + release**, API cross-build artifacts, optional **S3** upload of `web/content/privacy-policy.md`, **GHCR** images for `api` and `web` |
+| **`snyk.yml`** | PR, `main`, weekly, manual | Same skip rule; **fork PRs** skip Snyk; **`snyk test`** in `api/` and `web/`, **`snyk code test`**, **`snyk monitor`** on `main` pushes |
+| **`portainer-redeploy-on-release.yml`** | GitHub **Release published** | Skip by tag commit prefix; **Portainer** stack redeploy via API; optional **Discord** webhook |
+
+Details and conventions (concurrency, secrets, build-args) are summarized in **`.cursor/rules/web-app-stack-standard.mdc`**.
+
 ---
 
 ## Makefile shortcuts (repo root)
@@ -129,3 +143,9 @@ Register from the UI or `POST /api/v1/auth/register`. Signed-in sessions use an 
 ## Legacy Nginx sample
 
 `infra/nginx/nginx.conf` is a sample upstream for **two** Next.js replicas (`kurator-web-1`, `kurator-web-2`). It is not referenced by the current `infra/docker-compose.yml`; keep it if you assemble a custom local or self-hosted stack.
+
+---
+
+## Engineering standard (stack + integrations)
+
+Team and agent defaults for architecture, third-party wiring (S3, Turnstile, Sentry, LaunchDarkly), **testing** (Go + Vitest), and **GitHub Actions** live in **`.cursor/rules/web-app-stack-standard.mdc`**. Copy that file into other repos’ `.cursor/rules/` if you want the same standard elsewhere.

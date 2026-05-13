@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import {
+  approveShelfAccessRequest,
+  dismissShelfAccessRequest,
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -22,6 +24,16 @@ function actorLabel(actor: NotificationFeedItem["actor"]): string {
 function payloadStr(p: Record<string, unknown>, key: string): string {
   const v = p[key];
   return typeof v === "string" ? v : "";
+}
+
+function payloadNum(p: Record<string, unknown>, key: string): number | null {
+  const v = p[key];
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 function notificationHref(n: NotificationFeedItem): string | null {
@@ -48,6 +60,8 @@ function notificationHref(n: NotificationFeedItem): string | null {
       const u = n.actor.username?.trim();
       return u ? `/people/${encodeURIComponent(u)}` : null;
     }
+    case "shelf_access_request":
+      return null;
     default:
       return null;
   }
@@ -83,6 +97,15 @@ function notificationSummary(n: NotificationFeedItem): string {
     }
     case "new_follower":
       return `${who} started following you.`;
+    case "shelf_access_request": {
+      const flow = payloadStr(p, "flow");
+      const shelf = payloadStr(p, "shelf_name");
+      const label = shelf ? `“${shelf}”` : "a shelf";
+      if (flow === "invite") {
+        return `${who} invited you to collaborate on ${label}.`;
+      }
+      return `${who} asked to join ${label}.`;
+    }
     default:
       return `${who} did something in Kurator.`;
   }
@@ -236,6 +259,32 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
     }
   }
 
+  async function onShelfApprove(notificationId: number, requestId: number) {
+    setErr(null);
+    try {
+      await approveShelfAccessRequest(requestId);
+      if (items.find((x) => x.id === notificationId && !x.read)) {
+        await markNotificationRead(notificationId);
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not approve request.");
+    }
+  }
+
+  async function onShelfDismiss(notificationId: number, requestId: number) {
+    setErr(null);
+    try {
+      await dismissShelfAccessRequest(requestId);
+      if (items.find((x) => x.id === notificationId && !x.read)) {
+        await markNotificationRead(notificationId);
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not dismiss request.");
+    }
+  }
+
   const panel =
     open && placement ? (
       <div
@@ -302,6 +351,36 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
                     </span>
                   </span>
                 );
+
+                if (n.kind === "shelf_access_request") {
+                  const reqId = payloadNum(n.payload, "request_id");
+                  return (
+                    <li key={n.id}>
+                      <div className="px-3 py-2.5" role="group" aria-label="Shelf sharing request">
+                        {inner}
+                        {reqId != null ? (
+                          <div className="mt-2 flex flex-wrap gap-2 pl-10">
+                            <button
+                              type="button"
+                              className="rounded-lg bg-kurator-accent px-2.5 py-1 text-xs font-medium text-kurator-onAccent hover:opacity-90"
+                              onClick={() => void onShelfApprove(n.id, reqId)}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-kurator-border px-2.5 py-1 text-xs text-kurator-muted hover:bg-kurator-border/30"
+                              onClick={() => void onShelfDismiss(n.id, reqId)}
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                }
+
                 return (
                   <li key={n.id}>
                     {href ? (

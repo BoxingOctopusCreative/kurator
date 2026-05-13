@@ -7,7 +7,9 @@ import {
   createWishlist,
   DEFAULT_VISIBILITY,
   fetchCollections,
+  fetchMyFriends,
   fetchWishlists,
+  type PublicUser,
   type Visibility,
   visibilityOf,
   type Wishlist,
@@ -38,6 +40,10 @@ export function WishlistsBrowser() {
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
   const [deleteSubject, setDeleteSubject] = useState<EntryDeleteSubject | null>(null);
+  const [newIsShared, setNewIsShared] = useState(false);
+  const [friends, setFriends] = useState<PublicUser[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [inviteFriendIds, setInviteFriendIds] = useState<Set<number>>(() => new Set());
 
   function reload() {
     setLoading(true);
@@ -66,6 +72,28 @@ export function WishlistsBrowser() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user || !newIsShared) {
+      setFriends([]);
+      return;
+    }
+    let cancelled = false;
+    setFriendsLoading(true);
+    fetchMyFriends({ limit: 200 })
+      .then((r) => {
+        if (!cancelled) setFriends(r.items);
+      })
+      .catch(() => {
+        if (!cancelled) setFriends([]);
+      })
+      .finally(() => {
+        if (!cancelled) setFriendsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, newIsShared]);
+
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setFormMsg(null);
@@ -82,11 +110,16 @@ export function WishlistsBrowser() {
         target_collection_id: targetCol.trim() === "" ? undefined : targetCol.trim(),
         visibility: newVisibility,
         is_public: newVisibility !== "private",
+        is_shared: newIsShared ? true : undefined,
+        invite_user_ids:
+          newIsShared && inviteFriendIds.size > 0 ? Array.from(inviteFriendIds) : undefined,
       });
       setNewName("");
       setNewDesc("");
       setTargetCol("");
       setNewVisibility(DEFAULT_VISIBILITY);
+      setNewIsShared(false);
+      setInviteFriendIds(new Set());
       setFormMsg("Wishlist created.");
       reload();
     } catch (err) {
@@ -128,7 +161,7 @@ export function WishlistsBrowser() {
         onSubmit={onCreate}
         className="mb-10 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:p-6"
       >
-        <h2 className="text-sm font-medium text-kurator-fg">New Wishlist</h2>
+        <h2 className="kurator-panel-title text-kurator-fg">New Wishlist</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="block text-sm">
             <span className="text-kurator-muted">Name</span>
@@ -188,6 +221,60 @@ export function WishlistsBrowser() {
               onChange={setNewVisibility}
             />
           </div>
+          {user ? (
+            <div className="md:col-span-2 space-y-3 rounded-lg border border-kurator-border/70 bg-kurator-bg/30 p-3">
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={newIsShared}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    setNewIsShared(v);
+                    if (!v) setInviteFriendIds(new Set());
+                  }}
+                />
+                <span>
+                  <span className="font-medium">Shared wishlist</span>
+                  <span className="mt-0.5 block text-xs text-kurator-muted">
+                    Collaborators can add or remove wished items. Others can request to join from the wishlist page.
+                  </span>
+                </span>
+              </label>
+              {newIsShared ? (
+                <div>
+                  <p className="text-xs font-medium text-kurator-muted">Invite mutual friends (optional)</p>
+                  {friendsLoading ? (
+                    <p className="mt-2 text-xs text-kurator-muted">Loading friends…</p>
+                  ) : friends.length === 0 ? (
+                    <p className="mt-2 text-xs text-kurator-muted">No mutual friends to show.</p>
+                  ) : (
+                    <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
+                      {friends.map((f) => (
+                        <li key={f.id}>
+                          <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
+                            <input
+                              type="checkbox"
+                              checked={inviteFriendIds.has(f.id)}
+                              onChange={() => {
+                                setInviteFriendIds((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(f.id)) n.delete(f.id);
+                                  else n.add(f.id);
+                                  return n;
+                                });
+                              }}
+                            />
+                            @{f.username}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
@@ -249,7 +336,7 @@ export function WishlistsBrowser() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h2 className="font-medium text-kurator-fg">{w.name}</h2>
+                      <h2 className="kurator-shelf-tile-title font-medium text-kurator-fg">{w.name}</h2>
                       <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-kurator-muted">
                         <span>
                           {w.entry_count} {w.entry_count === 1 ? "item" : "items"} wished

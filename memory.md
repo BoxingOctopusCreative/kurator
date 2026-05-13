@@ -1,5 +1,9 @@
 # Kurator Project Memory
 
+## Default web stack (org standard)
+
+Reusable conventions for this and future web + API apps live in **`.cursor/rules/web-app-stack-standard.mdc`** (always-on in Cursor): core split (API + Next.js), same-origin session proxy, integration boundaries (**S3**, **Turnstile**, **Sentry**, **LaunchDarkly**), **testing suites** (Go + Vitest), and **GitHub Actions** patterns (`ci-release`, `snyk`, Portainer redeploy).
+
 ## Overview
 
 Kurator is a collection tracker: users catalog games, music, books, movies, TV, anime, comics, and manga with category-specific metadata, consumption status, lists, wishlists, and light social features (follows, activity). Stack: **Go Fiber API**, **Next.js** (App Router), **PostgreSQL**, **Meilisearch**, optional **S3** (covers, avatars, optional privacy policy object), **Valkey** for a durable notification queue, **Mailgun** for email, **Sentry**, **Cloudflare Turnstile**, **LaunchDarkly** (web client SDK).
@@ -60,7 +64,7 @@ Auth (`/auth/*`, login/register/logout/2FA, password recovery, beta flows), **`/
 - API: `cd api && go run ./cmd/api` or `make api-build` then `./bin/kurator-api`
 - Web: `cd web && npm run dev` (Turbopack)
 - Full dependency stack (local): `podman compose -f infra/docker-compose.yml up -d` (or `docker compose`)
-- Tests: `make api-test`, `make web-test`
+- Tests: `make api-test` (`go test ./...` in `api/`), `make web-test` (`vitest run` in `web/`); CI uses `go test ./... -count=1` and `npm ci && npm test` (`.github/workflows/ci-release.yml`)
 
 ## Deployment (production compose)
 

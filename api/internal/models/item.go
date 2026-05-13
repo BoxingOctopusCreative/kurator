@@ -78,6 +78,8 @@ type Collection struct {
 	Visibility Visibility `json:"visibility"`
 	// IsPublic is kept for backward compatibility with older clients; derived from Visibility.
 	IsPublic  bool      `json:"is_public"`
+	// IsShared enables explicit members and join/invite flows (see shelf_members).
+	IsShared  bool      `json:"is_shared"`
 	ItemCount int64     `json:"item_count"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

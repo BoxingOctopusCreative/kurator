@@ -56,6 +56,22 @@ func (r *PostgresFollowRepository) IsFollowing(ctx context.Context, followerID, 
 	return ok, nil
 }
 
+// AreMutualFollowers reports whether each user follows the other (friends in Kurator terms).
+func (r *PostgresFollowRepository) AreMutualFollowers(ctx context.Context, a, b int64) (bool, error) {
+	if a < 1 || b < 1 || a == b {
+		return false, nil
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM user_follows WHERE follower_id = $1 AND following_id = $2)
+		   AND EXISTS (SELECT 1 FROM user_follows WHERE follower_id = $2 AND following_id = $1)
+	`, a, b).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("mutual followers: %w", err)
+	}
+	return ok, nil
+}
+
 func (r *PostgresFollowRepository) FollowerCount(ctx context.Context, userID int64) (int64, error) {
 	var n int64
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_follows WHERE following_id = $1`, userID).Scan(&n)

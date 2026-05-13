@@ -1,11 +1,19 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { apiUrl } from "@/lib/apiUrl";
 import {
-  fetchPublicCollectionsSnapshot,
+  fetchProfileOwnerCollections,
+  fetchProfileOwnerLists,
+  fetchProfileOwnerWishlists,
   fetchPublicUserProfile,
   type UserProfile,
 } from "@/lib/api";
+import {
+  filterCollectionListForUserProfile,
+  filterListsForUserProfile,
+  filterWishlistsForUserProfile,
+} from "@/lib/profilePublicShelves";
 import { normalizeProfileUrlSegment } from "@/lib/validation";
 import { UserProfileClient } from "./UserProfileClient";
 
@@ -28,7 +36,7 @@ export async function generateMetadata({
     const title = p.display_name?.trim() || p.username || "Profile";
     const desc =
       (p.bio && p.bio.trim().slice(0, 160)) ||
-      `Public collections and profile on Kurator (@${p.username}).`;
+      `Profile on Kurator (@${p.username}).`;
     const ogImages: string[] = [];
     if (p.banner_url) ogImages.push(p.banner_url);
     if (p.avatar_url) ogImages.push(p.avatar_url);
@@ -67,8 +75,25 @@ export default async function UserProfilePage({
   if (!profile) {
     notFound();
   }
-  const collections = await fetchPublicCollectionsSnapshot(profile.id);
+  const cookieStore = await cookies();
+  const cookieParts = cookieStore.getAll();
+  const cookieHeader =
+    cookieParts.length > 0 ? cookieParts.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
+  const [rawCollections, rawLists, rawWishlists] = await Promise.all([
+    fetchProfileOwnerCollections(profile.id, { cookieHeader }),
+    fetchProfileOwnerLists(profile.id, { cookieHeader }),
+    fetchProfileOwnerWishlists(profile.id, { cookieHeader }),
+  ]);
+  const collections = filterCollectionListForUserProfile(rawCollections, profile.id);
+  const lists = filterListsForUserProfile(rawLists, profile.id);
+  const wishlists = filterWishlistsForUserProfile(rawWishlists, profile.id);
   return (
-    <UserProfileClient userRef={ref} initialProfile={profile} initialCollections={collections} />
+    <UserProfileClient
+      userRef={ref}
+      initialProfile={profile}
+      initialCollections={collections}
+      initialLists={lists}
+      initialWishlists={wishlists}
+    />
   );
 }

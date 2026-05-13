@@ -2,26 +2,49 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Layers } from "lucide-react";
-import type { CollectionListResponse, UserProfile } from "@/lib/api";
-import { fetchUserProfile, followUser, unfollowUser, publicLegalNameLine } from "@/lib/api";
+import { Heart, Layers, ListOrdered } from "lucide-react";
+import type { CollectionListResponse, List, UserProfile, Wishlist } from "@/lib/api";
+import {
+  fetchProfileOwnerCollections,
+  fetchProfileOwnerLists,
+  fetchProfileOwnerWishlists,
+  fetchUserProfile,
+  followUser,
+  unfollowUser,
+  publicLegalNameLine,
+} from "@/lib/api";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { FollowListDialog } from "@/components/FollowListDialog";
 import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
 import { socialPlatformDisplayName } from "@/lib/socialPlatforms";
 import { safeHttpUrl, safeImageSrcUrl } from "@/lib/safeUrl";
+import {
+  filterCollectionListForUserProfile,
+  filterListsForUserProfile,
+  filterWishlistsForUserProfile,
+} from "@/lib/profilePublicShelves";
 import { useAuth } from "@/components/AuthProvider";
 
 type Props = {
   userRef: string;
   initialProfile: UserProfile;
   initialCollections: CollectionListResponse;
+  initialLists: List[];
+  initialWishlists: Wishlist[];
 };
 
-export function UserProfileClient({ userRef, initialProfile, initialCollections }: Props) {
+export function UserProfileClient({
+  userRef,
+  initialProfile,
+  initialCollections,
+  initialLists,
+  initialWishlists,
+}: Props) {
   const { user } = useAuth();
   const [profile, setProfile] = useState(initialProfile);
   const [collections, setCollections] = useState(initialCollections);
+  const [lists, setLists] = useState(initialLists);
+  const [wishlists, setWishlists] = useState(initialWishlists);
   const [error, setError] = useState<string | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
   const [followListOpen, setFollowListOpen] = useState<"followers" | "following" | null>(null);
@@ -29,8 +52,32 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
   useEffect(() => {
     setProfile(initialProfile);
     setCollections(initialCollections);
+    setLists(initialLists);
+    setWishlists(initialWishlists);
     setError(null);
-  }, [userRef, initialProfile, initialCollections]);
+  }, [userRef, initialProfile, initialCollections, initialLists, initialWishlists]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      fetchProfileOwnerCollections(profile.id),
+      fetchProfileOwnerLists(profile.id),
+      fetchProfileOwnerWishlists(profile.id),
+    ])
+      .then(([c, ls, wl]) => {
+        if (!cancelled) {
+          setCollections(filterCollectionListForUserProfile(c, profile.id));
+          setLists(filterListsForUserProfile(ls, profile.id));
+          setWishlists(filterWishlistsForUserProfile(wl, profile.id));
+        }
+      })
+      .catch(() => {
+        /* keep prior snapshot */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.id, user?.id]);
 
   useEffect(() => {
     if (!user || user.id === profile.id) return;
@@ -73,7 +120,6 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
     }
   }
 
-  const bannerSrc = safeImageSrcUrl(profile.banner_url);
   const avatarSrc = safeImageSrcUrl(profile.avatar_url);
 
   const profileHeaderInner = (
@@ -165,7 +211,7 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
   );
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-7xl min-w-0">
       <FollowListDialog
         variant={followListOpen}
         userRef={userRef}
@@ -181,40 +227,90 @@ export function UserProfileClient({ userRef, initialProfile, initialCollections 
       )}
 
       <>
-        {bannerSrc ? (
-          <div className="relative -mx-1 mb-6 h-40 overflow-hidden rounded-xl shadow-surface border border-kurator-border bg-kurator-border/40 sm:mx-0 sm:h-48">
-            {/* eslint-disable-next-line @next/next/no-img-element -- remote S3/CDN */}
-            <img src={bannerSrc} alt="" className="h-full w-full object-cover" />
-          </div>
-        ) : null}
-
-        {bannerSrc ? (
-          <header className="mb-8 border-b border-kurator-border pb-6">{profileHeaderInner}</header>
-        ) : (
-          <PageHeroUnsplash bleedToMainTop={false}>
-            <header className="border-b border-kurator-border pb-6">{profileHeaderInner}</header>
+        <header className="mb-8">
+          <PageHeroUnsplash
+            bleedBottomMargin={false}
+            customBackgroundUrl={(profile.banner_url ?? "").trim() || null}
+          >
+            <div className="pb-6">{profileHeaderInner}</div>
           </PageHeroUnsplash>
-        )}
+        </header>
 
         <section>
-          <h2 className="mb-4 text-lg font-medium text-kurator-fg">Public collections</h2>
+          <h2 className="kurator-profile-section-title mb-4 text-2xl font-medium text-kurator-fg">Collections</h2>
           {!collections || collections.items.length === 0 ? (
-            <p className="text-sm text-kurator-muted">No public collections to show.</p>
+            <p className="text-sm text-kurator-muted">No collections to show here.</p>
           ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {collections.items.map((c) => (
-                <li key={c.id}>
+                <li key={c.id} className="min-w-0">
                   <Link
                     href={`/collections/${c.id}`}
-                    className="flex h-full items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
+                    className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
                       <Layers className="h-5 w-5" aria-hidden />
                     </div>
                     <div className="min-w-0">
-                      <span className="font-medium text-kurator-fg">{c.name}</span>
+                      <span className="kurator-shelf-tile-title font-medium text-kurator-fg">{c.name}</span>
                       <p className="mt-1 text-xs text-kurator-muted">
                         {c.item_count} {c.item_count === 1 ? "item" : "items"}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="mt-10">
+          <h2 className="kurator-profile-section-title mb-4 text-2xl font-medium text-kurator-fg">Lists</h2>
+          {lists.length === 0 ? (
+            <p className="text-sm text-kurator-muted">No lists to show here.</p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {lists.map((lst) => (
+                <li key={lst.id} className="min-w-0">
+                  <Link
+                    href={`/lists/${lst.id}`}
+                    className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
+                      <ListOrdered className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="kurator-shelf-tile-title font-medium text-kurator-fg">{lst.name}</span>
+                      <p className="mt-1 text-xs text-kurator-muted">
+                        {lst.item_count} {lst.item_count === 1 ? "item" : "items"}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="mt-10">
+          <h2 className="kurator-profile-section-title mb-4 text-2xl font-medium text-kurator-fg">Wishlists</h2>
+          {wishlists.length === 0 ? (
+            <p className="text-sm text-kurator-muted">No wishlists to show here.</p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {wishlists.map((w) => (
+                <li key={w.id} className="min-w-0">
+                  <Link
+                    href={`/wishlists/${w.id}`}
+                    className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
+                      <Heart className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="kurator-shelf-tile-title font-medium text-kurator-fg">{w.name}</span>
+                      <p className="mt-1 text-xs text-kurator-muted">
+                        {w.entry_count} {w.entry_count === 1 ? "entry" : "entries"}
                       </p>
                     </div>
                   </Link>

@@ -7,12 +7,14 @@ import type {
   Category,
   Collection,
   CollectionListResponse,
+  PublicUser,
   Visibility,
 } from "@/lib/api";
 import {
   createCollection,
   DEFAULT_VISIBILITY,
   fetchCollections,
+  fetchMyFriends,
   visibilityOf,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
@@ -79,6 +81,10 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
   const [deleteSubject, setDeleteSubject] = useState<DeleteCollectionSubject | null>(null);
+  const [newIsShared, setNewIsShared] = useState(false);
+  const [friends, setFriends] = useState<PublicUser[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [inviteFriendIds, setInviteFriendIds] = useState<Set<number>>(() => new Set());
 
   const effectiveScope: "all" | "following" =
     filters.scope === "following" && user ? "following" : "all";
@@ -150,6 +156,28 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
     };
   }, [filters.q, filters.page, filters.sort, filters.has_description, effectiveScope, listVersion]);
 
+  useEffect(() => {
+    if (!user || !newIsShared) {
+      setFriends([]);
+      return;
+    }
+    let cancelled = false;
+    setFriendsLoading(true);
+    fetchMyFriends({ limit: 200 })
+      .then((r) => {
+        if (!cancelled) setFriends(r.items);
+      })
+      .catch(() => {
+        if (!cancelled) setFriends([]);
+      })
+      .finally(() => {
+        if (!cancelled) setFriendsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, newIsShared]);
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   async function onCreateCollection(e: React.FormEvent) {
@@ -168,11 +196,16 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
         visibility: newVisibility,
         is_public: newVisibility !== "private",
         category: newShelfCategory,
+        is_shared: newIsShared ? true : undefined,
+        invite_user_ids:
+          newIsShared && inviteFriendIds.size > 0 ? Array.from(inviteFriendIds) : undefined,
       });
       setNewName("");
       setNewDesc("");
       setNewVisibility(DEFAULT_VISIBILITY);
       setNewShelfCategory("game");
+      setNewIsShared(false);
+      setInviteFriendIds(new Set());
       setFormMsg("Collection created.");
       setListVersion((v) => v + 1);
     } catch (err) {
@@ -216,7 +249,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
         className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4"
       >
         <div className="group relative inline-flex items-center gap-1.5">
-          <h2 className="text-sm font-medium text-kurator-fg">New Collection</h2>
+          <h2 className="kurator-panel-title text-kurator-fg">New Collection</h2>
           <button
             type="button"
             className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
@@ -297,6 +330,61 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
             onChange={setNewVisibility}
           />
         </div>
+        {user ? (
+          <div className="mt-4 max-w-lg space-y-3 rounded-lg border border-kurator-border/70 bg-kurator-bg/30 p-3">
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={newIsShared}
+                onChange={(e) => {
+                  const v = e.target.checked;
+                  setNewIsShared(v);
+                  if (!v) setInviteFriendIds(new Set());
+                }}
+              />
+              <span>
+                <span className="font-medium">Shared collection</span>
+                <span className="mt-0.5 block text-xs text-kurator-muted">
+                  Collaborators you approve can add and edit items here. Others can request to join from the
+                  collection page.
+                </span>
+              </span>
+            </label>
+            {newIsShared ? (
+              <div>
+                <p className="text-xs font-medium text-kurator-muted">Invite mutual friends (optional)</p>
+                {friendsLoading ? (
+                  <p className="mt-2 text-xs text-kurator-muted">Loading friends…</p>
+                ) : friends.length === 0 ? (
+                  <p className="mt-2 text-xs text-kurator-muted">No mutual friends to show. Follow people who follow you back.</p>
+                ) : (
+                  <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
+                    {friends.map((f) => (
+                      <li key={f.id}>
+                        <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
+                          <input
+                            type="checkbox"
+                            checked={inviteFriendIds.has(f.id)}
+                            onChange={() => {
+                              setInviteFriendIds((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(f.id)) n.delete(f.id);
+                                else n.add(f.id);
+                                return n;
+                              });
+                            }}
+                          />
+                          @{f.username}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {formMsg && (
           <p
             className={`mt-3 text-sm ${formMsg.startsWith("Collection created") ? "text-emerald-300/90" : "text-amber-200/90"}`}
@@ -437,7 +525,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h2 className="font-medium text-kurator-fg">{c.name}</h2>
+                        <h2 className="kurator-shelf-tile-title font-medium text-kurator-fg">{c.name}</h2>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-kurator-muted">
                           <span>
                             {c.item_count} {c.item_count === 1 ? "item" : "items"}

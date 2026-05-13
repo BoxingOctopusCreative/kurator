@@ -46,7 +46,7 @@ export function WishlistAddEntryModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 id="wishlist-add-entry-dialog-title" className="text-lg font-semibold text-kurator-fg">
+          <h2 id="wishlist-add-entry-dialog-title" className="kurator-panel-title text-kurator-fg">
             {title}
           </h2>
           <button

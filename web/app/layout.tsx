@@ -89,6 +89,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={htmlFontVars} suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://p.typekit.net" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://use.typekit.net/wer7ywb.css" />
         <link rel="preconnect" href="https://assets.kuratorapp.cc" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://assets.kuratorapp.cc" />
         <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />

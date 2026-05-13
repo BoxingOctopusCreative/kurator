@@ -10,16 +10,19 @@ import {
   fetchItems,
   fetchList,
   fetchListItems,
+  fetchMyFriends,
   removeListItem,
+  requestShelfJoin,
   updateList,
   visibilityLabel,
   visibilityOf,
   type Item,
   type List,
+  type PublicUser,
   type Visibility,
 } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
-import { CoverArtEditModal } from "@/components/CoverArtEditModal";
+import { CoverArtField } from "@/components/CoverArtField";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
@@ -60,9 +63,16 @@ export function ListDetailClient() {
   const [savingMeta, setSavingMeta] = useState(false);
   const [metaMsg, setMetaMsg] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [coverArtModalOpen, setCoverArtModalOpen] = useState(false);
   const [listSettingsModalOpen, setListSettingsModalOpen] = useState(false);
   const [addListModalOpen, setAddListModalOpen] = useState(false);
+  const [joinListMsg, setJoinListMsg] = useState<string | null>(null);
+  const [joinListBusy, setJoinListBusy] = useState(false);
+  const [editIsShared, setEditIsShared] = useState(false);
+  const [shareFriends, setShareFriends] = useState<PublicUser[]>([]);
+  const [shareFriendsLoading, setShareFriendsLoading] = useState(false);
+  const [shareInviteIds, setShareInviteIds] = useState<Set<number>>(
+    () => new Set(),
+  );
   const pickSelectRef = useRef<HTMLSelectElement>(null);
   const listNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,6 +92,7 @@ export function ListDetailClient() {
         setEditName(lst.name);
         setEditDesc(lst.description ?? "");
         setEditVisibility(visibilityOf(lst));
+        setEditIsShared(!!lst.is_shared);
       })
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : "Could not load list."),
@@ -105,6 +116,29 @@ export function ListDetailClient() {
     requestAnimationFrame(() => {
       listNameInputRef.current?.focus();
     });
+  }, [listSettingsModalOpen]);
+
+  useEffect(() => {
+    if (!listSettingsModalOpen || !user) return;
+    let cancelled = false;
+    setShareFriendsLoading(true);
+    fetchMyFriends({ limit: 200 })
+      .then((r) => {
+        if (!cancelled) setShareFriends(r.items);
+      })
+      .catch(() => {
+        if (!cancelled) setShareFriends([]);
+      })
+      .finally(() => {
+        if (!cancelled) setShareFriendsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listSettingsModalOpen, user]);
+
+  useEffect(() => {
+    if (!listSettingsModalOpen) setShareInviteIds(new Set());
   }, [listSettingsModalOpen]);
 
   const isOwner =
@@ -165,17 +199,22 @@ export function ListDetailClient() {
         ? assertLooseMultilineText(editDesc, LIMITS.description, "Description")
         : "";
       const coverTrim = (list.cover_art_url ?? "").trim();
+      const inviteIds = Array.from(shareInviteIds);
       const updated = await updateList(id, {
         name,
         description,
         visibility: editVisibility,
         is_public: editVisibility !== "private",
         cover_art_url: coverTrim === "" ? "" : coverTrim,
+        is_shared: editIsShared,
+        ...(inviteIds.length > 0 ? { invite_user_ids: inviteIds } : {}),
       });
       setList(updated);
       setEditName(updated.name);
       setEditDesc(updated.description ?? "");
       setEditVisibility(visibilityOf(updated));
+      setEditIsShared(!!updated.is_shared);
+      setShareInviteIds(new Set());
       setMetaMsg("Saved.");
     } catch (err) {
       setMetaMsg(err instanceof Error ? err.message : "Save failed.");
@@ -200,13 +239,14 @@ export function ListDetailClient() {
         visibility: editVisibility,
         is_public: editVisibility !== "private",
         cover_art_url: url.trim() === "" ? "" : url.trim(),
+        is_shared: editIsShared,
       });
       setList(updated);
       setEditName(updated.name);
       setEditDesc(updated.description ?? "");
       setEditVisibility(visibilityOf(updated));
+      setEditIsShared(!!updated.is_shared);
       setMetaMsg("Cover saved.");
-      setCoverArtModalOpen(false);
     } catch (err) {
       setMetaMsg(err instanceof Error ? err.message : "Could not save cover.");
     } finally {
@@ -223,7 +263,18 @@ export function ListDetailClient() {
   }
 
   if (loading) {
-    return <p className="text-sm text-kurator-muted">Loading…</p>;
+    return (
+      <div className="mx-auto max-w-5xl">
+        <Link
+          href="/lists"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          All lists
+        </Link>
+        <p className="text-sm text-kurator-muted">Loading…</p>
+      </div>
+    );
   }
 
   if (error && !list) {
@@ -263,20 +314,20 @@ export function ListDetailClient() {
       />
       {isOwner && (
         <>
-          <CoverArtEditModal
-            open={coverArtModalOpen}
-            onOpenChange={setCoverArtModalOpen}
-            title="List cover art"
-            value={list.cover_art_url ?? ""}
-            disabled={savingMeta}
-            onChange={(url) => void saveListCoverArt(url)}
-          />
           <WishlistSettingsModal
             open={listSettingsModalOpen}
             onOpenChange={setListSettingsModalOpen}
             title="List settings"
             titleId="list-settings-dialog-title"
           >
+            <div className="mb-4 rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
+              <p className="mb-3 text-sm font-medium text-kurator-fg">Cover art</p>
+              <CoverArtField
+                value={list.cover_art_url ?? ""}
+                onChange={(url) => void saveListCoverArt(url)}
+                disabled={savingMeta}
+              />
+            </div>
             <form onSubmit={onSaveMeta} className="space-y-4">
               <label className="block text-sm">
                 <span className="text-kurator-muted">Name</span>
@@ -301,6 +352,65 @@ export function ListDetailClient() {
                 value={editVisibility}
                 onChange={setEditVisibility}
               />
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={editIsShared}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    setEditIsShared(v);
+                    if (!v) setShareInviteIds(new Set());
+                  }}
+                />
+                <span>
+                  <span className="font-medium">Shared list</span>
+                  <span className="mt-0.5 block text-xs text-kurator-muted">
+                    Collaborators you approve can add items from shelves they
+                    curate. Save settings to apply; then send optional invites
+                    below.
+                  </span>
+                </span>
+              </label>
+              {editIsShared ? (
+                <div className="rounded-lg border border-kurator-border/80 bg-kurator-bg/30 p-3">
+                  <p className="text-xs font-medium text-kurator-muted">
+                    Invite mutual friends (optional, saved with &quot;Save
+                    Settings&quot;)
+                  </p>
+                  {shareFriendsLoading ? (
+                    <p className="mt-2 text-xs text-kurator-muted">
+                      Loading friends…
+                    </p>
+                  ) : shareFriends.length === 0 ? (
+                    <p className="mt-2 text-xs text-kurator-muted">
+                      No mutual friends to show.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
+                      {shareFriends.map((f) => (
+                        <li key={f.id}>
+                          <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
+                            <input
+                              type="checkbox"
+                              checked={shareInviteIds.has(f.id)}
+                              onChange={() => {
+                                setShareInviteIds((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(f.id)) n.delete(f.id);
+                                  else n.add(f.id);
+                                  return n;
+                                });
+                              }}
+                            />
+                            @{f.username}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   type="submit"
@@ -359,14 +469,6 @@ export function ListDetailClient() {
           </WishlistAddEntryModal>
         </>
       )}
-      <Link
-        href="/lists"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        All lists
-      </Link>
-
       {error && (
         <p
           className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
@@ -377,43 +479,11 @@ export function ListDetailClient() {
       )}
 
       <header className="mb-8 flex flex-col gap-6">
-        {(list.cover_art_url?.trim() || isOwner) &&
-          (isOwner ? (
-            <button
-              type="button"
-              disabled={savingMeta}
-              onClick={() => setCoverArtModalOpen(true)}
-              aria-label="Edit cover art"
-              className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-surface ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
-            >
-              <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
-                {list.cover_art_url?.trim() ? (
-                  <ItemCoverImage
-                    url={list.cover_art_url}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-linear-to-b from-kurator-border/25 to-kurator-border/50 px-4 text-center text-sm text-kurator-muted">
-                    No cover yet — click to add cover art
-                  </div>
-                )}
-              </div>
-            </button>
-          ) : (
-            <div className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface">
-              <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
-                {list.cover_art_url?.trim() ? (
-                  <ItemCoverImage
-                    url={list.cover_art_url}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-                ) : null}
-              </div>
-            </div>
-          ))}
-        <PageHeroUnsplash className="mt-6" bleedBottomMargin={false} bleedToMainTop={false}>
+        <PageHeroUnsplash
+          bleedBottomMargin={false}
+          bleedToMainTop={true}
+          customBackgroundUrl={(list.cover_art_url ?? "").trim() || null}
+        >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold text-kurator-fg md:text-3xl">
@@ -428,6 +498,43 @@ export function ListDetailClient() {
                 <ShelfAuthorLink author={list.author} variant="avatarAndName" />
               </div>
             ) : null}
+            {!isOwner &&
+              user &&
+              list.is_shared && (
+                <div className="mt-3 rounded-lg border border-kurator-border/80 bg-kurator-bg/40 px-3 py-2">
+                  <p className="text-xs text-kurator-muted">
+                    This list is shared. Request access to add items from shelves you curate.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={joinListBusy}
+                    onClick={async () => {
+                      setJoinListMsg(null);
+                      setJoinListBusy(true);
+                      try {
+                        await requestShelfJoin({ shelf_kind: "list", shelf_id: list.id });
+                        setJoinListMsg(
+                          "Request sent. The list owner can approve it from their notifications.",
+                        );
+                      } catch (err) {
+                        setJoinListMsg(
+                          err instanceof Error ? err.message : "Could not send request.",
+                        );
+                      } finally {
+                        setJoinListBusy(false);
+                      }
+                    }}
+                    className="mt-2 rounded-lg bg-kurator-accent px-3 py-1.5 text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+                  >
+                    {joinListBusy ? "Sending…" : "Request to join"}
+                  </button>
+                  {joinListMsg ? (
+                    <p className="mt-2 text-xs text-kurator-muted" role="status">
+                      {joinListMsg}
+                    </p>
+                  ) : null}
+                </div>
+              )}
             {list.description ? (
               <p className="mt-2 text-sm text-kurator-muted">
                 {list.description}
@@ -490,6 +597,14 @@ export function ListDetailClient() {
         </PageHeroUnsplash>
       </header>
 
+      <Link
+        href="/lists"
+        className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        All lists
+      </Link>
+
       {items.length === 0 ? (
         isOwner ? (
           <button
@@ -525,7 +640,7 @@ export function ListDetailClient() {
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   </div>
-                  <h2 className="mt-3 line-clamp-2 text-base font-medium text-kurator-fg">
+                  <h2 className="kurator-item-title mt-3 line-clamp-2 text-base font-medium text-kurator-fg">
                     {it.title}
                   </h2>
                   <span className="mt-1 inline-flex self-start rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">

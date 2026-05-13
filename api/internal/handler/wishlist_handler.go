@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/boxingoctopus/kurator/api/internal/httpx"
+	"github.com/boxingoctopus/kurator/api/internal/middleware"
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
@@ -15,20 +17,40 @@ import (
 
 type WishlistHandler struct {
 	svc    *service.WishlistService
+	auth   *service.AuthService
 	fanout *service.ActivityFanout
+	share  *service.ShelfShareService
 }
 
-func NewWishlistHandler(svc *service.WishlistService, fanout *service.ActivityFanout) *WishlistHandler {
-	return &WishlistHandler{svc: svc, fanout: fanout}
+func NewWishlistHandler(svc *service.WishlistService, auth *service.AuthService, fanout *service.ActivityFanout, share *service.ShelfShareService) *WishlistHandler {
+	return &WishlistHandler{svc: svc, auth: auth, fanout: fanout, share: share}
 }
 
-// List returns user's wishlists.
+// List returns the signed-in user's wishlists, or when owner_user_id is set, that owner's wishlists visible to the viewer (optional session cookie).
 func (h *WishlistHandler) List(c *fiber.Ctx) error {
-	uid, ok := c.Locals("userID").(int64)
-	if !ok || uid < 1 {
+	var viewer *int64
+	raw := c.Cookies(middleware.SessionCookieName)
+	if raw != "" && h.auth != nil {
+		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
+		if err == nil {
+			viewer = &uid
+		}
+	}
+	if ou := c.Query("owner_user_id"); ou != "" {
+		n, err := strconv.ParseInt(ou, 10, 64)
+		if err != nil || n < 1 {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid owner_user_id")
+		}
+		items, err := h.svc.ListByOwnerForViewer(c.Context(), n, viewer)
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		}
+		return c.JSON(items)
+	}
+	if viewer == nil {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	items, err := h.svc.List(c.Context(), uid)
+	items, err := h.svc.List(c.Context(), *viewer)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
@@ -41,6 +63,8 @@ type createWishlistBody struct {
 	TargetCollectionID *string `json:"target_collection_id"`
 	Visibility         *string `json:"visibility"`
 	IsPublic           *bool   `json:"is_public"`
+	IsShared           bool    `json:"is_shared"`
+	InviteUserIDs      []int64 `json:"invite_user_ids"`
 }
 
 func (h *WishlistHandler) Create(c *fiber.Ctx) error {
@@ -56,9 +80,17 @@ func (h *WishlistHandler) Create(c *fiber.Ctx) error {
 	if verr != nil {
 		return verr
 	}
-	wl, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.TargetCollectionID, vis)
+	if len(body.InviteUserIDs) > 0 && !body.IsShared {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
+	}
+	wl, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.TargetCollectionID, vis, body.IsShared)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.share != nil && body.IsShared && len(body.InviteUserIDs) > 0 {
+		if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindWishlist, wl.ID, body.InviteUserIDs); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
 	}
 	if h.fanout != nil {
 		h.fanout.NotifyWishlistCreated(c.Context(), uid, wl.Visibility, wl.ID, wl.Name)
@@ -73,6 +105,8 @@ type updateWishlistBody struct {
 	Visibility         *string `json:"visibility"`
 	IsPublic           *bool   `json:"is_public"`
 	CoverArtURL        *string `json:"cover_art_url"`
+	IsShared           *bool   `json:"is_shared"`
+	InviteUserIDs      []int64 `json:"invite_user_ids"`
 }
 
 func (h *WishlistHandler) Update(c *fiber.Ctx) error {
@@ -92,12 +126,25 @@ func (h *WishlistHandler) Update(c *fiber.Ctx) error {
 	if verr != nil {
 		return verr
 	}
-	wl, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.TargetCollectionID, vis, body.CoverArtURL)
+	if len(body.InviteUserIDs) > 0 && body.IsShared != nil && !*body.IsShared {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
+	}
+	wl, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, body.TargetCollectionID, vis, body.CoverArtURL, body.IsShared)
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if len(body.InviteUserIDs) > 0 {
+		if !wl.IsShared {
+			return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires a shared wishlist; set is_shared true")
+		}
+		if h.share != nil {
+			if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindWishlist, wl.ID, body.InviteUserIDs); err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			}
+		}
 	}
 	return c.JSON(wl)
 }

@@ -82,7 +82,7 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
       </button>
       {open ? (
         <div
-          className="absolute right-0 z-50 mt-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-kurator-border bg-kurator-surface py-2 shadow-dropdown"
+          className="absolute right-0 z-50 mt-2 w-[min(16rem,calc(100vw-2rem))] rounded-xl border border-kurator-border bg-kurator-surface py-2 shadow-dropdown"
           role="menu"
         >
           <Link

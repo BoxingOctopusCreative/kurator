@@ -5,7 +5,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-cabin), system-ui, sans-serif;
+  /** Body / UI copy (Adobe kit includes futura-pt at 400). */
+  --font-sans: "futura-pt", var(--font-cabin), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  /** Headings when profile font is Kurator default (`html[data-font="default"]` / unset). */
+  --font-kurator-heading: "futura-pt-condensed", var(--font-cabin), ui-sans-serif, system-ui, sans-serif;
 
   --color-kurator-bg: var(--kurator-bg);
   --color-kurator-main: var(--kurator-main);
@@ -72,7 +75,8 @@
 /* Body font: Tailwind `font-sans` reads `--font-sans` from @theme; user choice overrides on <html>. */
 html[data-font="default"],
 html:not([data-font]) {
-  --font-sans: var(--font-cabin), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-sans: "futura-pt", var(--font-cabin), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-kurator-heading: "futura-pt-condensed", var(--font-cabin), ui-sans-serif, system-ui, sans-serif;
 }
 
 html[data-font="sans"] {
@@ -145,4 +149,58 @@ div.reactEasyCrop_CropArea {
     0 4px 16px rgb(0 0 0 / 0.4),
     0 2px 6px rgb(0 0 0 / 0.28),
     0 0 0 9999em rgba(0, 0, 0, 0.5);
+}
+
+/*
+ * Page hero primary titles (PageHeroUnsplash): brand face + all caps.
+ * Unlayered so this wins over Tailwind utilities such as font-semibold on the same nodes.
+ * Shelf rename UI uses text-2xl on input / button alongside h1 for the static title.
+ */
+[data-kurator-page-hero] :is(h1, input.text-2xl, button.text-2xl) {
+  font-family: var(--font-kurator-heading);
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/*
+ * Kurator default: condensed Futura for headings only; body uses `futura-pt` (see `--font-sans`).
+ * Unlayered so this wins over `font-sans` on the same elements.
+ */
+html[data-font="default"] :is(h1, h2, h3, h4, h5, h6),
+html:not([data-font]) :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-kurator-heading);
+}
+
+/*
+ * Shelf / item titles (tiles, lists, detail) + profile section headings: Futura PT Bold at 700.
+ * Overrides condensed heading font on h1–h3 where used when profile is Kurator default.
+ */
+html[data-font="default"] .kurator-shelf-tile-title,
+html:not([data-font]) .kurator-shelf-tile-title,
+html[data-font="default"] .kurator-item-title,
+html:not([data-font]) .kurator-item-title,
+html[data-font="default"] .kurator-profile-section-title,
+html:not([data-font]) .kurator-profile-section-title {
+  font-family: "futura-pt-bold", "futura-pt", var(--font-cabin), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* Modal / slide-over / “New shelf” form panel titles (not page hero h1). Tailwind text-3xl scale. */
+html[data-font="default"] .kurator-panel-title,
+html:not([data-font]) .kurator-panel-title {
+  font-family: "futura-pt", var(--font-cabin), ui-sans-serif, sans-serif;
+  font-weight: 600;
+  font-style: normal;
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+/* Item names stay mixed case (hero h1 otherwise uses all caps). */
+html[data-font="default"] .kurator-item-title,
+html:not([data-font]) .kurator-item-title {
+  text-transform: none;
+  letter-spacing: normal;
 }

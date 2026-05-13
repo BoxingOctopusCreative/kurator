@@ -19,6 +19,7 @@ import {
   Heart,
   LayoutGrid,
   Layers,
+  Library,
   ListOrdered,
   PlusCircle,
   ScanBarcode,
@@ -30,16 +31,27 @@ import Image from "next/image";
 import { Copyright } from "@/components/Copyright";
 import { useFeatureGates } from "@/components/LoggedInFeatureFlags";
 
-const mainNavBase = [
-  { href: "/", label: "Home", icon: LayoutGrid },
-  { href: "/collections", label: "Collections", icon: Layers },
-  { href: "/people", label: "People", icon: Users },
-  { href: "/wishlists", label: "Wishlists", icon: Heart },
-  { href: "/lists", label: "Lists", icon: ListOrdered },
-  { href: "/items/add", label: "Add Item", icon: PlusCircle },
-] as const;
-
 const scanNavItem = { href: "/scan", label: "Scan", icon: ScanBarcode } as const;
+
+const navDashboard = { href: "/", label: "Dashboard", icon: LayoutGrid } as const;
+const navPeople = { href: "/people", label: "People", icon: Users } as const;
+const shelfSubItems = [
+  { href: "/collections", label: "Collections", icon: Layers },
+  { href: "/lists", label: "Lists", icon: ListOrdered },
+  { href: "/wishlists", label: "Wishlists", icon: Heart },
+] as const;
+const navAddItem = { href: "/items/add", label: "Add Item", icon: PlusCircle } as const;
+
+const SHELF_PREFIXES = ["/collections", "/lists", "/wishlists"] as const;
+
+function isShelfPath(pathname: string): boolean {
+  return SHELF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function isNavActive(href: string, pathname: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 /** Collapsed sidebar mark — theme-specific assets (no CSS filter). */
 const SIDEBAR_MARK_LIGHT =
@@ -52,7 +64,8 @@ const SIDEBAR_COLLAPSED_KEY = "kurator.sidebarCollapsed";
 function topRightSafeInsetStyle(): CSSProperties {
   return {
     top: "max(0.75rem, env(safe-area-inset-top, 0px))",
-    right: "max(0.75rem, env(safe-area-inset-right, 0px))",
+    /** Align with `<main className="… md:px-8">` (md+ only; this cluster is `md:flex`). */
+    right: "max(2rem, env(safe-area-inset-right, 0px))",
   };
 }
 
@@ -194,9 +207,17 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
   const [closeNotif, setCloseNotif] = useState(0);
   const [closeAccount, setCloseAccount] = useState(0);
+  const [shelvesOpen, setShelvesOpen] = useState(() => isShelfPath(pathname));
 
-  const mainNav = useMemo(
-    () => (showBarcodeScanNav ? [...mainNavBase, scanNavItem] : [...mainNavBase]),
+  useEffect(() => {
+    if (isShelfPath(pathname)) setShelvesOpen(true);
+  }, [pathname]);
+
+  const mobileNav = useMemo(
+    () =>
+      showBarcodeScanNav
+        ? [navDashboard, navPeople, ...shelfSubItems, navAddItem, scanNavItem]
+        : [navDashboard, navPeople, ...shelfSubItems, navAddItem],
     [showBarcodeScanNav]
   );
 
@@ -264,30 +285,93 @@ export function AppChrome({ children }: { children: ReactNode }) {
             className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto"
             aria-label="Primary"
           >
-            {mainNav.map(({ href, label, icon: Icon }) => {
-              const active =
-                href === "/"
-                  ? pathname === "/"
-                  : pathname === href || pathname.startsWith(`${href}/`);
+            {(() => {
+              const linkClass = (active: boolean, collapsed: boolean) =>
+                `flex items-center rounded-lg py-2 text-sm font-medium transition-colors ${
+                  collapsed ? "justify-center px-2" : "gap-3 px-3"
+                } ${
+                  active
+                    ? "bg-kurator-border text-kurator-fg"
+                    : "text-kurator-muted hover:bg-kurator-border/60 hover:text-kurator-fg"
+                }`;
+
+              const renderLink = (item: {
+                href: string;
+                label: string;
+                icon: typeof LayoutGrid;
+              }) => {
+                const active = isNavActive(item.href, pathname);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={sidebarCollapsed ? item.label : undefined}
+                    aria-current={active ? "page" : undefined}
+                    className={linkClass(active, sidebarCollapsed)}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className={sidebarCollapsed ? "sr-only" : undefined}>{item.label}</span>
+                  </Link>
+                );
+              };
+
               return (
-                <Link
-                  key={href}
-                  href={href}
-                  title={sidebarCollapsed ? label : undefined}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex items-center rounded-lg py-2 text-sm font-medium transition-colors ${
-                    sidebarCollapsed ? "justify-center px-2" : "gap-3 px-3"
-                  } ${
-                    active
-                      ? "bg-kurator-border text-kurator-fg"
-                      : "text-kurator-muted hover:bg-kurator-border/60 hover:text-kurator-fg"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className={sidebarCollapsed ? "sr-only" : undefined}>{label}</span>
-                </Link>
+                <>
+                  {renderLink(navDashboard)}
+                  {renderLink(navPeople)}
+                  {sidebarCollapsed ? (
+                    shelfSubItems.map((item) => renderLink(item))
+                  ) : (
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        id="app-sidebar-shelves-trigger"
+                        aria-expanded={shelvesOpen}
+                        aria-controls="app-sidebar-shelves-panel"
+                        onClick={() => setShelvesOpen((o) => !o)}
+                        className={linkClass(isShelfPath(pathname), false)}
+                      >
+                        <Library className="h-4 w-4 shrink-0" aria-hidden />
+                        <span className="min-w-0 flex-1 text-left">Shelves</span>
+                        <ChevronRight
+                          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+                            shelvesOpen ? "rotate-90" : ""
+                          }`}
+                          aria-hidden
+                        />
+                      </button>
+                      {shelvesOpen ? (
+                        <div
+                          id="app-sidebar-shelves-panel"
+                          role="region"
+                          aria-labelledby="app-sidebar-shelves-trigger"
+                          className="ml-3 flex flex-col gap-0.5 border-l border-kurator-border/80 pl-2"
+                        >
+                          {shelfSubItems.map((item) => {
+                            const active = isNavActive(item.href, pathname);
+                            const Icon = item.icon;
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                aria-current={active ? "page" : undefined}
+                                className={linkClass(active, false)}
+                              >
+                                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                                <span>{item.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                  {renderLink(navAddItem)}
+                  {showBarcodeScanNav ? renderLink(scanNavItem) : null}
+                </>
               );
-            })}
+            })()}
           </nav>
           <div className="mt-4 border-t border-kurator-border pt-3">
             {sidebarCollapsed ? (
@@ -365,11 +449,8 @@ export function AppChrome({ children }: { children: ReactNode }) {
         className="safe-pb fixed bottom-0 left-0 right-0 z-40 flex border-t border-kurator-border bg-kurator-surface/95 backdrop-blur-md md:hidden"
         aria-label="Primary"
       >
-        {mainNav.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === "/"
-              ? pathname === "/"
-              : pathname === href || pathname.startsWith(`${href}/`);
+        {mobileNav.map(({ href, label, icon: Icon }) => {
+          const active = isNavActive(href, pathname);
           return (
             <Link
               key={href}

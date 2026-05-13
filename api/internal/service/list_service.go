@@ -33,11 +33,16 @@ func (s *ListService) List(ctx context.Context, userID int64) ([]models.List, er
 	return s.list.ListForViewer(ctx, userID)
 }
 
+// ListByOwnerForViewer returns lists owned by ownerUserID visible to viewer (nil viewer → none).
+func (s *ListService) ListByOwnerForViewer(ctx context.Context, ownerUserID int64, viewer *int64) ([]models.List, error) {
+	return s.list.ListByOwnerForViewer(ctx, ownerUserID, viewer)
+}
+
 func (s *ListService) Get(ctx context.Context, id string, userID int64) (*models.List, error) {
 	return s.list.GetByIDForViewer(ctx, id, userID)
 }
 
-func (s *ListService) Create(ctx context.Context, userID int64, name, description string, visibility *models.Visibility) (*models.List, error) {
+func (s *ListService) Create(ctx context.Context, userID int64, name, description string, visibility *models.Visibility, isShared bool) (*models.List, error) {
 	n, err := validation.CollectionOrWishlistName(name, "Name")
 	if err != nil {
 		return nil, err
@@ -54,10 +59,10 @@ func (s *ListService) Create(ctx context.Context, userID int64, name, descriptio
 	if visibility != nil && (*visibility).Valid() {
 		vis = *visibility
 	}
-	return s.list.Create(ctx, userID, n, descPtr, vis)
+	return s.list.Create(ctx, userID, n, descPtr, vis, isShared)
 }
 
-func (s *ListService) Update(ctx context.Context, userID int64, id string, name, description string, visibility *models.Visibility, coverArt *string) (*models.List, error) {
+func (s *ListService) Update(ctx context.Context, userID int64, id string, name, description string, visibility *models.Visibility, coverArt *string, isShared *bool) (*models.List, error) {
 	n, err := validation.CollectionOrWishlistName(name, "Name")
 	if err != nil {
 		return nil, err
@@ -74,7 +79,7 @@ func (s *ListService) Update(ctx context.Context, userID int64, id string, name,
 	if err != nil {
 		return nil, err
 	}
-	return s.list.UpdateFull(ctx, id, userID, n, descPtr, visibility, coverNorm)
+	return s.list.UpdateFull(ctx, id, userID, n, descPtr, visibility, coverNorm, isShared)
 }
 
 func trimPtrString(p *string) string {

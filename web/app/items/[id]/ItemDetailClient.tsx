@@ -278,7 +278,7 @@ export function ItemDetailClient() {
           />
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
-          <h1 className="text-2xl font-semibold text-kurator-fg md:text-3xl">{item.title}</h1>
+          <h1 className="kurator-item-title text-2xl font-semibold text-kurator-fg md:text-3xl">{item.title}</h1>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <span className="inline-flex rounded-full bg-kurator-border/60 px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-kurator-muted">
               {categoryLabel(item.category)}

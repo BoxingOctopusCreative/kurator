@@ -222,17 +222,40 @@ func (r *PostgresCollectionRepository) IsUserOwnedCollection(ctx context.Context
 	return uid.Int64 == userID, nil
 }
 
-// UserMayMutateCollectionContent is true when userID may import/export items, PATCH the collection,
-// or create/update/delete items targeting this collection (owner-only).
+// UserMayMutateCollectionContent is true when userID may import/export items, create/update/delete items,
+// or curate this collection (owner or explicit member when the shelf is shared).
 func (r *PostgresCollectionRepository) UserMayMutateCollectionContent(ctx context.Context, collectionID string, userID int64) (bool, error) {
 	if userID < 1 {
 		return false, nil
 	}
-	owned, err := r.IsUserOwnedCollection(ctx, collectionID, userID)
-	if err != nil {
-		return false, err
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM collections c
+			WHERE c.id = $1::uuid AND (
+				c.user_id = $2 OR (
+					c.is_shared AND EXISTS (
+						SELECT 1 FROM shelf_members sm
+						WHERE sm.shelf_kind = 'collection' AND sm.shelf_id = c.id AND sm.user_id = $2
+					)
+				)
+			)
+		)
+	`, collectionID, userID).Scan(&ok)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
 	}
-	return owned, nil
+	if err != nil {
+		return false, fmt.Errorf("collection mutate permission: %w", err)
+	}
+	if !ok {
+		var exists bool
+		_ = r.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM collections WHERE id = $1::uuid)`, collectionID).Scan(&exists)
+		if !exists {
+			return false, ErrCollectionNotFound
+		}
+	}
+	return ok, nil
 }
 
 // CollectionFanoutContext holds owner, visibility, and display name for activity notifications.
@@ -272,14 +295,14 @@ func (r *PostgresCollectionRepository) GetFanoutContextByCollectionID(ctx contex
 }
 
 // collectionSelectColumns/collectionGroupColumns are the core collection row (alias c).
-const collectionSelectColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.created_at, c.updated_at"
+const collectionSelectColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.is_shared, c.created_at, c.updated_at"
 const collectionAuthorColumns = "owner.username, owner.display_name, owner.avatar_url"
 const collectionSelectWithAuthor = collectionSelectColumns + ", " + collectionAuthorColumns
 const collectionGroupColumns = "c.id, c.user_id, c.name, c.description, c.category, c.cover_art_url, c.visibility, c.created_at, c.updated_at"
 const collectionGroupWithAuthor = collectionGroupColumns + ", owner.username, owner.display_name, owner.avatar_url"
 
 // collectionReturningColumns is the bare columns list for INSERT/UPDATE ... RETURNING.
-const collectionReturningColumns = "id, user_id, name, description, category, cover_art_url, visibility, created_at, updated_at"
+const collectionReturningColumns = "id, user_id, name, description, category, cover_art_url, visibility, is_shared, created_at, updated_at"
 const collectionReturningAuthor = `,
   (SELECT username FROM users u WHERE u.id = collections.user_id),
   (SELECT display_name FROM users u WHERE u.id = collections.user_id),
@@ -294,7 +317,7 @@ func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 	var vis string
 	var auUser, auDn, auAv sql.NullString
 	if err := row.Scan(
-		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &vis, &c.CreatedAt, &c.UpdatedAt,
+		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &vis, &c.IsShared, &c.CreatedAt, &c.UpdatedAt,
 		&auUser, &auDn, &auAv,
 		&c.ItemCount,
 	); err != nil {
@@ -331,7 +354,7 @@ func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 }
 
 // Create inserts a collection owned by userID (personal shelf). category may be nil (flex shelf until first item pins it).
-func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64, name string, description *string, visibility models.Visibility, category *models.Category) (*models.Collection, error) {
+func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64, name string, description *string, visibility models.Visibility, category *models.Category, isShared bool) (*models.Collection, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("name required")
@@ -348,10 +371,10 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 		catVal = string(*category)
 	}
 	row := r.pool.QueryRow(ctx, `
-		INSERT INTO collections (user_id, name, description, visibility, is_public, category)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO collections (user_id, name, description, visibility, is_public, category, is_shared)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`, 0::bigint AS item_count
-	`, userID, name, descVal, string(visibility), visibility.IsPublic(), catVal)
+	`, userID, name, descVal, string(visibility), visibility.IsPublic(), catVal, isShared)
 	c, err := scanCollectionRow(row)
 	if err != nil {
 		return nil, fmt.Errorf("create collection: %w", err)
@@ -359,12 +382,13 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 	return &c, nil
 }
 
-// UpdateByOwner updates name, description, visibility, and/or cover art for a collection owned by ownerID.
-func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerID int64, id string, name *string, description *string, visibility *models.Visibility, coverArt *string) (*models.Collection, error) {
+// UpdateByOwner updates name, description, visibility, cover art, and/or is_shared for a collection owned by ownerID.
+func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerID int64, id string, name *string, description *string, visibility *models.Visibility, coverArt *string, isShared *bool) (*models.Collection, error) {
 	setName := name != nil
 	setDesc := description != nil
 	setVis := visibility != nil && (*visibility).Valid()
 	setCover := coverArt != nil
+	setShared := isShared != nil
 
 	var nameVal interface{}
 	if setName {
@@ -391,6 +415,10 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 			coverVal = strings.TrimSpace(*coverArt)
 		}
 	}
+	var sharedVal interface{}
+	if setShared {
+		sharedVal = *isShared
+	}
 
 	row := r.pool.QueryRow(ctx, `
 		UPDATE collections SET
@@ -399,11 +427,12 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 			visibility = CASE WHEN $7::boolean THEN $8::text ELSE visibility END,
 			is_public = CASE WHEN $7::boolean THEN ($8::text <> 'private') ELSE is_public END,
 			cover_art_url = CASE WHEN $9::boolean THEN $10::text ELSE cover_art_url END,
+			is_shared = CASE WHEN $11::boolean THEN $12::boolean ELSE is_shared END,
 			updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
 		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`,
 		         (SELECT COUNT(*) FROM items WHERE collection_id = collections.id)::bigint AS item_count
-	`, id, ownerID, setName, nameVal, setDesc, descVal, setVis, visArg, setCover, coverVal)
+	`, id, ownerID, setName, nameVal, setDesc, descVal, setVis, visArg, setCover, coverVal, setShared, sharedVal)
 	c, err := scanCollectionRow(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

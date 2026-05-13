@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"github.com/boxingoctopus/kurator/api/internal/httpx"
+	"github.com/boxingoctopus/kurator/api/internal/middleware"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/gofiber/fiber/v2"
@@ -13,19 +15,39 @@ import (
 
 type ListHandler struct {
 	svc    *service.ListService
+	auth   *service.AuthService
 	fanout *service.ActivityFanout
+	share  *service.ShelfShareService
 }
 
-func NewListHandler(svc *service.ListService, fanout *service.ActivityFanout) *ListHandler {
-	return &ListHandler{svc: svc, fanout: fanout}
+func NewListHandler(svc *service.ListService, auth *service.AuthService, fanout *service.ActivityFanout, share *service.ShelfShareService) *ListHandler {
+	return &ListHandler{svc: svc, auth: auth, fanout: fanout, share: share}
 }
 
 func (h *ListHandler) List(c *fiber.Ctx) error {
-	uid, ok := c.Locals("userID").(int64)
-	if !ok || uid < 1 {
+	var viewer *int64
+	raw := c.Cookies(middleware.SessionCookieName)
+	if raw != "" && h.auth != nil {
+		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
+		if err == nil {
+			viewer = &uid
+		}
+	}
+	if ou := c.Query("owner_user_id"); ou != "" {
+		n, err := strconv.ParseInt(ou, 10, 64)
+		if err != nil || n < 1 {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid owner_user_id")
+		}
+		items, err := h.svc.ListByOwnerForViewer(c.Context(), n, viewer)
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		}
+		return c.JSON(items)
+	}
+	if viewer == nil {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	items, err := h.svc.List(c.Context(), uid)
+	items, err := h.svc.List(c.Context(), *viewer)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
@@ -33,10 +55,12 @@ func (h *ListHandler) List(c *fiber.Ctx) error {
 }
 
 type createListBody struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Visibility  *string `json:"visibility"`
-	IsPublic    *bool   `json:"is_public"`
+	Name            string  `json:"name"`
+	Description     string  `json:"description"`
+	Visibility      *string `json:"visibility"`
+	IsPublic        *bool   `json:"is_public"`
+	IsShared        bool    `json:"is_shared"`
+	InviteUserIDs   []int64 `json:"invite_user_ids"`
 }
 
 func (h *ListHandler) Create(c *fiber.Ctx) error {
@@ -52,9 +76,17 @@ func (h *ListHandler) Create(c *fiber.Ctx) error {
 	if verr != nil {
 		return verr
 	}
-	l, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis)
+	if len(body.InviteUserIDs) > 0 && !body.IsShared {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
+	}
+	l, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis, body.IsShared)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if h.share != nil && body.IsShared && len(body.InviteUserIDs) > 0 {
+		if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindList, l.ID, body.InviteUserIDs); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
 	}
 	if h.fanout != nil {
 		h.fanout.NotifyListCreated(c.Context(), uid, l.Visibility, l.ID, l.Name)
@@ -82,11 +114,13 @@ func (h *ListHandler) Get(c *fiber.Ctx) error {
 }
 
 type updateListBody struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Visibility  *string `json:"visibility"`
-	IsPublic    *bool   `json:"is_public"`
-	CoverArtURL *string `json:"cover_art_url"`
+	Name           string  `json:"name"`
+	Description    string  `json:"description"`
+	Visibility     *string `json:"visibility"`
+	IsPublic       *bool   `json:"is_public"`
+	CoverArtURL    *string `json:"cover_art_url"`
+	IsShared       *bool   `json:"is_shared"`
+	InviteUserIDs  []int64 `json:"invite_user_ids"`
 }
 
 func (h *ListHandler) Update(c *fiber.Ctx) error {
@@ -106,12 +140,25 @@ func (h *ListHandler) Update(c *fiber.Ctx) error {
 	if verr != nil {
 		return verr
 	}
-	l, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL)
+	if len(body.InviteUserIDs) > 0 && body.IsShared != nil && !*body.IsShared {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
+	}
+	l, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL, body.IsShared)
 	if errors.Is(err, repository.ErrListNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if len(body.InviteUserIDs) > 0 {
+		if !l.IsShared {
+			return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires a shared list; set is_shared true")
+		}
+		if h.share != nil {
+			if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindList, l.ID, body.InviteUserIDs); err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			}
+		}
 	}
 	return c.JSON(l)
 }

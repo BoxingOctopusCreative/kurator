@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { ItemCoverImage } from "@/components/ItemCoverImage";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { readPageHeroBannerCache, writePageHeroBannerCache } from "@/lib/unsplash-page-hero-cache";
 import { safeHttpUrl, safeImageSrcUrl } from "@/lib/safeUrl";
@@ -18,6 +19,10 @@ type Props = {
    * Set false when something already sits above this hero (e.g. back link, shelf cover).
    */
   bleedToMainTop?: boolean;
+  /**
+   * When set (non-empty after trim), uses this image as the hero background instead of the Unsplash banner.
+   */
+  customBackgroundUrl?: string | null;
 };
 
 /** Full width of the app main column (`@container` on the column wrapper in AppChrome). */
@@ -29,20 +34,32 @@ const pullToMainTopClass = "-mt-5 md:-mt-8";
 const contentTopPadWhenPulled = "pt-12 md:pt-[calc(2rem+2.25rem)]";
 
 /**
- * Title-area hero with a dark-tinted Unsplash landscape image (random query from curated list).
- * Spans the full main column width (grows when the sidebar collapses). Reuses a cached banner for up to one hour per route (browser + CDN-friendly API cache), then fetches a new image.
+ * Title-area hero with a dark-tinted background: optional shelf `customBackgroundUrl`, otherwise
+ * an Unsplash landscape (random query from curated list).
+ * Spans the full main column width (grows when the sidebar collapses). Reuses a cached Unsplash banner for up to one hour per route (browser + CDN-friendly API cache), then fetches a new image when no custom URL is set.
  */
 export function PageHeroUnsplash({
   children,
   className = "",
   bleedBottomMargin = true,
   bleedToMainTop = true,
+  customBackgroundUrl = null,
 }: Props) {
   const pathname = usePathname();
   const [bg, setBg] = useState<UnsplashBackgroundPayload | null>(null);
+  const customTrimmed = customBackgroundUrl?.trim() ?? "";
+  const customSrc = customTrimmed ? safeImageSrcUrl(customTrimmed) : null;
+  const useCustomBackground = Boolean(customSrc);
 
   useEffect(() => {
     let cancelled = false;
+    if (customSrc) {
+      setBg(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const cached = readPageHeroBannerCache(pathname);
     if (cached?.url) {
       setBg(cached);
@@ -68,9 +85,9 @@ export function PageHeroUnsplash({
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, customSrc]);
 
-  const backgroundImageSrc = bg ? safeImageSrcUrl(bg.url) : null;
+  const backgroundImageSrc = !useCustomBackground && bg ? safeImageSrcUrl(bg.url) : null;
   const photoPageHref = bg?.photoPageUrl ? safeHttpUrl(bg.photoPageUrl) : null;
   const photographerPageHref = bg?.photographerUrl ? safeHttpUrl(bg.photographerUrl) : null;
 
@@ -78,10 +95,26 @@ export function PageHeroUnsplash({
 
   return (
     <section
+      data-kurator-page-hero
       className={`relative isolate min-h-42 md:min-h-48 shadow-hero-bottom ${mainColumnBreakout} ${bleedToMainTop ? pullToMainTopClass : ""} ${bleedBottomMargin ? "mb-8" : ""} ${className}`.trim()}
       aria-label="Page header"
     >
-      {backgroundImageSrc ? (
+      {useCustomBackground ? (
+        <>
+          <div className="pointer-events-none absolute inset-0 z-0 bg-kurator-bg">
+            <ItemCoverImage
+              url={customTrimmed}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover object-center"
+            />
+          </div>
+          <div className="pointer-events-none absolute inset-0 z-1 bg-black/45" aria-hidden />
+          <div
+            className="pointer-events-none absolute inset-0 z-2 bg-kurator-bg/70 backdrop-blur-[0.5px]"
+            aria-hidden
+          />
+        </>
+      ) : backgroundImageSrc ? (
         <>
           <div className="pointer-events-none absolute inset-0 z-0 bg-kurator-bg">
             <Image
@@ -105,7 +138,7 @@ export function PageHeroUnsplash({
 
       <div className={`relative z-10 ${contentPadClass}`}>{children}</div>
 
-      {bg?.url ? (
+      {!useCustomBackground && bg?.url ? (
         <p className="relative z-10 px-4 pb-3 pt-1 text-center text-[11px] text-kurator-muted">
           Background:{" "}
           {photoPageHref ? (

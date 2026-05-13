@@ -49,7 +49,7 @@ export function WishlistSettingsModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 id={titleId} className="text-lg font-semibold text-kurator-fg">
+          <h2 id={titleId} className="kurator-panel-title text-kurator-fg">
             {title}
           </h2>
           <button

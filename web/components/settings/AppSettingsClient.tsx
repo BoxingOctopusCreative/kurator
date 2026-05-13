@@ -235,7 +235,7 @@ export function AppSettingsClient() {
 
       <div className="space-y-10 rounded-xl border border-kurator-border bg-kurator-surface p-6 sm:p-8 shadow-surface">
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-kurator-fg">Change Password</h2>
+        <h2 className="kurator-panel-title text-kurator-fg">Change Password</h2>
         <p className="text-sm text-kurator-muted">
           Your new password takes effect immediately. All sessions are signed out, including this browser — you will log in
           again with the new password.
@@ -390,7 +390,7 @@ export function AppSettingsClient() {
       </section>
 
       <section className="space-y-3 border-t border-kurator-border pt-8">
-        <h2 className="text-sm font-medium text-kurator-fg">Appearance</h2>
+        <h2 className="kurator-panel-title text-kurator-fg">Appearance</h2>
         <p className="text-sm text-kurator-muted">
           Choose light or dark mode, a typeface, and a colour palette for accents and surfaces.
         </p>
@@ -470,7 +470,7 @@ export function AppSettingsClient() {
       </section>
 
       <section className="space-y-4 border-t border-kurator-border pt-8">
-        <h2 className="text-sm font-medium text-kurator-fg">Two-Factor Authentication</h2>
+        <h2 className="kurator-panel-title text-kurator-fg">Two-Factor Authentication</h2>
         <p className="text-sm text-kurator-muted">
           Add a TOTP app (1Password, Google Authenticator, etc.). You will be asked for a code when
           you log in.

@@ -1,8 +1,13 @@
 import type { FontFamily } from "@/lib/fontFamily";
 
-/** Must match globals.css; inline `--font-sans` so Tailwind layers pick it up everywhere. */
-const STACKS: Record<FontFamily, string> = {
-  default: `var(--font-cabin), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"`,
+type NonDefaultFontFamily = Exclude<FontFamily, "default">;
+
+/**
+ * Inline `--font-sans` for non-default profile choices.
+ * For `default`, we remove the inline property so `globals.css` (`@theme` + `html[data-font="default"]`)
+ * controls the stack — body `futura-pt`, headings `futura-pt-condensed` via `--font-kurator-heading`.
+ */
+const STACKS: Record<NonDefaultFontFamily, string> = {
   sans:
     'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
   serif:
@@ -29,6 +34,9 @@ export function applyDocumentFont(raw?: string | null) {
   const ff = normalizedFontFamily(raw);
 
   root.dataset.font = ff;
-  const stack = STACKS[ff];
-  root.style.setProperty("--font-sans", stack);
+  if (ff === "default") {
+    root.style.removeProperty("--font-sans");
+  } else {
+    root.style.setProperty("--font-sans", STACKS[ff]);
+  }
 }

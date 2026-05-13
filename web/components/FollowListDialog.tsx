@@ -157,7 +157,7 @@ export function FollowListDialog({
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="border-b border-kurator-border px-5 py-4">
-          <h2 id="follow-list-title" className="text-lg font-semibold text-kurator-fg">
+          <h2 id="follow-list-title" className="kurator-panel-title text-kurator-fg">
             {title}
           </h2>
           <p className="mt-1 text-sm text-kurator-muted">{subtitle}</p>

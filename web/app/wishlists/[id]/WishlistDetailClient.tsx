@@ -28,14 +28,17 @@ import {
   deleteWishlistEntry,
   exportWishlistEntriesCsv,
   fetchCollections,
+  fetchMyFriends,
   fetchWishlist,
   fetchWishlistEntries,
   importWishlistEntriesCsv,
   obtainWishlistEntry,
+  requestShelfJoin,
   updateWishlist,
   visibilityLabel,
   visibilityOf,
   type Category,
+  type PublicUser,
   type Visibility,
   type Wishlist,
   type WishlistEntry,
@@ -52,7 +55,7 @@ import {
   LIMITS,
 } from "@/lib/validation";
 import { useAuth } from "@/components/AuthProvider";
-import { CoverArtEditModal } from "@/components/CoverArtEditModal";
+import { CoverArtField } from "@/components/CoverArtField";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
@@ -84,6 +87,18 @@ function shelvesForEntryCategory(
   return shelves.filter(
     (c) => c.category == null || c.category === itemCategory,
   );
+}
+
+/** Fields that stay stable when toggling sharing or sending invites from settings. */
+function wishlistStableUpdateBody(wl: Wishlist) {
+  const v = visibilityOf(wl) ?? DEFAULT_VISIBILITY;
+  return {
+    name: wl.name,
+    description: wl.description ?? "",
+    target_collection_id: wl.target_collection_id ?? null,
+    visibility: v,
+    is_public: v !== "private",
+  };
 }
 
 export function WishlistDetailClient() {
@@ -130,11 +145,21 @@ export function WishlistDetailClient() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [deleteWishlistOpen, setDeleteWishlistOpen] = useState(false);
-  const [coverArtModalOpen, setCoverArtModalOpen] = useState(false);
   const [addWishlistModalOpen, setAddWishlistModalOpen] = useState(false);
   const [wishlistSettingsModalOpen, setWishlistSettingsModalOpen] =
     useState(false);
+  const [joinWishlistMsg, setJoinWishlistMsg] = useState<string | null>(null);
+  const [joinWishlistBusy, setJoinWishlistBusy] = useState(false);
   const addTitleInputRef = useRef<HTMLInputElement>(null);
+
+  const [shareFriends, setShareFriends] = useState<PublicUser[]>([]);
+  const [shareFriendsLoading, setShareFriendsLoading] = useState(false);
+  const [shareInviteIds, setShareInviteIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [shareToggleBusy, setShareToggleBusy] = useState(false);
+  const [shareInviteBusy, setShareInviteBusy] = useState(false);
+  const [shareShelfMsg, setShareShelfMsg] = useState<string | null>(null);
 
   const loadAll = useCallback(() => {
     if (!id) return;
@@ -209,6 +234,32 @@ export function WishlistDetailClient() {
       addTitleInputRef.current?.focus();
     });
   }, [addWishlistModalOpen]);
+
+  useEffect(() => {
+    if (!wishlistSettingsModalOpen || !user) return;
+    let cancelled = false;
+    setShareFriendsLoading(true);
+    fetchMyFriends({ limit: 200 })
+      .then((r) => {
+        if (!cancelled) setShareFriends(r.items);
+      })
+      .catch(() => {
+        if (!cancelled) setShareFriends([]);
+      })
+      .finally(() => {
+        if (!cancelled) setShareFriendsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wishlistSettingsModalOpen, user]);
+
+  useEffect(() => {
+    if (!wishlistSettingsModalOpen) {
+      setShareInviteIds(new Set());
+      setShareShelfMsg(null);
+    }
+  }, [wishlistSettingsModalOpen]);
 
   const isOwner =
     wishlist != null &&
@@ -345,7 +396,6 @@ export function WishlistDetailClient() {
       });
       setWishlist(updated);
       setSettingsMsg("Cover saved.");
-      setCoverArtModalOpen(false);
     } catch (err) {
       setSettingsMsg(
         err instanceof Error ? err.message : "Could not save cover.",
@@ -540,22 +590,34 @@ export function WishlistDetailClient() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link
-        href="/wishlists"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        All wishlists
-      </Link>
-
-      {loading && <p className="text-sm text-kurator-muted">Loading…</p>}
+      {loading && (
+        <>
+          <Link
+            href="/wishlists"
+            className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            All wishlists
+          </Link>
+          <p className="text-sm text-kurator-muted">Loading…</p>
+        </>
+      )}
       {error && !loading && (
-        <p
-          className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
-          role="alert"
-        >
-          {error}
-        </p>
+        <div className="mb-4 space-y-4">
+          <Link
+            href="/wishlists"
+            className="inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            All wishlists
+          </Link>
+          <p
+            className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+            role="alert"
+          >
+            {error}
+          </p>
+        </div>
       )}
 
       {!loading && wishlist && (
@@ -574,54 +636,12 @@ export function WishlistDetailClient() {
               router.refresh();
             }}
           />
-          {isOwner && (
-            <CoverArtEditModal
-              open={coverArtModalOpen}
-              onOpenChange={setCoverArtModalOpen}
-              title="Wishlist cover art"
-              value={wishlist.cover_art_url ?? ""}
-              disabled={savingSettings}
-              onChange={(url) => void saveWishlistCover(url)}
-            />
-          )}
           <header className="mb-6 flex flex-col gap-6">
-            {(wishlist.cover_art_url?.trim() || isOwner) &&
-              (isOwner ? (
-                <button
-                  type="button"
-                  disabled={savingSettings}
-                  onClick={() => setCoverArtModalOpen(true)}
-                  aria-label="Edit cover art"
-                  className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg text-left shadow-surface ring-kurator-accent transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
-                    {wishlist.cover_art_url?.trim() ? (
-                      <ItemCoverImage
-                        url={wishlist.cover_art_url}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-linear-to-b from-kurator-border/25 to-kurator-border/50 px-4 text-center text-sm text-kurator-muted">
-                        No cover yet — click to add cover art
-                      </div>
-                    )}
-                  </div>
-                </button>
-              ) : (
-                <div className="relative w-full overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface">
-                  <div className="relative aspect-5/2 w-full min-h-42 max-h-68 md:aspect-21/9 md:min-h-48 md:max-h-88">
-                    {wishlist.cover_art_url?.trim() ? (
-                      <ItemCoverImage
-                        url={wishlist.cover_art_url}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            <PageHeroUnsplash className="mt-6" bleedBottomMargin={false} bleedToMainTop={false}>
+            <PageHeroUnsplash
+              bleedBottomMargin={false}
+              bleedToMainTop={true}
+              customBackgroundUrl={(wishlist.cover_art_url ?? "").trim() || null}
+            >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 {isOwner ? (
@@ -684,7 +704,7 @@ export function WishlistDetailClient() {
                         {wishlist.name}
                       </span>
                       <Pencil
-                        className="mt-1.5 h-5 w-5 shrink-0 text-kurator-muted opacity-60 group-hover:opacity-100 md:mt-2 md:h-6 md:w-6"
+                        className="mt-1.5 h-5 w-5 shrink-0 text-kurator-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 md:mt-2 md:h-6 md:w-6"
                         aria-hidden
                       />
                       <span className="sr-only">Edit name</span>
@@ -751,9 +771,9 @@ export function WishlistDetailClient() {
                       type="button"
                       onClick={() => setEditingDesc(true)}
                       disabled={savingSettings}
-                      className="group mt-2 flex w-full max-w-3xl items-start gap-2 rounded-lg text-left outline-hidden ring-kurator-accent hover:bg-kurator-border/40 focus-visible:ring-2 disabled:opacity-50"
+                      className="group mt-2 flex w-fit max-w-3xl items-start gap-2 rounded-lg text-left outline-hidden ring-kurator-accent hover:bg-kurator-border/40 focus-visible:ring-2 disabled:opacity-50"
                     >
-                      <span className="min-w-0 flex-1 text-sm leading-relaxed text-kurator-muted group-hover:text-kurator-fg/90">
+                      <span className="min-w-0 text-sm leading-relaxed text-kurator-muted group-hover:text-kurator-fg/90">
                         {(wishlist.description ?? "").trim() ? (
                           wishlist.description
                         ) : (
@@ -761,7 +781,7 @@ export function WishlistDetailClient() {
                         )}
                       </span>
                       <Pencil
-                        className="mt-1 h-4 w-4 shrink-0 text-kurator-muted opacity-60 group-hover:opacity-100"
+                        className="mt-1 h-4 w-4 shrink-0 text-kurator-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                         aria-hidden
                       />
                       <span className="sr-only">Edit description</span>
@@ -784,6 +804,47 @@ export function WishlistDetailClient() {
                     <ShelfAuthorLink author={wishlist.author} variant="avatarAndName" />
                   </div>
                 ) : null}
+
+                {!isOwner &&
+                  user &&
+                  wishlist.is_shared && (
+                    <div className="mt-3 rounded-lg border border-kurator-border/80 bg-kurator-bg/40 px-3 py-2">
+                      <p className="text-xs text-kurator-muted">
+                        This wishlist is shared. Request access to add or remove wished items.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={joinWishlistBusy}
+                        onClick={async () => {
+                          setJoinWishlistMsg(null);
+                          setJoinWishlistBusy(true);
+                          try {
+                            await requestShelfJoin({
+                              shelf_kind: "wishlist",
+                              shelf_id: wishlist.id,
+                            });
+                            setJoinWishlistMsg(
+                              "Request sent. The owner can approve it from their notifications.",
+                            );
+                          } catch (err) {
+                            setJoinWishlistMsg(
+                              err instanceof Error ? err.message : "Could not send request.",
+                            );
+                          } finally {
+                            setJoinWishlistBusy(false);
+                          }
+                        }}
+                        className="mt-2 rounded-lg bg-kurator-accent px-3 py-1.5 text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+                      >
+                        {joinWishlistBusy ? "Sending…" : "Request to join"}
+                      </button>
+                      {joinWishlistMsg ? (
+                        <p className="mt-2 text-xs text-kurator-muted" role="status">
+                          {joinWishlistMsg}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
 
                 {isOwner && settingsMsg && (
                   <p className="mt-2 text-sm text-kurator-muted" role="status">
@@ -848,12 +909,29 @@ export function WishlistDetailClient() {
             </PageHeroUnsplash>
           </header>
 
+          <Link
+            href="/wishlists"
+            className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            All wishlists
+          </Link>
+
           {isOwner && (
             <WishlistSettingsModal
               open={wishlistSettingsModalOpen}
               onOpenChange={setWishlistSettingsModalOpen}
             >
               <div className="space-y-6">
+                <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
+                  <p className="mb-3 text-sm font-medium text-kurator-fg">Cover art</p>
+                  <CoverArtField
+                    value={wishlist.cover_art_url ?? ""}
+                    onChange={(url) => void saveWishlistCover(url)}
+                    disabled={savingSettings}
+                  />
+                </div>
+
                 <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
                   <VisibilitySelect
                     name="wishlist-settings-visibility"
@@ -887,6 +965,117 @@ export function WishlistDetailClient() {
                   {visibilityMsg && (
                     <p className="mt-2 text-sm text-amber-200/90" role="status">
                       {visibilityMsg}
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-kurator-border bg-kurator-bg/40 p-4">
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={!!wishlist.is_shared}
+                      disabled={shareToggleBusy}
+                      onChange={async (e) => {
+                        setShareShelfMsg(null);
+                        setShareToggleBusy(true);
+                        try {
+                          const updated = await updateWishlist(id, {
+                            ...wishlistStableUpdateBody(wishlist),
+                            is_shared: e.target.checked,
+                          });
+                          setWishlist(updated);
+                          if (!e.target.checked) setShareInviteIds(new Set());
+                        } catch (err) {
+                          setShareShelfMsg(
+                            err instanceof Error
+                              ? err.message
+                              : "Could not update sharing.",
+                          );
+                        } finally {
+                          setShareToggleBusy(false);
+                        }
+                      }}
+                    />
+                    <span>
+                      <span className="font-medium">Shared wishlist</span>
+                      <span className="mt-0.5 block text-xs text-kurator-muted">
+                        Collaborators you approve can add entries. Others can
+                        request to join from this page.
+                      </span>
+                    </span>
+                  </label>
+                  {wishlist.is_shared ? (
+                    <div className="mt-4 border-t border-kurator-border/60 pt-4">
+                      <p className="text-xs font-medium text-kurator-muted">
+                        Invite mutual friends (optional)
+                      </p>
+                      {shareFriendsLoading ? (
+                        <p className="mt-2 text-xs text-kurator-muted">
+                          Loading friends…
+                        </p>
+                      ) : shareFriends.length === 0 ? (
+                        <p className="mt-2 text-xs text-kurator-muted">
+                          No mutual friends to show.
+                        </p>
+                      ) : (
+                        <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
+                          {shareFriends.map((f) => (
+                            <li key={f.id}>
+                              <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
+                                <input
+                                  type="checkbox"
+                                  checked={shareInviteIds.has(f.id)}
+                                  onChange={() => {
+                                    setShareInviteIds((prev) => {
+                                      const n = new Set(prev);
+                                      if (n.has(f.id)) n.delete(f.id);
+                                      else n.add(f.id);
+                                      return n;
+                                    });
+                                  }}
+                                />
+                                @{f.username}
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <button
+                        type="button"
+                        disabled={shareInviteBusy || shareInviteIds.size === 0}
+                        onClick={async () => {
+                          const ids = Array.from(shareInviteIds);
+                          if (ids.length === 0) return;
+                          setShareShelfMsg(null);
+                          setShareInviteBusy(true);
+                          try {
+                            const updated = await updateWishlist(id, {
+                              ...wishlistStableUpdateBody(wishlist),
+                              invite_user_ids: ids,
+                            });
+                            setWishlist(updated);
+                            setShareInviteIds(new Set());
+                            setShareShelfMsg("Invite requests sent.");
+                          } catch (err) {
+                            setShareShelfMsg(
+                              err instanceof Error
+                                ? err.message
+                                : "Could not send invites.",
+                            );
+                          } finally {
+                            setShareInviteBusy(false);
+                          }
+                        }}
+                        className="mt-3 rounded-lg bg-kurator-accent px-3 py-1.5 text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+                      >
+                        {shareInviteBusy ? "Sending…" : "Send invite requests"}
+                      </button>
+                    </div>
+                  ) : null}
+                  {shareShelfMsg && (
+                    <p className="mt-2 text-sm text-amber-200/90" role="status">
+                      {shareShelfMsg}
                     </p>
                   )}
                 </div>
@@ -1043,7 +1232,7 @@ export function WishlistDetailClient() {
                     <li key={item.id}>
                       <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface">
                         <div className="shrink-0 space-y-2 p-4 pb-2">
-                          <h2 className="line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
+                          <h2 className="kurator-item-title line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
                             {item.title}
                           </h2>
                           <span className="inline-flex rounded-full bg-kurator-border/60 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-kurator-muted">

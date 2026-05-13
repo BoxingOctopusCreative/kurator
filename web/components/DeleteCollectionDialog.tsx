@@ -127,7 +127,7 @@ export function DeleteCollectionDialog({ collection, open, onOpenChange, onDelet
             className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h2 id="delete-collection-title" className="text-lg font-semibold text-kurator-fg">
+            <h2 id="delete-collection-title" className="kurator-panel-title text-kurator-fg">
               Delete Collection
             </h2>
             <p className="mt-2 text-sm text-kurator-muted">

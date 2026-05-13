@@ -220,7 +220,7 @@ export function PeopleHomeClient() {
       </PageHeroUnsplash>
 
       <section className="mt-8" aria-labelledby="friends-heading">
-        <h2 id="friends-heading" className="text-lg font-semibold text-kurator-fg">
+        <h2 id="friends-heading" className="kurator-panel-title text-kurator-fg">
           Friends
         </h2>
         <p className="mt-1 text-xs text-kurator-muted">Mutual followers — you and they follow each other.</p>
@@ -248,7 +248,7 @@ export function PeopleHomeClient() {
       </section>
 
       <section className="mt-10" aria-labelledby="pymk-heading">
-        <h2 id="pymk-heading" className="text-lg font-semibold text-kurator-fg">
+        <h2 id="pymk-heading" className="kurator-panel-title text-kurator-fg">
           People You May Know
         </h2>
         <p className="mt-1 text-xs text-kurator-muted">
@@ -280,7 +280,7 @@ export function PeopleHomeClient() {
       </section>
 
       <section className="mt-10" aria-labelledby="search-heading">
-        <h2 id="search-heading" className="text-lg font-semibold text-kurator-fg">
+        <h2 id="search-heading" className="kurator-panel-title text-kurator-fg">
           Search
         </h2>
         <label className="mt-3 block text-sm">

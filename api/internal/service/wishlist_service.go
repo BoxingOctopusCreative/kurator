@@ -31,11 +31,16 @@ func (s *WishlistService) List(ctx context.Context, userID int64) ([]models.Wish
 	return s.wishlist.ListForViewer(ctx, userID)
 }
 
+// ListByOwnerForViewer returns wishlists owned by ownerUserID visible to viewer (nil viewer → none).
+func (s *WishlistService) ListByOwnerForViewer(ctx context.Context, ownerUserID int64, viewer *int64) ([]models.Wishlist, error) {
+	return s.wishlist.WishlistsByOwnerForViewer(ctx, ownerUserID, viewer)
+}
+
 func (s *WishlistService) Get(ctx context.Context, id string, userID int64) (*models.Wishlist, error) {
 	return s.wishlist.GetByIDForViewer(ctx, id, userID)
 }
 
-func (s *WishlistService) Create(ctx context.Context, userID int64, name, description string, targetCollectionID *string, visibility *models.Visibility) (*models.Wishlist, error) {
+func (s *WishlistService) Create(ctx context.Context, userID int64, name, description string, targetCollectionID *string, visibility *models.Visibility, isShared bool) (*models.Wishlist, error) {
 	if err := s.validateTargetCollection(ctx, userID, targetCollectionID); err != nil {
 		return nil, err
 	}
@@ -55,10 +60,10 @@ func (s *WishlistService) Create(ctx context.Context, userID int64, name, descri
 	if visibility != nil && (*visibility).Valid() {
 		vis = *visibility
 	}
-	return s.wishlist.Create(ctx, userID, n, descPtr, targetCollectionID, vis)
+	return s.wishlist.Create(ctx, userID, n, descPtr, targetCollectionID, vis, isShared)
 }
 
-func (s *WishlistService) Update(ctx context.Context, userID int64, id, name, description string, targetCollectionID *string, visibility *models.Visibility, coverArt *string) (*models.Wishlist, error) {
+func (s *WishlistService) Update(ctx context.Context, userID int64, id, name, description string, targetCollectionID *string, visibility *models.Visibility, coverArt *string, isShared *bool) (*models.Wishlist, error) {
 	if err := s.validateTargetCollection(ctx, userID, targetCollectionID); err != nil {
 		return nil, err
 	}
@@ -78,7 +83,7 @@ func (s *WishlistService) Update(ctx context.Context, userID int64, id, name, de
 	if err != nil {
 		return nil, err
 	}
-	return s.wishlist.UpdateFull(ctx, id, userID, n, descPtr, targetCollectionID, visibility, coverNorm)
+	return s.wishlist.UpdateFull(ctx, id, userID, n, descPtr, targetCollectionID, visibility, coverNorm, isShared)
 }
 
 // Delete removes a wishlist owned by userID. When entries exist, either moveEntriesTo (another owned wishlist)
@@ -181,9 +186,6 @@ func (s *WishlistService) ListEntries(ctx context.Context, wishlistID string, us
 }
 
 func (s *WishlistService) AddEntry(ctx context.Context, wishlistID string, userID int64, title string, category models.Category, metadata json.RawMessage) (*models.WishlistEntry, error) {
-	if _, err := s.wishlist.GetByIDForUser(ctx, wishlistID, userID); err != nil {
-		return nil, err
-	}
 	if !category.Valid() {
 		return nil, fmt.Errorf("invalid category")
 	}
@@ -199,17 +201,21 @@ func (s *WishlistService) AddEntry(ctx context.Context, wishlistID string, userI
 }
 
 func (s *WishlistService) DeleteEntry(ctx context.Context, wishlistID, entryID string, userID int64) error {
-	if _, err := s.wishlist.GetByIDForUser(ctx, wishlistID, userID); err != nil {
-		return err
-	}
 	return s.wishlist.DeleteEntry(ctx, wishlistID, entryID, userID)
 }
 
 // Obtain creates a collection item from the wishlist entry and removes the entry.
 func (s *WishlistService) Obtain(ctx context.Context, userID int64, wishlistID, entryID string, collectionID *string) (*models.Item, error) {
-	wl, err := s.wishlist.GetByIDForUser(ctx, wishlistID, userID)
+	wl, err := s.wishlist.GetByIDForViewer(ctx, wishlistID, userID)
 	if err != nil {
 		return nil, err
+	}
+	ok, err := s.wishlist.UserMayMutateWishlistContent(ctx, wishlistID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, repository.ErrWishlistNotFound
 	}
 	var cid string
 	if collectionID != nil && strings.TrimSpace(*collectionID) != "" {

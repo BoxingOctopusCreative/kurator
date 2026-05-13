@@ -168,7 +168,7 @@ export function DeleteEntryBucketDialog({ variant, subject, open, onOpenChange, 
             className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h2 id={dialogTitleId} className="text-lg font-semibold text-kurator-fg">
+            <h2 id={dialogTitleId} className="kurator-panel-title text-kurator-fg">
               {c.title}
             </h2>
             <p className="mt-2 text-sm text-kurator-muted">

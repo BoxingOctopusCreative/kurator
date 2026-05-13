@@ -25,7 +25,15 @@ func OwnedShelfVisibleToViewerSQL(ownerCol, visibilityCol, viewerPlaceholder str
 // is anything other than "private" (they have no owner to compare against).
 func CollectionRowVisibleSQL(viewerPh string) string {
 	return "((c.user_id IS NULL AND c.visibility <> 'private') OR (c.user_id IS NOT NULL AND " +
-		OwnedShelfVisibleToViewerSQL("c.user_id", "c.visibility", viewerPh) + "))"
+		OwnedShelfVisibleToViewerOrSharedMemberSQL("c.user_id", "c.visibility", "c.is_shared", "collection", "c.id", viewerPh) + "))"
+}
+
+// OwnedShelfVisibleToViewerOrSharedMemberSQL is true when the usual visibility rules apply OR the shelf
+// is marked shared and the viewer is an explicit member (see shelf_members).
+func OwnedShelfVisibleToViewerOrSharedMemberSQL(ownerCol, visibilityCol, isSharedCol, shelfKind, shelfIDCol, viewerPlaceholder string) string {
+	vis := OwnedShelfVisibleToViewerSQL(ownerCol, visibilityCol, viewerPlaceholder)
+	mem := "(" + isSharedCol + " = TRUE AND EXISTS (SELECT 1 FROM shelf_members sm WHERE sm.shelf_kind = '" + shelfKind + "' AND sm.shelf_id = " + shelfIDCol + " AND sm.user_id = " + viewerPlaceholder + "))"
+	return "(" + vis + " OR " + mem + ")"
 }
 
 // CollectionRowVisibleAnonSQL is the visibility predicate for a viewer with no user id.

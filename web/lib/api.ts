@@ -79,6 +79,8 @@ export type Collection = {
   visibility?: Visibility;
   /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
+  /** When true, others can request membership or accept invites (see shelf sharing). */
+  is_shared?: boolean;
   item_count: number;
   created_at: string;
   updated_at: string;
@@ -233,6 +235,8 @@ export async function createCollection(body: {
   is_public?: boolean;
   /** Pins the new shelf to one item type; omit for a flex shelf until the first item pins it. */
   category?: Category;
+  is_shared?: boolean;
+  invite_user_ids?: number[];
 }): Promise<Collection> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
@@ -241,6 +245,10 @@ export async function createCollection(body: {
   if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
   if (body.category !== undefined) payload.category = body.category;
+  if (body.is_shared === true) payload.is_shared = true;
+  if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
+    payload.invite_user_ids = body.invite_user_ids;
+  }
   const res = await fetch(apiUrl("/collections"), {
     method: "POST",
     credentials: "include",
@@ -265,13 +273,27 @@ export async function patchCollection(
     visibility?: Visibility;
     is_public?: boolean;
     cover_art_url?: string;
+    /** When set, updates whether the collection is a shared shelf (owner only). */
+    is_shared?: boolean;
+    /** Sends invite notifications to mutual friends; shelf must already be shared (or set `is_shared` in the same request). */
+    invite_user_ids?: number[];
   },
 ): Promise<Collection> {
+  const payload: Record<string, unknown> = {};
+  if (body.name !== undefined) payload.name = body.name;
+  if (body.description !== undefined) payload.description = body.description;
+  if (body.visibility !== undefined) payload.visibility = body.visibility;
+  if (body.is_public !== undefined) payload.is_public = body.is_public;
+  if (body.cover_art_url !== undefined) payload.cover_art_url = body.cover_art_url;
+  if (body.is_shared !== undefined) payload.is_shared = body.is_shared;
+  if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
+    payload.invite_user_ids = body.invite_user_ids;
+  }
   const res = await fetch(apiUrl(`/collections/${id}`), {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   if (res.status === 401) {
     throw new Error("Sign in to edit this collection.");
@@ -473,6 +495,104 @@ export async function markAllNotificationsRead(): Promise<void> {
   if (!res.ok) throw new Error(`notifications: ${res.status}`);
 }
 
+export type ShelfKind = "collection" | "list" | "wishlist";
+
+/** Unified shelf shape returned by the dashboard "recent shelves" feed. */
+export type DashboardShelf = {
+  kind: ShelfKind;
+  id: string;
+  user_id: number;
+  author?: ShelfAuthor | null;
+  name: string;
+  description?: string | null;
+  cover_art_url?: string | null;
+  /** Only populated for collections that have been pinned to one item type. */
+  category?: Category | null;
+  visibility: Visibility;
+  is_public: boolean;
+  is_shared: boolean;
+  /** Counts items (for collections/lists) or wishlist entries (for wishlists). */
+  item_count: number;
+  entry_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Recent shelves for the signed-in user's dashboard. */
+export async function fetchRecentShelves(opts: {
+  scope: "mine" | "following";
+  /** Omit for a mix of all three shelf kinds. */
+  kind?: ShelfKind;
+  limit?: number;
+}): Promise<DashboardShelf[]> {
+  const sp = new URLSearchParams({ scope: opts.scope });
+  if (opts.kind) sp.set("kind", opts.kind);
+  if (opts.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
+  const res = await fetch(apiUrl(`/me/shelves?${sp}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("Sign in to see your dashboard.");
+  if (!res.ok) throw new Error(`dashboard shelves: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as DashboardShelf[]) : [];
+}
+
+export async function requestShelfJoin(body: {
+  shelf_kind: ShelfKind;
+  shelf_id: string;
+}): Promise<void> {
+  const res = await fetch(apiUrl("/me/shelf-share/join"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new Error("Sign in to request access.");
+  if (res.status === 204) return;
+  const t = await res.text();
+  throw new Error(t || `join request: ${res.status}`);
+}
+
+export async function inviteToShelf(body: {
+  shelf_kind: ShelfKind;
+  shelf_id: string;
+  invite_user_ids: number[];
+}): Promise<void> {
+  const res = await fetch(apiUrl("/me/shelf-share/invite"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new Error("Sign in to send invites.");
+  if (res.status === 204) return;
+  const t = await res.text();
+  throw new Error(t || `invite: ${res.status}`);
+}
+
+export async function approveShelfAccessRequest(requestId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/me/shelf-access-requests/${requestId}/approve`), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (res.status === 204) return;
+  const t = await res.text();
+  throw new Error(t || `approve: ${res.status}`);
+}
+
+export async function dismissShelfAccessRequest(requestId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/me/shelf-access-requests/${requestId}/dismiss`), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (res.status === 204) return;
+  const t = await res.text();
+  throw new Error(t || `dismiss: ${res.status}`);
+}
+
 export async function searchUsers(q: string): Promise<PublicUser[]> {
   const sp = new URLSearchParams({ q: q.trim() });
   const res = await fetch(apiUrl(`/users/search?${sp}`), {
@@ -503,16 +623,29 @@ export async function fetchPublicUserProfile(
   return res.json() as Promise<UserProfile>;
 }
 
-/** Public collections for a user (no auth). */
-export async function fetchPublicCollectionsSnapshot(
+/**
+ * Collections owned by `ownerUserId` that the current viewer may see (visibility, mutuals, shared membership).
+ * - Browser: uses `credentials: "include"` so the session cookie reaches the API via the app origin.
+ * - Server: pass `cookieHeader` from `cookies()` so the same visibility rules apply during SSR.
+ * Unsigned viewers only match legacy non–user-owned shelves, so user profiles typically show shelves only when signed in.
+ */
+export async function fetchProfileOwnerCollections(
   ownerUserId: number,
+  opts?: { cookieHeader?: string },
 ): Promise<CollectionListResponse> {
   const sp = new URLSearchParams({
     owner_user_id: String(ownerUserId),
     limit: "48",
     sort: "updated_desc",
   });
-  const res = await fetch(apiUrl(`/collections?${sp}`), { cache: "no-store" });
+  const isServer = typeof window === "undefined";
+  const init: RequestInit = { cache: "no-store" };
+  if (opts?.cookieHeader) {
+    init.headers = { Cookie: opts.cookieHeader };
+  } else if (!isServer) {
+    init.credentials = "include";
+  }
+  const res = await fetch(apiUrl(`/collections?${sp}`), init);
   if (!res.ok) {
     return { items: [], total: 0, page: 1, page_size: 48 };
   }
@@ -521,6 +654,52 @@ export async function fetchPublicCollectionsSnapshot(
     return { ...data, items: [] };
   }
   return data;
+}
+
+/**
+ * Lists owned by `ownerUserId` that the viewer may see (visibility / follow rules), same as collections profile query.
+ */
+export async function fetchProfileOwnerLists(
+  ownerUserId: number,
+  opts?: { cookieHeader?: string },
+): Promise<List[]> {
+  const sp = new URLSearchParams({ owner_user_id: String(ownerUserId) });
+  const isServer = typeof window === "undefined";
+  const init: RequestInit = { cache: "no-store" };
+  if (opts?.cookieHeader) {
+    init.headers = { Cookie: opts.cookieHeader };
+  } else if (!isServer) {
+    init.credentials = "include";
+  }
+  const res = await fetch(apiUrl(`/lists?${sp}`), init);
+  if (!res.ok) {
+    return [];
+  }
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as List[]) : [];
+}
+
+/**
+ * Wishlists owned by `ownerUserId` that the viewer may see (visibility / follow rules).
+ */
+export async function fetchProfileOwnerWishlists(
+  ownerUserId: number,
+  opts?: { cookieHeader?: string },
+): Promise<Wishlist[]> {
+  const sp = new URLSearchParams({ owner_user_id: String(ownerUserId) });
+  const isServer = typeof window === "undefined";
+  const init: RequestInit = { cache: "no-store" };
+  if (opts?.cookieHeader) {
+    init.headers = { Cookie: opts.cookieHeader };
+  } else if (!isServer) {
+    init.credentials = "include";
+  }
+  const res = await fetch(apiUrl(`/wishlists?${sp}`), init);
+  if (!res.ok) {
+    return [];
+  }
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as Wishlist[]) : [];
 }
 
 export async function followUser(userRef: string): Promise<void> {
@@ -648,6 +827,7 @@ export type Wishlist = {
   visibility?: Visibility;
   /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
+  is_shared?: boolean;
   entry_count: number;
   created_at: string;
   updated_at: string;
@@ -686,6 +866,8 @@ export async function createWishlist(body: {
   target_collection_id?: string | null;
   visibility?: Visibility;
   is_public?: boolean;
+  is_shared?: boolean;
+  invite_user_ids?: number[];
 }): Promise<Wishlist> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
@@ -694,6 +876,10 @@ export async function createWishlist(body: {
   };
   if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
+  if (body.is_shared === true) payload.is_shared = true;
+  if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
+    payload.invite_user_ids = body.invite_user_ids;
+  }
   const res = await fetch(apiUrl("/wishlists"), {
     method: "POST",
     credentials: "include",
@@ -718,6 +904,9 @@ export async function updateWishlist(
     is_public?: boolean;
     /** Omit to leave unchanged; empty string clears the cover. */
     cover_art_url?: string;
+    /** When set, updates whether the wishlist is shared (owner only). */
+    is_shared?: boolean;
+    invite_user_ids?: number[];
   },
 ): Promise<Wishlist> {
   const payload: Record<string, unknown> = {
@@ -728,6 +917,10 @@ export async function updateWishlist(
   if (body.is_public !== undefined) payload.is_public = body.is_public;
   if (body.cover_art_url !== undefined)
     payload.cover_art_url = body.cover_art_url;
+  if (body.is_shared !== undefined) payload.is_shared = body.is_shared;
+  if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
+    payload.invite_user_ids = body.invite_user_ids;
+  }
   if (
     body.target_collection_id === null ||
     body.target_collection_id === undefined
@@ -918,6 +1111,7 @@ export type List = {
   visibility?: Visibility;
   /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
+  is_shared?: boolean;
   item_count: number;
   created_at: string;
   updated_at: string;
@@ -943,6 +1137,8 @@ export async function createList(body: {
   description?: string;
   visibility?: Visibility;
   is_public?: boolean;
+  is_shared?: boolean;
+  invite_user_ids?: number[];
 }): Promise<List> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
@@ -950,6 +1146,10 @@ export async function createList(body: {
   };
   if (body.visibility !== undefined) payload.visibility = body.visibility;
   if (body.is_public !== undefined) payload.is_public = body.is_public;
+  if (body.is_shared === true) payload.is_shared = true;
+  if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
+    payload.invite_user_ids = body.invite_user_ids;
+  }
   const res = await fetch(apiUrl("/lists"), {
     method: "POST",
     credentials: "include",
@@ -972,6 +1172,8 @@ export async function updateList(
     visibility?: Visibility;
     is_public?: boolean;
     cover_art_url?: string;
+    is_shared?: boolean;
+    invite_user_ids?: number[];
   },
 ): Promise<List> {
   const payload: Record<string, unknown> = {
@@ -982,6 +1184,10 @@ export async function updateList(
   if (body.is_public !== undefined) payload.is_public = body.is_public;
   if (body.cover_art_url !== undefined)
     payload.cover_art_url = body.cover_art_url;
+  if (body.is_shared !== undefined) payload.is_shared = body.is_shared;
+  if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
+    payload.invite_user_ids = body.invite_user_ids;
+  }
   const res = await fetch(apiUrl(`/lists/${id}`), {
     method: "PUT",
     credentials: "include",
