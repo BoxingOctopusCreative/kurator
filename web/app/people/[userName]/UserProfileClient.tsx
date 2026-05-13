@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { FollowListDialog } from "@/components/FollowListDialog";
+import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
 import { socialPlatformDisplayName } from "@/lib/socialPlatforms";
 import { safeHttpUrl, safeImageSrcUrl } from "@/lib/safeUrl";
@@ -248,8 +249,14 @@ export function UserProfileClient({
                     href={`/collections/${c.id}`}
                     className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
-                      <Layers className="h-5 w-5" aria-hidden />
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
+                      {c.cover_art_url ? (
+                        <ItemCoverImage url={c.cover_art_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                          <Layers className="h-5 w-5" aria-hidden />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <span className="kurator-shelf-tile-title font-medium text-kurator-fg">{c.name}</span>
@@ -276,8 +283,14 @@ export function UserProfileClient({
                     href={`/lists/${lst.id}`}
                     className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
-                      <ListOrdered className="h-5 w-5" aria-hidden />
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
+                      {lst.cover_art_url ? (
+                        <ItemCoverImage url={lst.cover_art_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                          <ListOrdered className="h-5 w-5" aria-hidden />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <span className="kurator-shelf-tile-title font-medium text-kurator-fg">{lst.name}</span>
@@ -304,8 +317,14 @@ export function UserProfileClient({
                     href={`/wishlists/${w.id}`}
                     className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-kurator-border/60 text-kurator-accent">
-                      <Heart className="h-5 w-5" aria-hidden />
+                    <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">
+                      {w.cover_art_url ? (
+                        <ItemCoverImage url={w.cover_art_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-kurator-border/60 text-kurator-accent">
+                          <Heart className="h-5 w-5" aria-hidden />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <span className="kurator-shelf-tile-title font-medium text-kurator-fg">{w.name}</span>
