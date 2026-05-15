@@ -25,7 +25,6 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 ├── api/                        # Go module (single module root)
 │   ├── cmd/api/                # HTTP server entry
 │   ├── cmd/migrate/            # Migrations CLI (DATABASE_URL)
-│   ├── cmd/betakeygen/         # Optional ops CLIs
 │   ├── internal/               # handler, service, repository, middleware, config, migrate, …
 │   ├── migrations/             # Versioned SQL (+ embed for bootstrap)
 │   ├── docs/swagger.json       # OpenAPI spec (Swagger UI mounts this in infra)
@@ -43,7 +42,7 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 │   ├── vitest.config.ts / vitest.setup.ts
 │   └── package.json / package-lock.json
 ├── infra/
-│   ├── docker-compose.yml      # Local backing services (Postgres, MinIO, Meili, Valkey, Swagger)
+│   ├── docker-compose.yml      # Local backing services (Postgres, Meili, Valkey, Swagger)
 │   └── nginx/                  # Optional sample config (not wired by default)
 ├── docker-compose.yml          # Production-oriented stack (e.g. Traefik + GHCR images)
 ├── Makefile                    # Delegates to api/; web-test at repo root
@@ -54,6 +53,7 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 ## Browser ↔ API (auth and cookies)
 
 - Browser calls **same-origin** `/api/v1/...` (or equivalent prefix). **Next.js route handlers** proxy to the real API so **session cookies stay on the web origin** (HTTP-only, `Secure` in production).
+- **Native and other non-browser clients** may call the API host directly and send **`Authorization: Bearer <session_token>`**; the opaque **`session_token`** is returned in JSON from successful auth endpoints alongside **`Set-Cookie`** (same backing session as the **`kurator_session`** cookie). See **`api/docs/swagger.json`** (`SessionCookie` and **`BearerToken`** security definitions).
 - Do not point the browser client directly at a separate API host for authenticated flows unless CORS, cookie `Domain`/`SameSite`, and CSRF are fully designed for that.
 - Server Components / server actions use an **internal base URL** (e.g. `API_INTERNAL_URL`) distinct from public build-time vars when the proxy is not used on the server path.
 
@@ -68,15 +68,16 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 
 ## Local development
 
-- Prefer **Podman** + Compose for backing services (Postgres, object store, search, Redis/Valkey, etc.); keep **secrets out of compose files** — interpolate from env or secret stores.
+- Prefer **Podman** + Compose for backing services (Postgres, object store, search, Redis/Valkey, etc.); keep **secrets out of compose files** — interpolate from env or secret stores. Repo root: **`make infra-up`** / **`make infra-down`** (`infra/docker-compose.yml`; override with `COMPOSE='docker compose'` if needed).
 - Web dev server and API run on host (or in containers) with **documented env vars**; parity with production names where possible.
+- **API live reload:** [Air](https://github.com/air-verse/air) via `api/.air.toml` — `make api-dev` from repo root or `make dev` in `api/` (install: `go install github.com/air-verse/air@latest`).
 
 ## Makefile structure and behaviour
 
 ### Design
 
 - **Root `Makefile`**: thin **facade** — delegates almost everything to **`api/Makefile`** via **`$(MAKE) -C api <target>`** so developers run **`make api-build`** from the repo root without remembering paths.
-- **`api/Makefile`**: owns **Go** build flags, output **`api/bin/`**, cross-compilation matrix, **`go test` / `go vet`**, and small **ops CLIs** (e.g. betakeygen).
+- **`api/Makefile`**: owns **Go** build flags, output **`api/bin/`**, cross-compilation matrix, **`go test` / `go vet`**, and **`make dev`** (Air live reload).
 - **Web**: day-to-day commands stay **`npm run dev`**, **`npm run build`**, **`npm test`** inside **`web/`**; the root Makefile exposes **`web-test`** only so **`make api-test`** and **`make web-test`** sit side by side in **`help`** and CI docs.
 - **`.PHONY`**: declare every recipe name that is not a real file at both levels to avoid stale “up to date” skips.
 
@@ -91,7 +92,6 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 | **`api-build-all`** | `make -C api build-all` (darwin + linux, amd64 + arm64). |
 | **`api-test`** | `make -C api test` → **`go test ./...`** from **`api/`**. |
 | **`api-clean`** | `make -C api clean` → removes **`api/bin/`**. |
-| **`api-build-betakeygen`** / **`api-betakeygen`** | Delegate to **`api/`**; pass CLI flags with **`ARGS='...'`** on **`api-betakeygen`**. |
 | **`web-test`** | **`cd web && npm test`** (Vitest **`run`** via **`package.json`**). |
 
 Add new **cross-cutting** shortcuts at the root only when they improve discoverability; put **API-only** logic in **`api/Makefile`**.
@@ -100,13 +100,11 @@ Add new **cross-cutting** shortcuts at the root only when they improve discovera
 
 | Area | Behaviour |
 |------|------------|
-| **Variables** | **`BINARY_NAME`** / **`CMD_PATH`** (main server), **`BETAKEYGEN_*`** for optional second binary, **`BIN_DIR := bin`**, **`LDFLAGS := -s -w`**, **`GOFLAGS := -trimpath`**. |
+| **Variables** | **`BINARY_NAME`** / **`CMD_PATH`** (main server), **`BIN_DIR := bin`**, **`LDFLAGS := -s -w`**, **`GOFLAGS := -trimpath`**. |
 | **`build`** | **`CGO_ENABLED=0`** **`go build`** → **`$(BIN_DIR)/$(BINARY_NAME)`** (portable static linking style). |
 | **Cross-compile** | Per-OS/arch recipes (**`build-darwin-amd64`**, **`build-darwin-arm64`**, **`build-linux-amd64`**, **`build-linux-arm64`**); **`build-all`** runs all four; **`build-macos-native`** picks one based on host. |
 | **`test` / `vet` / `clean`** | **`go test ./...`**, **`go vet ./...`**, **`rm -rf $(BIN_DIR)`**. |
 | **`swagger`** | Echo-only: OpenAPI path, how to run **Swagger UI** via **infra** compose, optional **swag** regen reminder (spec file is source of truth in **`api/docs/swagger.json`**). |
-| **`betakeygen`** | **`go run ./cmd/betakeygen $(ARGS)`** for one-off ops without installing a binary. |
-
 ## Testing suites (match CI)
 
 ### API (Go)

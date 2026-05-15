@@ -19,7 +19,7 @@ Kurator is a collection tracker: a **Go (Fiber) REST API**, a **Next.js** web ap
 | `api/` | Go API (`cmd/api`), internal packages, SQL migrations, OpenAPI `docs/swagger.json`, `Makefile` |
 | `web/` | Next.js app (`app/`, `components/`, Vitest unit tests) |
 | `docker-compose.yml` | **Production-style** stack: prebuilt images from GHCR, **Traefik** labels, external `shared-network`, Meilisearch, Valkey, optional Swagger UI sidecar |
-| `infra/docker-compose.yml` | **Local dependencies**: Postgres, MinIO (+ bucket init), Meilisearch, Swagger UI, Valkey |
+| `infra/docker-compose.yml` | **Local dependencies**: Postgres, Meilisearch, Swagger UI, Valkey |
 | `infra/nginx/nginx.conf` | **Optional** reference config for load-balancing multiple Next replicas (not wired into `infra/docker-compose.yml` today) |
 | `Makefile` | Shortcuts: `api-build`, `api-test`, `web-test`, etc. |
 
@@ -29,7 +29,7 @@ Kurator is a collection tracker: a **Go (Fiber) REST API**, a **Next.js** web ap
 
 - In the **browser**, the client uses same-origin paths under **`/api/v1/...`**. Next.js proxies those to the real API (`web/app/api/v1/[[...path]]/route.ts`) so the **session cookie** stays on the web origin (important for production and for local dev on `http://localhost:3000`).
 - **Server-side** rendering and server actions resolve the upstream API with **`API_INTERNAL_URL`** (or **`API_PROXY_TARGET`**), then **`NEXT_PUBLIC_API_URL`** as fallback (see `web/lib/apiUrl.ts`).
-
+- **Native apps and other non-browser clients** should call the **Go API host** directly (for example `https://api.example.com/api/v1/...`). Authenticate with **`Authorization: Bearer <session_token>`**; the opaque **`session_token`** is returned in JSON from **`POST /api/v1/auth/register`**, **`POST /api/v1/auth/login`** (when 2FA is not required), and **`POST /api/v1/auth/login/2fa`**, in addition to **`Set-Cookie: kurator_session`** for clients that use cookies. Details and OpenAPI models: **`api/docs/swagger.json`** (`BearerToken`, `RegisterResponse`, `LoginResponse`, `Login2FAResponse`). If both cookie and Bearer are sent, the **cookie takes precedence** (same as the API middleware).
 ---
 
 ## Production stack (`docker-compose.yml` at repo root)
@@ -52,17 +52,22 @@ Images default to **`ghcr.io/boxingoctopuscreative/kurator-api`** and **`kurator
 
 ### 1. Start backing services
 
-From the repository root (Podman shown; use `docker compose` if you prefer):
+From the repository root (uses **Podman** by default; override with `COMPOSE='docker compose'` if needed):
 
 ```bash
-podman compose -f infra/docker-compose.yml up -d
+make infra-up
+# equivalent: podman compose -f infra/docker-compose.yml up -d
 ```
 
-This starts **Postgres** (port **5432** by default), **MinIO** (**9000**), **Meilisearch** (**7700**), **Valkey** (**6379**), **Swagger UI** (host port **8081** by default, `SWAGGER_UI_PORT`), and a one-shot **minio-init** that creates a `kurator-covers` bucket.
+Stop with `make infra-down`. Status: `make infra-ps`. Logs: `make infra-logs` (optional `SVC=postgres`).
+
+This starts **Postgres** (port **5432** by default), **Meilisearch** (**7700**), **Valkey** (**6379**), and **Swagger UI** (host port **8081** by default, `SWAGGER_UI_PORT`). Object storage is not run locally; point the API at your **production S3** (or R2) bucket via `S3_*` env or `[s3]` in `api/kurator.toml` (see `api/kurator.example.toml`).
 
 Schema: start the API once (it applies bundled migrations on boot), or use `go run ./cmd/migrate` from `api/` with `DATABASE_URL` set.
 
 ### 2. API
+
+Set env once (same for Air or `go run`):
 
 ```bash
 cd api
@@ -72,8 +77,23 @@ export MEILISEARCH_API_KEY='dev_master_key'
 export MEILISEARCH_INDEX='kurator_items'
 export AUTH_JWT_SECRET='your-local-secret'
 export REDIS_URL='redis://localhost:6379/0'
-# Optional S3 (match MinIO from infra compose):
+# S3 (production bucket or R2; required for cover/avatar uploads):
 # export S3_BUCKET=... S3_ENDPOINT=... S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... S3_PUBLIC_BASE_URL=...
+```
+
+**Live reload (recommended):** install [Air](https://github.com/air-verse/air) once, then run from `api/` or the repo root:
+
+```bash
+go install github.com/air-verse/air@latest   # ensure $(go env GOPATH)/bin is on PATH
+make dev          # from api/
+# or: make api-dev   # from repo root
+```
+
+Config: `api/.air.toml` (rebuilds on `.go` / `.toml` changes; ignores `*_test.go` and `tmp/`).
+
+**Without Air:**
+
+```bash
 go run ./cmd/api
 ```
 
@@ -117,6 +137,8 @@ Details and conventions (concurrency, secrets, build-args) are summarized in **`
 | Command | Description |
 |---------|-------------|
 | `make help` | Lists shortcuts |
+| `make infra-up` / `make infra-down` | Start/stop local deps (`infra/docker-compose.yml`) |
+| `make api-dev` | Live-reload API via Air (`make -C api dev`) |
 | `make api-build` | Build API for current platform → `api/bin/kurator-api` |
 | `make api-build-macos` / `api-build-linux` / `make api-build-all` | Cross-compilation helpers |
 | `make api-test` | Go tests in `api/` |
@@ -129,14 +151,14 @@ See `make -C api help` for API-only targets (including `swagger` notes for OpenA
 
 ## OpenAPI / Swagger
 
-- Spec file: `api/docs/swagger.json`
+- Spec file: **`api/docs/swagger.json`** (OpenAPI 2.0). Describes **`SessionCookie`** (`kurator_session`) and **`BearerToken`** (`Authorization: Bearer <session_token>`) as alternative client credentials; auth responses document **`session_token`** for register, login, and login/2fa.
 - Local UI with infra compose: **http://localhost:8081** (unless `SWAGGER_UI_PORT` overrides); compose mounts the repo’s `swagger.json`.
 
 ---
 
 ## First-time auth
 
-Register from the UI or `POST /api/v1/auth/register`. Signed-in sessions use an HTTP-only **`kurator_session`** cookie. With the Next.js proxy, that cookie is set for the **web** origin in normal use; JWTs are used for short-lived flows (e.g. pending 2FA), not as the primary session mechanism.
+Register from the UI or **`POST /api/v1/auth/register`**. Signed-in sessions use the same opaque token in two ways: an HTTP-only **`kurator_session`** cookie (normal browser flow through the Next.js proxy) **and** a JSON **`session_token`** field on successful **register**, **login** (when 2FA is off), and **login/2fa** responses so native or scripted clients can send **`Authorization: Bearer <session_token>`** without cookies. **`POST /api/v1/auth/logout`** revokes the session for either mechanism. JWTs are still used only for short-lived flows (e.g. pending 2FA, beta unlock), not as the primary session mechanism.
 
 ---
 

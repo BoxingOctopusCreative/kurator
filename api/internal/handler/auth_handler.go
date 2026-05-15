@@ -49,13 +49,13 @@ type RegisterBody struct {
 	TurnstileToken string `json:"turnstile_token"`
 }
 
-// Register creates an account and sets the session cookie.
+// Register creates an account and sets the session cookie. The JSON body includes session_token (same value as the cookie) for native clients using Authorization: Bearer.
 // @Summary Register
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Param body body RegisterBody true "Account"
-// @Success 201 {object} models.User
+// @Success 201 {object} map[string]interface{} "User fields plus session_token"
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string "email already registered"
 // @Router /api/v1/auth/register [post]
@@ -77,7 +77,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if err != nil {
 			return fiber.NewError(fiber.StatusForbidden, service.ErrBetaUnlockRequired.Error())
 		}
-		proof = &service.BetaRegisterProof{KeyID: bc.KeyID, InviteID: bc.InviteID}
+		proof = &service.BetaRegisterProof{InviteID: bc.InviteID}
 	}
 	u, raw, err := h.auth.Register(c.Context(), body.Email, body.Password, body.DisplayName, body.Username, proof)
 	if err != nil {
@@ -93,7 +93,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrBetaUnlockRequired) {
 			return fiber.NewError(fiber.StatusForbidden, err.Error())
 		}
-		if errors.Is(err, service.ErrBetaKeyClaimInvalid) {
+		if errors.Is(err, service.ErrBetaInviteInvalid) {
 			return fiber.NewError(fiber.StatusBadRequest, err.Error())
 		}
 		if errors.Is(err, service.ErrBetaInviteEmailMismatch) {
@@ -105,7 +105,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if h.betaAccessRequired {
 		h.clearBetaUnlockCookie(c)
 	}
-	return c.Status(fiber.StatusCreated).JSON(publicUser(u))
+	out := publicUser(u)
+	out["session_token"] = raw
+	return c.Status(fiber.StatusCreated).JSON(out)
 }
 
 // BetaAccessStatus reports whether private beta enforcement is on and whether this browser has completed unlock.
@@ -208,47 +210,6 @@ func (h *AuthHandler) BetaOpenInvite(c *fiber.Ctx) error {
 	return c.Redirect(regURL, fiber.StatusFound)
 }
 
-// BetaUnlockBody is the JSON body for POST /api/v1/auth/beta/unlock.
-type BetaUnlockBody struct {
-	Key string `json:"key"`
-}
-
-// BetaUnlock validates a beta key and sets the kurator_beta_unlock cookie.
-// @Summary Unlock private beta (set cookie)
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param body body BetaUnlockBody true "Beta access key"
-// @Success 200 {object} map[string]bool
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /api/v1/auth/beta/unlock [post]
-func (h *AuthHandler) BetaUnlock(c *fiber.Ctx) error {
-	if !h.betaAccessRequired {
-		return fiber.NewError(fiber.StatusNotFound, "not found")
-	}
-	var body BetaUnlockBody
-	if err := c.BodyParser(&body); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
-	}
-	keyID, err := h.auth.ClaimBetaKeyForUnlock(c.Context(), body.Key)
-	if err != nil {
-		if errors.Is(err, service.ErrInvalidBetaKey) {
-			return fiber.NewError(fiber.StatusBadRequest, err.Error())
-		}
-		if errors.Is(err, service.ErrBetaKeyClaimed) {
-			return fiber.NewError(fiber.StatusConflict, err.Error())
-		}
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-	}
-	tok, err := h.auth.SignBetaUnlockToken(keyID)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-	}
-	h.setBetaUnlockCookie(c, tok)
-	return c.JSON(fiber.Map{"ok": true})
-}
-
 // LoginBody is the JSON body for POST /api/v1/auth/login.
 type LoginBody struct {
 	Email          string `json:"email"`
@@ -262,7 +223,7 @@ type LoginBody struct {
 // @Accept json
 // @Produce json
 // @Param body body LoginBody true "Credentials"
-// @Success 200 {object} map[string]interface{} "two_factor_required, pending_token, or user"
+// @Success 200 {object} map[string]interface{} "two_factor_required, pending_token, or user plus session_token when two_factor_required is false"
 // @Failure 401 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /api/v1/auth/login [post]
@@ -279,6 +240,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 		}
+		if errors.Is(err, service.ErrAccountDeactivated) {
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	if res.Pending2FAToken != "" {
@@ -288,7 +252,11 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 	h.setSessionCookie(c, res.RawSessionToken)
-	return c.JSON(fiber.Map{"two_factor_required": false, "user": publicUser(res.User)})
+	return c.JSON(fiber.Map{
+		"two_factor_required": false,
+		"user":                publicUser(res.User),
+		"session_token":       res.RawSessionToken,
+	})
 }
 
 // Login2FABody completes login after password step when 2FA is enabled.
@@ -303,7 +271,7 @@ type Login2FABody struct {
 // @Accept json
 // @Produce json
 // @Param body body Login2FABody true "Pending token and TOTP"
-// @Success 200 {object} map[string]interface{} "user object; session cookie set"
+// @Success 200 {object} map[string]interface{} "user and session_token; session cookie also set"
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /api/v1/auth/login/2fa [post]
@@ -321,19 +289,24 @@ func (h *AuthHandler) Login2FA(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrInvalidTOTP) || errors.Is(err, service.ErrInvalidPending) {
 			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 		}
+		if errors.Is(err, service.ErrAccountDeactivated) {
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	h.setSessionCookie(c, raw)
-	return c.JSON(fiber.Map{"user": publicUser(u)})
+	return c.JSON(fiber.Map{"user": publicUser(u), "session_token": raw})
 }
 
 // Logout invalidates the session and clears the cookie.
 // @Summary Logout
 // @Tags auth
+// @Security SessionCookie
+// @Security BearerToken
 // @Success 204
 // @Router /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	_ = h.auth.Logout(c.Context(), raw)
 	h.clearSessionCookie(c)
 	return c.SendStatus(fiber.StatusNoContent)
@@ -343,6 +316,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 // @Summary Current user
 // @Tags auth
 // @Security SessionCookie
+// @Security BearerToken
 // @Produce json
 // @Success 200 {object} models.User
 // @Failure 401 {object} map[string]string
@@ -389,6 +363,7 @@ type PatchMeBody struct {
 // @Summary Update profile
 // @Tags auth
 // @Security SessionCookie
+// @Security BearerToken
 // @Accept json
 // @Produce json
 // @Param body body PatchMeBody true "Fields to update"
@@ -522,6 +497,7 @@ func (h *AuthHandler) PatchMe(c *fiber.Ctx) error {
 // @Summary Start 2FA setup
 // @Tags auth
 // @Security SessionCookie
+// @Security BearerToken
 // @Produce json
 // @Success 200 {object} service.TwoFASetupResult
 // @Failure 400 {object} map[string]string
@@ -551,6 +527,7 @@ type TwoFAEnableBody struct {
 // @Summary Enable 2FA
 // @Tags auth
 // @Security SessionCookie
+// @Security BearerToken
 // @Accept json
 // @Produce json
 // @Param body body TwoFAEnableBody true "TOTP from authenticator app"
@@ -596,6 +573,7 @@ type TwoFADisableBody struct {
 // @Summary Disable 2FA
 // @Tags auth
 // @Security SessionCookie
+// @Security BearerToken
 // @Accept json
 // @Produce json
 // @Param body body TwoFADisableBody true "Account password"

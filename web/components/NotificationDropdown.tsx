@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell } from "lucide-react";
@@ -14,6 +14,10 @@ import {
   publicLegalNameLine,
   type NotificationFeedItem,
 } from "@/lib/api";
+import {
+  acceptShelfOwnershipTakeover,
+  voteShelfOwnershipElection,
+} from "@/lib/accountDeletion";
 
 /** One poll + visibility/focus refresh for all instances (mobile + desktop each mount this component). */
 let sharedUnreadCached = 0;
@@ -100,6 +104,46 @@ function payloadStr(p: Record<string, unknown>, key: string): string {
   return typeof v === "string" ? v : "";
 }
 
+type SuccessionCandidate = {
+  user_id: number;
+  username: string;
+  display_name: string;
+};
+
+function payloadCandidates(p: Record<string, unknown>): SuccessionCandidate[] {
+  const raw = p.candidates;
+  if (!Array.isArray(raw)) return [];
+  const out: SuccessionCandidate[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const userId = payloadNum(o, "user_id");
+    if (userId == null || userId < 1) continue;
+    out.push({
+      user_id: userId,
+      username: payloadStr(o, "username"),
+      display_name: payloadStr(o, "display_name"),
+    });
+  }
+  return out;
+}
+
+function shelfHrefFromPayload(p: Record<string, unknown>): string | null {
+  const kind = payloadStr(p, "shelf_kind");
+  const id = payloadStr(p, "shelf_id");
+  if (!id) return null;
+  switch (kind) {
+    case "collection":
+      return `/collections/${id}`;
+    case "list":
+      return `/lists/${id}`;
+    case "wishlist":
+      return `/wishlists/${id}`;
+    default:
+      return null;
+  }
+}
+
 function payloadNum(p: Record<string, unknown>, key: string): number | null {
   const v = p[key];
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -136,6 +180,9 @@ function notificationHref(n: NotificationFeedItem): string | null {
     }
     case "shelf_access_request":
       return null;
+    case "shelf_ownership_takeover":
+    case "shelf_ownership_election":
+      return shelfHrefFromPayload(p);
     default:
       return null;
   }
@@ -180,6 +227,16 @@ function notificationSummary(n: NotificationFeedItem): string {
       }
       return `${who} asked to join ${label}.`;
     }
+    case "shelf_ownership_takeover": {
+      const shelf = payloadStr(p, "shelf_name");
+      const label = shelf ? `“${shelf}”` : "a shared shelf";
+      return `The owner deleted their account. You can take over ${label}.`;
+    }
+    case "shelf_ownership_election": {
+      const shelf = payloadStr(p, "shelf_name");
+      const label = shelf ? `“${shelf}”` : "a shared shelf";
+      return `The owner deleted their account. Collaborators must agree on a new owner for ${label}.`;
+    }
     default:
       return `${who} did something in Kurator.`;
   }
@@ -191,6 +248,99 @@ type NotificationDropdownProps = {
   /** Called when this panel opens so a sibling menu can close. */
   onMenuOpen: () => void;
 };
+
+type ShelfOwnershipSuccessionRowProps = {
+  n: NotificationFeedItem;
+  inner: ReactNode;
+  href: string | null;
+  onPick: (n: NotificationFeedItem) => void | Promise<void>;
+  onAccept: (notificationId: number, successionId: number) => void | Promise<void>;
+  onVote: (
+    notificationId: number,
+    successionId: number,
+    candidateId: number,
+  ) => void | Promise<void>;
+};
+
+function ShelfOwnershipSuccessionRow({
+  n,
+  inner,
+  href,
+  onPick,
+  onAccept,
+  onVote,
+}: ShelfOwnershipSuccessionRowProps) {
+  const successionId = payloadNum(n.payload, "succession_id");
+  const [candidateId, setCandidateId] = useState("");
+  const candidates = payloadCandidates(n.payload);
+
+  const actions =
+    successionId == null ? null : n.kind === "shelf_ownership_takeover" ? (
+      <button
+        type="button"
+        className="rounded-lg bg-kurator-accent px-2.5 py-1 text-xs font-medium text-kurator-onAccent hover:opacity-90"
+        onClick={() => void onAccept(n.id, successionId)}
+      >
+        Take over ownership
+      </button>
+    ) : (
+      <>
+        <select
+          className="min-w-0 flex-1 rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1 text-xs text-kurator-fg"
+          value={candidateId}
+          onChange={(e) => setCandidateId(e.target.value)}
+        >
+          <option value="">Vote for owner…</option>
+          {candidates.map((c) => (
+            <option key={c.user_id} value={String(c.user_id)}>
+              {c.display_name || c.username} (@{c.username})
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={!candidateId}
+          className="rounded-lg bg-kurator-accent px-2.5 py-1 text-xs font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
+          onClick={() => void onVote(n.id, successionId, Number.parseInt(candidateId, 10))}
+        >
+          Submit vote
+        </button>
+      </>
+    );
+
+  const body = (
+    <>
+      {inner}
+      {actions ? <div className="mt-2 flex flex-wrap items-center gap-2 pl-10">{actions}</div> : null}
+    </>
+  );
+
+  return (
+    <li>
+      <div className="px-3 py-2.5" role="group" aria-label="Shelf ownership succession">
+        {href ? (
+          <Link
+            href={href}
+            role="menuitem"
+            className="block transition-colors hover:bg-kurator-border/20"
+            onClick={() => void onPick(n)}
+          >
+            {body}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            className="w-full text-left"
+            onClick={() => void onPick(n)}
+          >
+            {body}
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
 
 const PANEL_MAX_WIDTH_REM = 22;
 const PANEL_MAX_HEIGHT_REM = 20;
@@ -371,6 +521,36 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
     }
   }
 
+  async function onSuccessionAccept(notificationId: number, successionId: number) {
+    setErr(null);
+    try {
+      await acceptShelfOwnershipTakeover(successionId);
+      if (items.find((x) => x.id === notificationId && !x.read)) {
+        await markNotificationRead(notificationId);
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not take over ownership.");
+    }
+  }
+
+  async function onSuccessionVote(
+    notificationId: number,
+    successionId: number,
+    candidateId: number,
+  ) {
+    setErr(null);
+    try {
+      await voteShelfOwnershipElection(successionId, candidateId);
+      if (items.find((x) => x.id === notificationId && !x.read)) {
+        await markNotificationRead(notificationId);
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not submit vote.");
+    }
+  }
+
   const panel =
     open && placement ? (
       <div
@@ -464,6 +644,23 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
                         ) : null}
                       </div>
                     </li>
+                  );
+                }
+
+                if (
+                  n.kind === "shelf_ownership_takeover" ||
+                  n.kind === "shelf_ownership_election"
+                ) {
+                  return (
+                    <ShelfOwnershipSuccessionRow
+                      key={n.id}
+                      n={n}
+                      inner={inner}
+                      href={href}
+                      onPick={onPick}
+                      onAccept={onSuccessionAccept}
+                      onVote={onSuccessionVote}
+                    />
                   );
                 }
 

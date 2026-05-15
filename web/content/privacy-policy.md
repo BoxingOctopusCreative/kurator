@@ -10,7 +10,7 @@ This policy describes what the software can store and transmit when you use an i
 
 ## Information you provide
 
-- **Account data:** email address and a password stored as a hash (not plaintext). Optional two-factor authentication: when you enable it, data needed to verify your authenticator codes is stored with your account. If the operator uses invite-only signup, a short-lived cookie may confirm you redeemed a beta key until you finish registering.
+- **Account data:** email address and a password stored as a hash (not plaintext). Optional two-factor authentication: when you enable it, data needed to verify your authenticator codes is stored with your account. If the operator uses invite-only signup, a short-lived cookie may confirm you opened an approved beta registration link until you finish registering.
 
 - **Profile information:** username (used in public URLs unless the profile is private), optional legal first and last names with separate "show on profile" controls, display name, bio, avatar and banner images, location, theme (light / dark / system), colour scheme and font preferences, toggles that unlock accessibility palettes or fonts, social links you add, whether your overall profile is discoverable, and per-shelf visibility you choose (private, visible to followers, or to mutual connections where the product supports it).
 
@@ -46,7 +46,7 @@ Ask whoever runs your instance which connections are enabled if you want a defin
 
 ## Your choices
 
-You can update profile and collection data through the app where supported. To delete your account or exercise other rights, follow the process offered by whoever operates your instance, or use database and storage administration for self-hosted deployments.
+You can update profile and collection data through the app where supported. To delete your account, use **Profile Settings → Delete your account** in the app: your account is deactivated immediately (hidden from others), you receive an email with a 30-day reactivation link, and permanent deletion runs after that grace period unless you reactivate. For self-hosted deployments without email configured, operators should document an equivalent process or use database administration.
 
 ## Changes
 

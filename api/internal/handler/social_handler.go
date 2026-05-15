@@ -21,7 +21,7 @@ func NewSocialHandler(svc *service.SocialService, auth *service.AuthService) *So
 }
 
 func viewerID(c *fiber.Ctx, auth *service.AuthService) *int64 {
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw == "" {
 		return nil
 	}

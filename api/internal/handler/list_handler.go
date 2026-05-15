@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/boxingoctopus/kurator/api/internal/httpx"
@@ -26,7 +27,7 @@ func NewListHandler(svc *service.ListService, auth *service.AuthService, fanout 
 
 func (h *ListHandler) List(c *fiber.Ctx) error {
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" && h.auth != nil {
 		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
 		if err == nil {
@@ -201,6 +202,35 @@ func (h *ListHandler) Delete(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ExportItemsCSV returns all items on the list as CSV (owner only).
+func (h *ListHandler) ExportItemsCSV(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	id, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
+	}
+	l, err := h.svc.Get(c.Context(), id, uid)
+	if errors.Is(err, repository.ErrListNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	if l.UserID != uid {
+		return fiber.NewError(fiber.StatusForbidden, "only the list owner can export items")
+	}
+	b, err := h.svc.ExportListItemsCSV(c.Context(), id, uid)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="list-%s-items.csv"`, id))
+	return c.Send(b)
 }
 
 func (h *ListHandler) ListItems(c *fiber.Ctx) error {

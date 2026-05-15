@@ -135,7 +135,7 @@ func (h *CollectionHandler) ImportItemsCSV(c *fiber.Ctx) error {
 // @Router /api/v1/collections [get]
 func (h *CollectionHandler) List(c *fiber.Ctx) error {
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" {
 		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
 		if err == nil {
@@ -187,7 +187,7 @@ func (h *CollectionHandler) Get(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" {
 		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
 		if err == nil {

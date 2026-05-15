@@ -259,16 +259,8 @@ export function ItemDetailClient() {
       : null;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link
-        href={`/collections/${item.collection_id}`}
-        className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        {collectionName ? `Back to ${collectionName}` : "Back to Collection"}
-      </Link>
-
-      <PageHeroUnsplash bleedToMainTop={false}>
+    <>
+      <PageHeroUnsplash>
       <header className="flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="mx-auto w-40 shrink-0 overflow-hidden rounded-xl border border-kurator-border/60 bg-kurator-bg shadow-surface sm:mx-0 sm:w-44">
           <ItemCoverImage
@@ -386,6 +378,15 @@ export function ItemDetailClient() {
       </header>
       </PageHeroUnsplash>
 
+      <div className="mx-auto max-w-5xl">
+      <Link
+        href={`/collections/${item.collection_id}`}
+        className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        {collectionName ? `Back to ${collectionName}` : "Back to Collection"}
+      </Link>
+
       {itemLists.length > 0 ? (
         <section className="mb-8" aria-labelledby="item-in-lists-heading">
           <h2 id="item-in-lists-heading" className="text-sm font-semibold uppercase tracking-wide text-kurator-muted">
@@ -475,6 +476,7 @@ export function ItemDetailClient() {
           </dl>
         )}
       </section>
-    </div>
+      </div>
+    </>
   );
 }

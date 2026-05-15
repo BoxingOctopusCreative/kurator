@@ -40,20 +40,30 @@ func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 }
 
 func userScanCols() string {
-	return `id, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, created_at, updated_at`
+	return `id, account_status, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, created_at, updated_at`
+}
+
+func scanUser(row pgx.Row) (*models.User, error) {
+	var u models.User
+	var sl []byte
+	err := row.Scan(
+		&u.ID, &u.AccountStatus, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	u.SocialLinks = sl
+	return &u, nil
 }
 
 func (r *PostgresUserRepository) Create(ctx context.Context, email, passwordHash, displayName, username string) (*models.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	var u models.User
-	var sl []byte
-	err := r.pool.QueryRow(ctx, `
+	row := r.pool.QueryRow(ctx, `
 		INSERT INTO users (email, password_hash, display_name, username, username_locked)
 		VALUES ($1, $2, $3, $4, TRUE)
 		RETURNING `+userScanCols(),
-		email, passwordHash, displayName, username).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
-	)
+		email, passwordHash, displayName, username)
+	u, err := scanUser(row)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -64,21 +74,17 @@ func (r *PostgresUserRepository) Create(ctx context.Context, email, passwordHash
 		}
 		return nil, err
 	}
-	u.SocialLinks = sl
-	return &u, nil
+	return u, nil
 }
 
 func (r *PostgresUserRepository) CreateTx(ctx context.Context, tx pgx.Tx, email, passwordHash, displayName, username string) (*models.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	var u models.User
-	var sl []byte
-	err := tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		INSERT INTO users (email, password_hash, display_name, username, username_locked)
 		VALUES ($1, $2, $3, $4, TRUE)
 		RETURNING `+userScanCols(),
-		email, passwordHash, displayName, username).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
-	)
+		email, passwordHash, displayName, username)
+	u, err := scanUser(row)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -89,50 +95,43 @@ func (r *PostgresUserRepository) CreateTx(ctx context.Context, tx pgx.Tx, email,
 		}
 		return nil, err
 	}
-	u.SocialLinks = sl
-	return &u, nil
+	return u, nil
 }
 
 func (r *PostgresUserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	var u models.User
-	var sl []byte
-	err := r.pool.QueryRow(ctx, `
+	row := r.pool.QueryRow(ctx, `
 		SELECT `+userScanCols()+` FROM users WHERE lower(email) = lower($1)
-	`, email).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
-	)
+	`, email)
+	u, err := scanUser(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	u.SocialLinks = sl
-	return &u, nil
+	return u, nil
 }
 
 func (r *PostgresUserRepository) GetByID(ctx context.Context, id int64) (*models.User, error) {
-	var u models.User
-	var sl []byte
-	err := r.pool.QueryRow(ctx, `
+	row := r.pool.QueryRow(ctx, `
 		SELECT `+userScanCols()+` FROM users WHERE id = $1
-	`, id).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
-	)
+	`, id)
+	u, err := scanUser(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	u.SocialLinks = sl
-	return &u, nil
+	return u, nil
 }
 
 // GetIDByUsernameCI resolves a user id by case-insensitive username.
 func (r *PostgresUserRepository) GetIDByUsernameCI(ctx context.Context, username string) (int64, error) {
 	var id int64
-	err := r.pool.QueryRow(ctx, `SELECT id FROM users WHERE lower(username) = lower($1)`, strings.TrimSpace(username)).Scan(&id)
+	err := r.pool.QueryRow(ctx, `
+		SELECT id FROM users WHERE lower(username) = lower($1) AND account_status = 'active'
+	`, strings.TrimSpace(username)).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, ErrUserNotFound
 	}
@@ -277,7 +276,7 @@ func (r *PostgresUserRepository) GetPublicByID(ctx context.Context, id int64, vi
 	err := r.pool.QueryRow(ctx, `
 		SELECT id, username, display_name, first_name, last_name, first_name_public, last_name_public,
 			location, bio, avatar_url, banner_url, social_links, created_at, profile_is_public
-		FROM users WHERE id = $1
+		FROM users WHERE id = $1 AND account_status = 'active'
 	`, id).Scan(&u.ID, &u.Username, &u.DisplayName, &fn, &ln, &fnPub, &lnPub, &u.Location, &u.Bio, &u.AvatarURL, &u.BannerURL, &sl, &u.CreatedAt, &isPublic)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, ErrUserNotFound
@@ -304,7 +303,7 @@ func (r *PostgresUserRepository) SearchPublic(ctx context.Context, q string, lim
 			SELECT id, username, display_name, first_name, last_name, first_name_public, last_name_public,
 				location, bio, avatar_url, banner_url, social_links, created_at
 			FROM users
-			WHERE id <> $1 AND profile_is_public = TRUE AND (
+			WHERE id <> $1 AND account_status = 'active' AND profile_is_public = TRUE AND (
 				username ILIKE $2 OR display_name ILIKE $2 OR bio ILIKE $2 OR location ILIKE $2
 				OR (first_name_public = TRUE AND first_name ILIKE $2)
 				OR (last_name_public = TRUE AND last_name ILIKE $2)
@@ -321,7 +320,7 @@ func (r *PostgresUserRepository) SearchPublic(ctx context.Context, q string, lim
 			SELECT id, username, display_name, first_name, last_name, first_name_public, last_name_public,
 				location, bio, avatar_url, banner_url, social_links, created_at
 			FROM users
-			WHERE profile_is_public = TRUE AND (
+			WHERE account_status = 'active' AND profile_is_public = TRUE AND (
 				username ILIKE $1 OR display_name ILIKE $1 OR bio ILIKE $1 OR location ILIKE $1
 				OR (first_name_public = TRUE AND first_name ILIKE $1)
 				OR (last_name_public = TRUE AND last_name ILIKE $1)

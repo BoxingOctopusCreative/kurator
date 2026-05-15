@@ -540,10 +540,13 @@ export async function fetchRecentShelves(opts: {
   /** Omit for a mix of all three shelf kinds. */
   kind?: ShelfKind;
   limit?: number;
+  /** Rows to skip after ordering (dashboard paging). */
+  offset?: number;
 }): Promise<DashboardShelf[]> {
   const sp = new URLSearchParams({ scope: opts.scope });
   if (opts.kind) sp.set("kind", opts.kind);
   if (opts.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
+  if (opts.offset != null && opts.offset > 0) sp.set("offset", String(opts.offset));
   const res = await fetch(apiUrl(`/me/shelves?${sp}`), {
     credentials: "include",
     cache: "no-store",
@@ -1146,6 +1149,17 @@ export async function fetchList(id: string): Promise<List> {
   if (res.status === 404) throw new Error("List not found.");
   if (!res.ok) throw new Error(`list: ${res.status}`);
   return res.json();
+}
+
+/** CSV columns: id, title, category, metadata, rating, consumption_status. Owner-only. */
+export async function exportListItemsCsv(listId: string): Promise<Blob> {
+  const res = await fetch(apiUrl(`/lists/${listId}/items.csv`), {
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in to export.");
+  if (res.status === 403) throw new Error("Only the list owner can export items.");
+  if (!res.ok) throw new Error(`export: ${res.status}`);
+  return res.blob();
 }
 
 export async function createList(body: {

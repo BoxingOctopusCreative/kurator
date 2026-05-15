@@ -29,7 +29,7 @@ func NewWishlistHandler(svc *service.WishlistService, auth *service.AuthService,
 // List returns the signed-in user's wishlists, or when owner_user_id is set, that owner's wishlists visible to the viewer (optional session cookie).
 func (h *WishlistHandler) List(c *fiber.Ctx) error {
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" && h.auth != nil {
 		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
 		if err == nil {

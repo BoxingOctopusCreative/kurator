@@ -64,9 +64,15 @@ type UserProfile struct {
 	IsFollowing     *bool `json:"is_following,omitempty"`
 }
 
+const (
+	AccountStatusActive      = "active"
+	AccountStatusDeactivated = "deactivated"
+)
+
 // User is a persisted account (credentials + profile).
 type User struct {
 	ID                            int64           `json:"id"`
+	AccountStatus                 string          `json:"account_status"`
 	Email                         string          `json:"email"`
 	PasswordHash                  string          `json:"-"`
 	Username                      string          `json:"username"`

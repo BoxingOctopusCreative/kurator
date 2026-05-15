@@ -1,0 +1,17 @@
+---
+description: Keep docs, tests, Swagger, and memory in sync when changing the codebase
+alwaysApply: true
+---
+
+# Change completeness
+
+Whenever you **change behavior, contracts, configuration, or public surface area** in this repo, also update the following **where relevant** (skip only what truly does not apply):
+
+1. **Documentation** — e.g. root **`README.md`**, handler comments that serve as operator docs, or other user-facing docs the change invalidates.
+2. **Tests** — add or adjust **`*_test.go`** (API) and **`*.test.ts` / `*.test.tsx`** (web) so behavior stays verifiable; run the affected test suites when practical.
+3. **Swagger** — keep **`api/docs/swagger.json`** aligned with **`api/cmd/api/main.go`** routes, request/response shapes, security (`SessionCookie` / `BearerToken`), and definitions.
+4. **Memory** — refresh **`memory.md`**, **`memory-flutter-ui-port.md`**, and any other project memory files when architecture, auth, stack, or agent-facing conventions shift.
+
+If the change affects what the **downstream mobile app** should mirror, call that out (see **`upstream-mobile-downstream.mdc`**).
+
+Prefer **surgical** updates: touch only the sections those edits imply; do not rewrite unrelated docs or inflate memory with noise.

@@ -76,7 +76,7 @@ func (h *ItemHandler) List(c *fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusBadRequest, "invalid collection_id")
 		}
 		var viewer *int64
-		raw := c.Cookies(middleware.SessionCookieName)
+		raw := middleware.SessionRawFromRequest(c)
 		if raw != "" {
 			uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
 			if aerr == nil {
@@ -101,7 +101,7 @@ func (h *ItemHandler) List(c *fiber.Ctx) error {
 		scope := strings.TrimSpace(strings.ToLower(c.Query("scope")))
 		switch scope {
 		case "mine", "following":
-			raw := c.Cookies(middleware.SessionCookieName)
+			raw := middleware.SessionRawFromRequest(c)
 			if raw == "" {
 				return fiber.NewError(fiber.StatusUnauthorized, "sign in to use scope="+scope)
 			}
@@ -116,7 +116,7 @@ func (h *ItemHandler) List(c *fiber.Ctx) error {
 			}
 		case "":
 			var viewer *int64
-			if raw := c.Cookies(middleware.SessionCookieName); raw != "" {
+			if raw := middleware.SessionRawFromRequest(c); raw != "" {
 				if uid, aerr := h.auth.UserIDFromSession(c.Context(), raw); aerr == nil {
 					viewer = &uid
 				}
@@ -138,7 +138,7 @@ func (h *ItemHandler) Get(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" {
 		uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
 		if aerr == nil {
@@ -162,7 +162,7 @@ func (h *ItemHandler) ListRefsContainingItem(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" {
 		uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
 		if aerr == nil {
@@ -190,7 +190,7 @@ func (h *ItemHandler) Enrichment(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
 	var viewer *int64
-	raw := c.Cookies(middleware.SessionCookieName)
+	raw := middleware.SessionRawFromRequest(c)
 	if raw != "" {
 		uid, aerr := h.auth.UserIDFromSession(c.Context(), raw)
 		if aerr == nil {

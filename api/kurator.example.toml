@@ -34,16 +34,14 @@ admin_email = "ryan.draga@boxingoctop.us"
 public_web_base_url = "http://localhost:3000"
 discord_webhook_url = ""
 
-# S3-compatible storage (MinIO, AWS S3, Cloudflare R2, etc.).
-# endpoint = S3 API URL for the server (e.g. R2 https://<id>.r2.cloudflarestorage.com or MinIO http://minio:9000).
+# S3-compatible storage (AWS S3, Cloudflare R2, etc.). Local dev typically uses the same production bucket.
+# endpoint = S3 API URL for the server (e.g. R2 https://<id>.r2.cloudflarestorage.com).
 # public_base_url = browser-facing base for GET (no auth). Must allow anonymous read of uploaded objects.
 #
 # Cloudflare R2: do NOT set public_base_url to the same *.r2.cloudflarestorage.com host as endpoint — that host
 # is for signed S3 API calls only; <img src> in the app will 403. Link a public custom domain to the bucket
 # (R2 dashboard → bucket → custom domains) and set public_base_url to https://your.cdn.example.com (often
 # without repeating the bucket name in the path; object keys are still covers/…, avatars/…, banners/…).
-#
-# Local MinIO (docker-compose): public_base_url = "http://localhost:9000/kurator-covers" (path-style; bucket in path).
 [s3]
 bucket = ""
 region = "us-east-1"

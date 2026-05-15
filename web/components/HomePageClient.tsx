@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Heart, Layers, ListOrdered, Lock, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Layers, ListOrdered, Lock, Users } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { LandingPage } from "@/components/LandingPage";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
@@ -21,7 +21,10 @@ type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
 };
 
-const DASHBOARD_SHELF_LIMIT = 10;
+/** Tiles per dashboard page: 3 columns × 3 rows. */
+const DASHBOARD_PAGE_SIZE = 9;
+/** Request one extra row to detect a next page without a total count. */
+const DASHBOARD_FETCH_LIMIT = DASHBOARD_PAGE_SIZE + 1;
 
 type KindFilter = "all" | ShelfKind;
 
@@ -89,7 +92,7 @@ function ShelfVisibilityBadge({ visibility }: { visibility: Visibility }) {
 function ShelfCard({ shelf }: { shelf: DashboardShelf }) {
   const visibility = visibilityOf(shelf);
   return (
-    <li className="w-[min(280px,85vw)] shrink-0 snap-start">
+    <li className="min-w-0">
       <Link
         href={shelfHref(shelf)}
         className="flex h-full min-h-[180px] flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface transition-colors hover:border-kurator-accent/50"
@@ -177,6 +180,10 @@ function ShelfRow({
   loading,
   error,
   emptyHint,
+  page,
+  hasNextPage,
+  onPagePrev,
+  onPageNext,
 }: {
   title: string;
   description: string;
@@ -187,6 +194,10 @@ function ShelfRow({
   loading: boolean;
   error: string | null;
   emptyHint: ReactNode;
+  page: number;
+  hasNextPage: boolean;
+  onPagePrev: () => void;
+  onPageNext: () => void;
 }) {
   return (
     <section className="space-y-3">
@@ -216,11 +227,39 @@ function ShelfRow({
         </p>
       )}
       {!loading && !error && shelves.length > 0 && (
-        <ul className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5">
-          {shelves.map((shelf) => (
-            <ShelfCard key={`${shelf.kind}:${shelf.id}`} shelf={shelf} />
-          ))}
-        </ul>
+        <div className="space-y-4">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {shelves.map((shelf) => (
+              <ShelfCard key={`${shelf.kind}:${shelf.id}`} shelf={shelf} />
+            ))}
+          </ul>
+          {(hasNextPage || page > 0) && (
+            <nav
+              className="flex flex-wrap items-center justify-end gap-2"
+              aria-label={`${title} pages`}
+            >
+              <button
+                type="button"
+                onClick={onPagePrev}
+                disabled={page === 0}
+                className="inline-flex items-center gap-1 rounded-lg border border-kurator-border bg-kurator-surface px-3 py-1.5 text-sm text-kurator-fg transition-colors hover:border-kurator-accent/50 disabled:pointer-events-none disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                Previous
+              </button>
+              <span className="px-2 text-sm text-kurator-muted tabular-nums">Page {page + 1}</span>
+              <button
+                type="button"
+                onClick={onPageNext}
+                disabled={!hasNextPage}
+                className="inline-flex items-center gap-1 rounded-lg border border-kurator-border bg-kurator-surface px-3 py-1.5 text-sm text-kurator-fg transition-colors hover:border-kurator-accent/50 disabled:pointer-events-none disabled:opacity-40"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </nav>
+          )}
+        </div>
       )}
     </section>
   );
@@ -236,6 +275,10 @@ export function HomePageClient({ initialBackground = null }: Props) {
   const [followKind, setFollowKind] = useState<KindFilter>("all");
   const [mineShelves, setMineShelves] = useState<DashboardShelf[]>([]);
   const [followShelves, setFollowShelves] = useState<DashboardShelf[]>([]);
+  const [mineHasNext, setMineHasNext] = useState(false);
+  const [followHasNext, setFollowHasNext] = useState(false);
+  const [minePage, setMinePage] = useState(0);
+  const [followPage, setFollowPage] = useState(0);
   const [loadMine, setLoadMine] = useState(true);
   const [loadFollow, setLoadFollow] = useState(true);
   const [errMine, setErrMine] = useState<string | null>(null);
@@ -251,9 +294,13 @@ export function HomePageClient({ initialBackground = null }: Props) {
         const data = await fetchRecentShelves({
           scope: "mine",
           kind: kindParam(mineKind),
-          limit: DASHBOARD_SHELF_LIMIT,
+          limit: DASHBOARD_FETCH_LIMIT,
+          offset: minePage * DASHBOARD_PAGE_SIZE,
         });
-        if (!cancelled) setMineShelves(data);
+        if (cancelled) return;
+        const hasNext = data.length > DASHBOARD_PAGE_SIZE;
+        setMineHasNext(hasNext);
+        setMineShelves(hasNext ? data.slice(0, DASHBOARD_PAGE_SIZE) : data);
       } catch (e: unknown) {
         if (!cancelled) {
           setErrMine(e instanceof Error ? e.message : "Could not load your shelves.");
@@ -265,7 +312,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [user, mineKind]);
+  }, [user, mineKind, minePage]);
 
   useEffect(() => {
     if (!user) return;
@@ -277,9 +324,13 @@ export function HomePageClient({ initialBackground = null }: Props) {
         const data = await fetchRecentShelves({
           scope: "following",
           kind: kindParam(followKind),
-          limit: DASHBOARD_SHELF_LIMIT,
+          limit: DASHBOARD_FETCH_LIMIT,
+          offset: followPage * DASHBOARD_PAGE_SIZE,
         });
-        if (!cancelled) setFollowShelves(data);
+        if (cancelled) return;
+        const hasNext = data.length > DASHBOARD_PAGE_SIZE;
+        setFollowHasNext(hasNext);
+        setFollowShelves(hasNext ? data.slice(0, DASHBOARD_PAGE_SIZE) : data);
       } catch (e: unknown) {
         if (!cancelled) {
           setErrFollow(e instanceof Error ? e.message : "Could not load followed shelves.");
@@ -291,7 +342,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [user, followKind]);
+  }, [user, followKind, followPage]);
 
   const mineDescription = useMemo(() => {
     switch (mineKind) {
@@ -340,11 +391,18 @@ export function HomePageClient({ initialBackground = null }: Props) {
         title="Your Shelves"
         description={mineDescription}
         kindFilter={mineKind}
-        onKindFilterChange={setMineKind}
+        onKindFilterChange={(v) => {
+          setMineKind(v);
+          setMinePage(0);
+        }}
         filterIdPrefix="your-shelves-filter"
         shelves={mineShelves}
         loading={loadMine}
         error={errMine}
+        page={minePage}
+        hasNextPage={mineHasNext}
+        onPagePrev={() => setMinePage((p) => Math.max(0, p - 1))}
+        onPageNext={() => setMinePage((p) => p + 1)}
         emptyHint={
           <>
             Nothing here yet.{" "}
@@ -368,11 +426,18 @@ export function HomePageClient({ initialBackground = null }: Props) {
         title="From People You Follow"
         description={followDescription}
         kindFilter={followKind}
-        onKindFilterChange={setFollowKind}
+        onKindFilterChange={(v) => {
+          setFollowKind(v);
+          setFollowPage(0);
+        }}
         filterIdPrefix="follow-shelves-filter"
         shelves={followShelves}
         loading={loadFollow}
         error={errFollow}
+        page={followPage}
+        hasNextPage={followHasNext}
+        onPagePrev={() => setFollowPage((p) => Math.max(0, p - 1))}
+        onPageNext={() => setFollowPage((p) => p + 1)}
         emptyHint={
           <>
             No recent shelves from people you follow, or you are not following anyone yet.{" "}

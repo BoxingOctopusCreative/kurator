@@ -108,7 +108,7 @@ export async function login(email: string, password: string, turnstileToken?: st
   }
   return (await res.json()) as
     | { two_factor_required: true; pending_token: string }
-    | { two_factor_required: false; user: AuthUser };
+    | { two_factor_required: false; user: AuthUser; session_token?: string };
 }
 
 export async function completeLogin2FA(pendingToken: string, code: string): Promise<AuthUser> {
@@ -190,7 +190,7 @@ export async function register(
   if (!res.ok) {
     throw new Error(await readApiError(res));
   }
-  return (await res.json()) as AuthUser;
+  return (await res.json()) as AuthUser & { session_token?: string };
 }
 
 export async function logout() {

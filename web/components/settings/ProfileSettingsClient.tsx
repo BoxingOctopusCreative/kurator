@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
+import { DeleteAccountModal } from "@/components/settings/DeleteAccountModal";
 import { ProfileImageCropModal } from "@/components/ProfileImageCropModal";
 import { fetchMe, patchProfile, type AuthUser } from "@/lib/auth";
 import { uploadAvatarImage, uploadBannerImage } from "@/lib/api";
@@ -128,6 +129,7 @@ export function ProfileSettingsClient() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [bannerBusy, setBannerBusy] = useState(false);
   const [cropSession, setCropSession] = useState<{ kind: "avatar" | "banner"; url: string } | null>(null);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const socialDnDSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -691,11 +693,41 @@ export function ProfileSettingsClient() {
         </p>
       ) : null}
 
+      <section className="mt-10 rounded-xl border border-red-500/35 bg-red-950/20 p-5">
+        <h2 className="text-base font-semibold text-red-400">Danger zone</h2>
+        <p className="mt-2 text-sm text-kurator-muted">
+          Permanently remove your account after a 30-day grace period. You can export your shelves and transfer shared
+          shelf ownership before confirming.
+        </p>
+        <button
+          type="button"
+          onClick={() => setDeleteAccountOpen(true)}
+          className="mt-4 rounded-lg border border-red-500/60 bg-red-600/90 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+        >
+          Delete your account
+        </button>
+      </section>
+
       <div className="flex flex-wrap gap-3 border-t border-kurator-border pt-6">
         <Link href="/" className="rounded-lg px-4 py-2 text-sm text-kurator-accent hover:underline">
           Back to Dashboard
         </Link>
       </div>
+
+      {user ? (
+        <DeleteAccountModal
+          open={deleteAccountOpen}
+          userId={user.id}
+          onOpenChange={setDeleteAccountOpen}
+          onDeactivated={() => {
+            void (async () => {
+              await refreshAuth();
+              router.replace("/");
+              router.refresh();
+            })();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

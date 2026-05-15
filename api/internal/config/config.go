@@ -27,7 +27,7 @@ type Config struct {
 	GoogleBooksAPIKey    string
 	TMDBAPIKey           string
 	ComicVineAPIKey      string
-	// BetaAccessRequired enforces POST /auth/beta/unlock (marks key claimed) before register; registration consumes the key row (env: BETA_ACCESS_REQUIRED, default false).
+	// BetaAccessRequired enforces email-invite beta flow before register (env: BETA_ACCESS_REQUIRED, default false).
 	BetaAccessRequired bool
 	// BetaAdminEmail receives POST /auth/beta/request-access notifications via Mailgun (env: BETA_ADMIN_EMAIL). Used only when BetaDiscordWebhookURL is empty.
 	BetaAdminEmail string

@@ -3,30 +3,99 @@
   "info": {
     "title": "Kurator API",
     "version": "1.0",
-    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads."
+    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads.\n\n**Authentication:** Sessions are opaque tokens stored hashed in the database. The API accepts (1) the **kurator_session** HTTP-only cookie (typical browser flow via the Next.js same-origin proxy) or (2) **`Authorization: Bearer <session_token>`** on any protected route. When both are present, the **cookie wins**. After **POST /api/v1/auth/register**, **POST /api/v1/auth/login** (when 2FA is not required), or **POST /api/v1/auth/login/2fa**, the JSON body includes **session_token** \u2014 the same secret as the cookie \u2014 for native and non-cookie clients. **POST /api/v1/auth/logout** revokes the session for either mechanism; browsers also receive `Set-Cookie` clearing the cookie."
   },
   "host": "localhost:8080",
   "basePath": "/",
-  "schemes": ["http"],
+  "schemes": [
+    "http"
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Registration, login, logout, password recovery, beta invite access. Session delivery: `Set-Cookie: kurator_session` plus JSON `session_token`. Authenticated API calls: cookie and/or `Authorization: Bearer <session_token>` (cookie preferred if both sent)."
+    },
+    {
+      "name": "health",
+      "description": "Liveness probe."
+    },
+    {
+      "name": "notifications",
+      "description": "In-app notification feed and read state (requires session)."
+    },
+    {
+      "name": "social",
+      "description": "Users, follows, friends, and discovery."
+    },
+    {
+      "name": "shelf-share",
+      "description": "Shared shelves: join requests, invites, access request decisions."
+    },
+    {
+      "name": "dashboard",
+      "description": "Home dashboard aggregates."
+    },
+    {
+      "name": "collections",
+      "description": "Collections (shelves); list visibility rules depend on session for some scopes."
+    },
+    {
+      "name": "lists",
+      "description": "Lists and list membership."
+    },
+    {
+      "name": "wishlists",
+      "description": "Wishlists and entries."
+    },
+    {
+      "name": "items",
+      "description": "Catalog items."
+    },
+    {
+      "name": "images",
+      "description": "Authenticated image upload."
+    },
+    {
+      "name": "search",
+      "description": "Meilisearch-backed item search."
+    },
+    {
+      "name": "metadata",
+      "description": "External metadata lookup stubs."
+    }
+  ],
   "securityDefinitions": {
     "SessionCookie": {
       "type": "apiKey",
       "name": "kurator_session",
-      "in": "cookie"
+      "in": "cookie",
+      "description": "HTTP-only session cookie set on successful register/login/2fa. Preferred when both cookie and Authorization Bearer are present."
+    },
+    "BearerToken": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "Bearer followed by the opaque session_token from POST /auth/login, /auth/login/2fa, or /auth/register (same secret as the kurator_session cookie). Example: Bearer <session_token>"
     }
   },
   "paths": {
     "/health": {
       "get": {
-        "tags": ["health"],
+        "tags": [
+          "health"
+        ],
         "summary": "Health check",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "schema": {
               "type": "object",
-              "additionalProperties": {"type": "string"}
+              "additionalProperties": {
+                "type": "string"
+              }
             }
           }
         }
@@ -34,287 +103,730 @@
     },
     "/api/v1/auth/register": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Register",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "description": "Creates the user, returns profile fields and **session_token**, and sets **kurator_session** (HTTP-only). Native clients should persist **session_token** and send **Authorization: Bearer** on subsequent requests.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/RegisterBody"}
+            "schema": {
+              "$ref": "#/definitions/RegisterBody"
+            }
           }
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {"$ref": "#/definitions/User"}
+            "description": "Created; response extends User with session_token",
+            "schema": {
+              "$ref": "#/definitions/RegisterResponse"
+            }
           },
-          "400": {"description": "Bad Request"},
-          "409": {"description": "Conflict"}
+          "400": {
+            "description": "Bad Request"
+          },
+          "409": {
+            "description": "Conflict"
+          }
         }
       }
     },
     "/api/v1/auth/beta/status": {
       "get": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Beta access status",
-        "produces": ["application/json"],
-        "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}}
-        }
-      }
-    },
-    "/api/v1/auth/beta/unlock": {
-      "post": {
-        "tags": ["auth"],
-        "summary": "Unlock private beta (set cookie)",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {"$ref": "#/definitions/BetaUnlockBody"}
-          }
+        "produces": [
+          "application/json"
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}},
-          "400": {"description": "Bad Request"},
-          "404": {"description": "Not Found"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          }
         }
       }
     },
     "/api/v1/auth/login": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Login",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "description": "If 2FA is required, returns **pending_token** (no session yet). Otherwise returns **user** and **session_token**, sets **kurator_session**, and native clients may use Bearer with **session_token**.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/LoginBody"}
+            "schema": {
+              "$ref": "#/definitions/LoginBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}},
-          "401": {"description": "Unauthorized"},
-          "500": {"description": "Server Error"}
+          "200": {
+            "description": "Either two_factor_required + pending_token, or two_factor_required false + user + session_token",
+            "schema": {
+              "$ref": "#/definitions/LoginResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Server Error"
+          }
         }
       }
     },
     "/api/v1/auth/login/2fa": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Login (2FA)",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "description": "Completes login after **POST /auth/login** returned **two_factor_required** and **pending_token**. Returns **user**, **session_token**, and sets **kurator_session**.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/Login2FABody"}
+            "schema": {
+              "$ref": "#/definitions/Login2FABody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK"},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Login2FAResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },
     "/api/v1/auth/logout": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Logout",
+        "description": "Invalidates the session from **kurator_session** cookie or **Authorization: Bearer**. Clears the session cookie when present.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
         "responses": {
-          "204": {"description": "No Content"}
+          "204": {
+            "description": "No Content"
+          }
         }
       }
     },
     "/api/v1/auth/forgot-password": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Request password recovery code",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/ForgotPasswordBody"}
+            "schema": {
+              "$ref": "#/definitions/ForgotPasswordBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          }
         }
       }
     },
     "/api/v1/auth/forgot-password/verify": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Verify recovery code",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/VerifyForgotPasswordBody"}
+            "schema": {
+              "$ref": "#/definitions/VerifyForgotPasswordBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}},
-          "401": {"description": "Unauthorized"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },
     "/api/v1/auth/forgot-password/reset": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Reset password after recovery",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/ResetForgotPasswordBody"}
+            "schema": {
+              "$ref": "#/definitions/ResetForgotPasswordBody"
+            }
           }
         ],
         "responses": {
-          "204": {"description": "No Content"},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/reactivate-account": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reactivate a deactivated account within the grace period",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ReactivateAccountBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/api/v1/me/account/deletion-context": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Shared shelves for account deletion UI",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/AccountDeletionContextResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/me/account": {
+      "delete": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Deactivate account (30-day grace before purge)",
+        "description": "Invalidates all sessions. Optional JSON body lists voluntary ownership transfers for shared shelves.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/DeactivateAccountBody"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelf-ownership-successions/{id}/accept": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Accept shelf ownership after owner account deletion (sole collaborator)",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelf-ownership-successions/{id}/vote": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Vote for new shelf owner after owner account deletion (election)",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SuccessionVoteBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       }
     },
     "/api/v1/me": {
       "get": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Current user",
-        "security": [{"SessionCookie": []}],
-        "produces": ["application/json"],
+        "description": "Requires **SessionCookie** or **BearerToken** (either satisfies security).",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
-          "401": {"description": "Unauthorized"},
-          "404": {"description": "Not Found"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       },
       "patch": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Update profile",
-        "security": [{"SessionCookie": []}],
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "description": "Requires **SessionCookie** or **BearerToken** (either satisfies security).",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/PatchMeBody"}
+            "schema": {
+              "$ref": "#/definitions/PatchMeBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },
     "/api/v1/me/notifications/unread-count": {
       "get": {
-        "tags": ["notifications"],
+        "tags": [
+          "notifications"
+        ],
         "summary": "Unread in-app notification count",
         "description": "Lightweight poll endpoint for the activity bell badge. Does not return notification rows.",
-        "security": [{"SessionCookie": []}],
-        "produces": ["application/json"],
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
         "responses": {
           "200": {
             "description": "OK",
-            "schema": {"$ref": "#/definitions/NotificationUnreadCount"}
+            "schema": {
+              "$ref": "#/definitions/NotificationUnreadCount"
+            }
           },
-          "401": {"description": "Unauthorized"},
-          "500": {"description": "Internal Server Error"}
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
         }
       }
     },
     "/api/v1/me/2fa/setup": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Start 2FA setup",
-        "security": [{"SessionCookie": []}],
-        "produces": ["application/json"],
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
         "responses": {
           "200": {
             "description": "OK",
-            "schema": {"$ref": "#/definitions/TwoFASetupResult"}
+            "schema": {
+              "$ref": "#/definitions/TwoFASetupResult"
+            }
           },
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },
     "/api/v1/me/2fa/enable": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Enable 2FA",
-        "security": [{"SessionCookie": []}],
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/TwoFAEnableBody"}
+            "schema": {
+              "$ref": "#/definitions/TwoFAEnableBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },
     "/api/v1/me/2fa/disable": {
       "post": {
-        "tags": ["auth"],
+        "tags": [
+          "auth"
+        ],
         "summary": "Disable 2FA",
-        "security": [{"SessionCookie": []}],
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/TwoFADisableBody"}
+            "schema": {
+              "$ref": "#/definitions/TwoFADisableBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/User"}},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },
     "/api/v1/images": {
       "post": {
-        "tags": ["images"],
+        "tags": [
+          "images"
+        ],
         "summary": "Upload image",
-        "security": [{"SessionCookie": []}],
-        "consumes": ["multipart/form-data", "application/json"],
-        "produces": ["application/json"],
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "multipart/form-data",
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "file",
@@ -325,7 +837,9 @@
           {
             "name": "body",
             "in": "body",
-            "schema": {"$ref": "#/definitions/ImageFromURLBody"}
+            "schema": {
+              "$ref": "#/definitions/ImageFromURLBody"
+            }
           }
         ],
         "responses": {
@@ -333,107 +847,241 @@
             "description": "OK",
             "schema": {
               "type": "object",
-              "properties": {"url": {"type": "string"}}
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              }
             }
           },
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"},
-          "413": {"description": "Payload Too Large"},
-          "503": {"description": "Service Unavailable"}
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
         }
       }
     },
     "/api/v1/users/search": {
       "get": {
-        "tags": ["social"],
+        "tags": [
+          "social"
+        ],
         "summary": "Search users",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
-          {"name": "q", "in": "query", "required": true, "type": "string"}
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
         ],
         "responses": {
           "200": {
             "description": "OK",
-            "schema": {"type": "array", "items": {"$ref": "#/definitions/PublicUser"}}
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PublicUser"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
           }
-        }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/collections": {
       "get": {
-        "tags": ["collections"],
+        "tags": [
+          "collections"
+        ],
         "summary": "List collections",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
-          {"name": "q", "in": "query", "type": "string"},
-          {"name": "sort", "in": "query", "type": "string"},
-          {"name": "has_description", "in": "query", "type": "string"},
-          {"name": "page", "in": "query", "type": "integer"},
-          {"name": "limit", "in": "query", "type": "integer"}
+          {
+            "name": "q",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "has_description",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "type": "integer"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "type": "string",
+            "description": "all or following"
+          },
+          {
+            "name": "owner_user_id",
+            "in": "query",
+            "type": "integer",
+            "format": "int64"
+          }
         ],
         "responses": {
           "200": {
             "description": "OK",
-            "schema": {"$ref": "#/definitions/CollectionListResult"}
+            "schema": {
+              "$ref": "#/definitions/CollectionListResult"
+            }
           },
-          "500": {"description": "Server Error"}
+          "500": {
+            "description": "Server Error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       },
       "post": {
-        "tags": ["collections"],
+        "tags": [
+          "collections"
+        ],
         "summary": "Create collection",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/CreateCollectionBody"}
+            "schema": {
+              "$ref": "#/definitions/CreateCollectionBody"
+            }
           }
         ],
         "responses": {
-          "201": {"description": "Created", "schema": {"$ref": "#/definitions/Collection"}},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"}
-        }
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/Collection"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/collections/{id}/items.csv": {
       "get": {
-        "tags": ["collections"],
+        "tags": [
+          "collections"
+        ],
         "summary": "Export collection items as CSV",
-        "produces": ["text/csv"],
+        "produces": [
+          "text/csv"
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "format": "uuid"
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"type": "string"}},
-          "401": {"description": "Unauthorized"},
-          "403": {"description": "Forbidden"},
-          "404": {"description": "Not Found"}
-        }
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/collections/{id}/items/import": {
       "post": {
-        "tags": ["collections"],
+        "tags": [
+          "collections"
+        ],
         "summary": "Import items from CSV",
-        "consumes": ["multipart/form-data"],
-        "produces": ["application/json"],
+        "consumes": [
+          "multipart/form-data"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "format": "uuid"
           },
           {
             "name": "file",
@@ -444,173 +1092,2261 @@
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/ImportItemsResult"}},
-          "400": {"description": "Bad Request"},
-          "401": {"description": "Unauthorized"},
-          "403": {"description": "Forbidden"}
-        }
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/ImportItemsResult"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/collections/{id}": {
       "get": {
-        "tags": ["collections"],
+        "tags": [
+          "collections"
+        ],
         "summary": "Get collection",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "format": "uuid"
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/Collection"}},
-          "400": {"description": "Bad Request"},
-          "404": {"description": "Not Found"},
-          "500": {"description": "Server Error"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Collection"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Server Error"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Update collection",
+        "description": "Owner only.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PatchCollectionBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Collection"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Delete collection",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       }
     },
     "/api/v1/items": {
       "get": {
-        "tags": ["items"],
+        "tags": [
+          "items"
+        ],
         "summary": "List items",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
-          {"name": "limit", "in": "query", "type": "integer"},
-          {"name": "collection_id", "in": "query", "type": "integer", "format": "int64"}
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer"
+          },
+          {
+            "name": "collection_id",
+            "in": "query",
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "type": "string",
+            "description": "mine or following (requires session)"
+          },
+          {
+            "name": "consumption_status",
+            "in": "query",
+            "type": "string",
+            "description": "When filtering by collection_id"
+          }
         ],
         "responses": {
           "200": {
             "description": "OK",
             "schema": {
               "type": "array",
-              "items": {"$ref": "#/definitions/Item"}
+              "items": {
+                "$ref": "#/definitions/Item"
+              }
             }
           },
-          "400": {"description": "Bad Request"},
-          "404": {"description": "Not Found"},
-          "500": {"description": "Server Error"}
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Server Error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       },
       "post": {
-        "tags": ["items"],
+        "tags": [
+          "items"
+        ],
         "summary": "Create item",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/ItemBody"}
+            "schema": {
+              "$ref": "#/definitions/ItemBody"
+            }
           }
         ],
         "responses": {
-          "201": {"description": "Created", "schema": {"$ref": "#/definitions/Item"}},
-          "400": {"description": "Bad Request"}
-        }
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/Item"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/items/{id}": {
       "get": {
-        "tags": ["items"],
+        "tags": [
+          "items"
+        ],
         "summary": "Get item",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "format": "uuid"
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/Item"}},
-          "400": {"description": "Bad Request"},
-          "404": {"description": "Not Found"},
-          "500": {"description": "Server Error"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Item"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Server Error"
+          }
         }
       },
       "put": {
-        "tags": ["items"],
+        "tags": [
+          "items"
+        ],
         "summary": "Update item",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "format": "uuid"
           },
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": {"$ref": "#/definitions/ItemBody"}
+            "schema": {
+              "$ref": "#/definitions/ItemBody"
+            }
           }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"$ref": "#/definitions/Item"}},
-          "400": {"description": "Bad Request"},
-          "404": {"description": "Not Found"}
-        }
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Item"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       },
       "delete": {
-        "tags": ["items"],
+        "tags": [
+          "items"
+        ],
         "summary": "Delete item",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "format": "uuid"
           }
         ],
         "responses": {
-          "204": {"description": "No Content"},
-          "400": {"description": "Bad Request"},
-          "404": {"description": "Not Found"},
-          "500": {"description": "Server Error"}
-        }
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Server Error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/search": {
       "get": {
-        "tags": ["search"],
+        "tags": [
+          "search"
+        ],
         "summary": "Search items",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
-          {"name": "q", "in": "query", "type": "string"},
-          {"name": "limit", "in": "query", "type": "integer"}
+          {
+            "name": "q",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer"
+          }
         ],
         "responses": {
-          "200": {"description": "OK", "schema": {"type": "object"}},
-          "502": {"description": "Bad Gateway"}
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "502": {
+            "description": "Bad Gateway"
+          }
         }
       }
     },
     "/api/v1/metadata/lookup": {
       "get": {
-        "tags": ["metadata"],
+        "tags": [
+          "metadata"
+        ],
         "summary": "Metadata lookup",
-        "produces": ["application/json"],
+        "produces": [
+          "application/json"
+        ],
         "parameters": [
-          {"name": "q", "in": "query", "type": "string"},
-          {"name": "query", "in": "query", "type": "string"},
-          {"name": "category", "in": "query", "type": "string"},
-          {"name": "provider", "in": "query", "type": "string"}
+          {
+            "name": "q",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "type": "string"
+          }
         ],
         "responses": {
           "200": {
             "description": "OK",
-            "schema": {"$ref": "#/definitions/MetadataLookupResult"}
+            "schema": {
+              "$ref": "#/definitions/MetadataLookupResult"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/beta/request-access": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request private beta access",
+        "description": "When beta enforcement is enabled. Queues email and may notify admins.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BetaRequestAccessBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/beta/approve-access": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Approve beta access (admin link)",
+        "description": "HTML response; validates emailed admin token query param `t`.",
+        "produces": [
+          "text/html"
+        ],
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML result page"
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/beta/open-invite": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Open emailed beta invite",
+        "description": "Sets beta unlock cookie and redirects to registration.",
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to web register"
+          }
+        }
+      }
+    },
+    "/api/v1/me/friends": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "List accepted friends",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PublicUser"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "List notifications",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/NotificationsListResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/me/notifications/read-all": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Mark all notifications read",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/notifications/{id}/read": {
+      "patch": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Mark one notification read",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/me/password/verification-code": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Email 6-digit code for password change (no 2FA)",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "description": "Mail not configured"
+          }
+        }
+      }
+    },
+    "/api/v1/me/password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change password while signed in",
+        "description": "Provide totp_code (2FA on) or email_code (2FA off). Revokes all sessions on success.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MeChangePasswordBody"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/people-you-may-know": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Suggested users to follow",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PublicUser"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelf-share/join": {
+      "post": {
+        "tags": [
+          "shelf-share"
+        ],
+        "summary": "Request to join a shared shelf",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ShelfJoinBody"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelf-share/invite": {
+      "post": {
+        "tags": [
+          "shelf-share"
+        ],
+        "summary": "Invite users to a shared shelf",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ShelfInviteBody"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelf-access-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "shelf-share"
+        ],
+        "summary": "Approve a pending shelf access request",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelf-access-requests/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "shelf-share"
+        ],
+        "summary": "Dismiss a pending shelf access request",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/me/shelves": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Recent shelves for dashboard",
+        "description": "Recently updated collections, lists, and wishlists for the signed-in user.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "type": "string",
+            "description": "mine (default) or following"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "type": "string",
+            "description": "collection | list | wishlist"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/DashboardShelf"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{userRef}": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Get public user profile",
+        "description": "userRef is numeric user id or username.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "userRef",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{userRef}/followers": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "List followers of a user",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "userRef",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PublicUser"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{userRef}/following": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "List users this user follows",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "userRef",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PublicUser"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{userRef}/follow": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Follow a user",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userRef",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Unfollow a user",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userRef",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/lists": {
+      "get": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "List lists",
+        "description": "Without owner_user_id requires session (own lists). With owner_user_id, optional session for visibility.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "owner_user_id",
+            "in": "query",
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Server Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Create list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                },
+                "is_public": {
+                  "type": "boolean"
+                },
+                "is_shared": {
+                  "type": "boolean"
+                },
+                "invite_user_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}": {
+      "get": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Get list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Update list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "description": "name, description, visibility, is_public, is_shared, invite_user_ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Delete list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/items.csv": {
+      "get": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Export list items as CSV",
+        "produces": [
+          "text/csv"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/lists/{id}/items": {
+      "get": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "List items on a list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Item"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Add item to list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/items/{itemId}": {
+      "delete": {
+        "tags": [
+          "lists"
+        ],
+        "summary": "Remove item from list",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists": {
+      "get": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "List wishlists",
+        "description": "Without owner_user_id requires session. With owner_user_id, optional session for visibility.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "owner_user_id",
+            "in": "query",
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Server Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Create wishlist",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "target_collection_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "visibility": {
+                  "type": "string"
+                },
+                "is_public": {
+                  "type": "boolean"
+                },
+                "is_shared": {
+                  "type": "boolean"
+                },
+                "invite_user_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists/{id}": {
+      "get": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Get wishlist",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Update wishlist",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "description": "name, description, target_collection_id, visibility, cover_art_url, is_shared, invite_user_ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Delete wishlist",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists/{id}/entries": {
+      "get": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "List wishlist entries",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Create wishlist entry",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "title",
+                "category",
+                "metadata"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists/{id}/entries/{entryId}": {
+      "delete": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Delete wishlist entry",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists/{id}/entries/{entryId}/obtain": {
+      "post": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Materialize wishlist entry as collection item",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": false,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "collection_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created item",
+            "schema": {
+              "$ref": "#/definitions/Item"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists/{id}/entries.csv": {
+      "get": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Export wishlist entries as CSV",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "text/csv"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlists/{id}/entries/import": {
+      "post": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Import wishlist entries from CSV",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "multipart/form-data"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "file",
+            "in": "formData",
+            "required": true,
+            "type": "file"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/ImportItemsResult"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/items/{id}/enrichment": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Item enrichment payload",
+        "description": "Optional session for visibility on private items.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/items/{id}/lists": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Lists containing this item",
+        "description": "Lists the viewer may see that reference this item.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ListRef"
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
           }
         }
       }
@@ -620,127 +3356,455 @@
     "User": {
       "type": "object",
       "properties": {
-        "id": {"type": "integer", "format": "int64"},
-        "email": {"type": "string"},
-        "display_name": {"type": "string"},
-        "bio": {"type": "string"},
-        "avatar_url": {"type": "string"},
-        "two_factor_enabled": {"type": "boolean"},
-        "created_at": {"type": "string", "format": "date-time"},
-        "updated_at": {"type": "string", "format": "date-time"}
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "account_status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "deactivated"
+          ]
+        },
+        "email": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "two_factor_enabled": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "RegisterResponse": {
+      "description": "Public user profile fields returned on registration, plus session_token for Bearer auth.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/User"
+        },
+        {
+          "type": "object",
+          "required": [
+            "session_token"
+          ],
+          "properties": {
+            "session_token": {
+              "type": "string",
+              "description": "Opaque session secret; send as Authorization: Bearer <session_token>. Same value as kurator_session cookie body."
+            }
+          }
+        }
+      ]
+    },
+    "LoginResponse": {
+      "type": "object",
+      "description": "Password login result: either 2FA challenge or completed session.",
+      "properties": {
+        "two_factor_required": {
+          "type": "boolean"
+        },
+        "pending_token": {
+          "type": "string",
+          "description": "Present when two_factor_required is true; use with POST /auth/login/2fa"
+        },
+        "user": {
+          "$ref": "#/definitions/User"
+        },
+        "session_token": {
+          "type": "string",
+          "description": "Present when two_factor_required is false; Bearer token and same as kurator_session cookie"
+        }
+      }
+    },
+    "Login2FAResponse": {
+      "type": "object",
+      "required": [
+        "user",
+        "session_token"
+      ],
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/User"
+        },
+        "session_token": {
+          "type": "string",
+          "description": "Opaque session secret for Authorization: Bearer"
+        }
+      }
+    },
+    "BetaRequestAccessBody": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "turnstile_token": {
+          "type": "string"
+        }
+      }
+    },
+    "ShelfJoinBody": {
+      "type": "object",
+      "required": [
+        "shelf_kind",
+        "shelf_id"
+      ],
+      "properties": {
+        "shelf_kind": {
+          "type": "string",
+          "description": "collection | list | wishlist"
+        },
+        "shelf_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "ShelfInviteBody": {
+      "type": "object",
+      "required": [
+        "shelf_kind",
+        "shelf_id",
+        "invite_user_ids"
+      ],
+      "properties": {
+        "shelf_kind": {
+          "type": "string"
+        },
+        "shelf_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "invite_user_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    },
+    "MeChangePasswordBody": {
+      "type": "object",
+      "required": [
+        "password"
+      ],
+      "properties": {
+        "password": {
+          "type": "string",
+          "description": "New password"
+        },
+        "totp_code": {
+          "type": "string",
+          "description": "When 2FA is enabled"
+        },
+        "email_code": {
+          "type": "string",
+          "description": "When 2FA is off; from POST /me/password/verification-code"
+        }
+      }
+    },
+    "NotificationsListResponse": {
+      "type": "object",
+      "properties": {
+        "notifications": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "unread_count": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "DashboardShelf": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "PatchCollectionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "is_public": {
+          "type": "boolean"
+        },
+        "cover_art_url": {
+          "type": "string"
+        },
+        "is_shared": {
+          "type": "boolean"
+        },
+        "invite_user_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    },
+    "ListRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
       }
     },
     "RegisterBody": {
       "type": "object",
-      "required": ["email", "password"],
+      "required": [
+        "email",
+        "password"
+      ],
       "properties": {
-        "email": {"type": "string"},
-        "password": {"type": "string"},
-        "display_name": {"type": "string"}
-      }
-    },
-    "BetaUnlockBody": {
-      "type": "object",
-      "properties": {
-        "key": {"type": "string"}
+        "email": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        }
       }
     },
     "LoginBody": {
       "type": "object",
-      "required": ["email", "password"],
+      "required": [
+        "email",
+        "password"
+      ],
       "properties": {
-        "email": {"type": "string"},
-        "password": {"type": "string"}
+        "email": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
       }
     },
     "Login2FABody": {
       "type": "object",
       "properties": {
-        "pending_token": {"type": "string"},
-        "code": {"type": "string"}
+        "pending_token": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        }
       }
     },
     "PatchMeBody": {
       "type": "object",
       "properties": {
-        "display_name": {"type": "string"},
-        "bio": {"type": "string"},
-        "avatar_url": {"type": "string"}
+        "display_name": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        }
       }
     },
     "TwoFASetupResult": {
       "type": "object",
       "properties": {
-        "secret": {"type": "string"},
-        "otpauth_url": {"type": "string"}
+        "secret": {
+          "type": "string"
+        },
+        "otpauth_url": {
+          "type": "string"
+        }
       }
     },
     "TwoFAEnableBody": {
       "type": "object",
-      "properties": {"code": {"type": "string"}}
+      "properties": {
+        "code": {
+          "type": "string"
+        }
+      }
     },
     "TwoFADisableBody": {
       "type": "object",
-      "properties": {"password": {"type": "string"}}
+      "properties": {
+        "password": {
+          "type": "string"
+        }
+      }
     },
     "ForgotPasswordBody": {
       "type": "object",
       "properties": {
-        "email": {"type": "string"},
-        "turnstile_token": {"type": "string"}
+        "email": {
+          "type": "string"
+        },
+        "turnstile_token": {
+          "type": "string"
+        }
       }
     },
     "VerifyForgotPasswordBody": {
       "type": "object",
       "properties": {
-        "email": {"type": "string"},
-        "code": {"type": "string"},
-        "turnstile_token": {"type": "string"}
+        "email": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "turnstile_token": {
+          "type": "string"
+        }
       }
     },
     "ResetForgotPasswordBody": {
       "type": "object",
       "properties": {
-        "reset_token": {"type": "string"},
-        "password": {"type": "string"},
-        "turnstile_token": {"type": "string"}
+        "reset_token": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "turnstile_token": {
+          "type": "string"
+        }
       }
     },
     "ImageFromURLBody": {
       "type": "object",
-      "properties": {"url": {"type": "string"}}
+      "properties": {
+        "url": {
+          "type": "string"
+        }
+      }
     },
     "Item": {
       "type": "object",
       "properties": {
-        "id": {"type": "integer", "format": "int64"},
-        "collection_id": {"type": "integer", "format": "int64"},
-        "title": {"type": "string"},
-        "category": {"type": "string"},
-        "metadata": {"type": "object"},
-        "created_at": {"type": "string", "format": "date-time"},
-        "updated_at": {"type": "string", "format": "date-time"}
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "collection_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "ItemBody": {
       "type": "object",
       "properties": {
-        "collection_id": {"type": "integer", "format": "int64"},
-        "title": {"type": "string"},
-        "category": {"type": "string"},
-        "metadata": {"type": "object"}
+        "collection_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        }
       }
     },
     "Collection": {
       "type": "object",
       "properties": {
-        "id": {"type": "integer", "format": "int64"},
-        "user_id": {"type": "integer", "format": "int64"},
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "item_count": {"type": "integer", "format": "int64"},
-        "created_at": {"type": "string", "format": "date-time"},
-        "updated_at": {"type": "string", "format": "date-time"}
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "user_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "item_count": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "CollectionListResult": {
@@ -748,64 +3812,234 @@
       "properties": {
         "items": {
           "type": "array",
-          "items": {"$ref": "#/definitions/Collection"}
+          "items": {
+            "$ref": "#/definitions/Collection"
+          }
         },
-        "total": {"type": "integer", "format": "int64"},
-        "page": {"type": "integer"},
-        "page_size": {"type": "integer"}
+        "total": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "page_size": {
+          "type": "integer"
+        }
       }
     },
     "CreateCollectionBody": {
       "type": "object",
       "properties": {
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "is_public": {"type": "boolean"},
-        "category": {"type": "string"}
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "is_public": {
+          "type": "boolean"
+        },
+        "category": {
+          "type": "string"
+        }
       }
     },
     "ImportItemsResult": {
       "type": "object",
       "properties": {
-        "created": {"type": "integer"},
-        "updated": {"type": "integer"},
+        "created": {
+          "type": "integer"
+        },
+        "updated": {
+          "type": "integer"
+        },
         "errors": {
           "type": "array",
-          "items": {"type": "object"}
+          "items": {
+            "type": "object"
+          }
         }
       }
     },
     "PublicUser": {
       "type": "object",
       "properties": {
-        "id": {"type": "integer", "format": "int64"},
-        "username": {"type": "string"},
-        "display_name": {"type": "string"},
-        "first_name": {"type": "string"},
-        "last_name": {"type": "string"},
-        "location": {"type": "string"},
-        "bio": {"type": "string"},
-        "avatar_url": {"type": "string"},
-        "banner_url": {"type": "string"},
-        "social_links": {"type": "array", "items": {"type": "object"}},
-        "created_at": {"type": "string", "format": "date-time"}
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "first_name": {
+          "type": "string"
+        },
+        "last_name": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "banner_url": {
+          "type": "string"
+        },
+        "social_links": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "MetadataLookupResult": {
       "type": "object",
       "properties": {
-        "source": {"type": "string"},
-        "query": {"type": "string"},
-        "stub": {"type": "boolean"},
-        "message": {"type": "string"},
-        "results": {"type": "array", "items": {"type": "object"}},
-        "preview": {"type": "object"}
+        "source": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "stub": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "preview": {
+          "type": "object"
+        }
       }
     },
     "NotificationUnreadCount": {
       "type": "object",
       "properties": {
-        "unread_count": {"type": "integer", "format": "int64"}
+        "unread_count": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "ReactivateAccountBody": {
+      "type": "object",
+      "required": [
+        "token"
+      ],
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      }
+    },
+    "DeactivateAccountBody": {
+      "type": "object",
+      "properties": {
+        "transfers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShelfOwnershipTransfer"
+          }
+        }
+      }
+    },
+    "ShelfOwnershipTransfer": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "collection",
+            "list",
+            "wishlist"
+          ]
+        },
+        "shelf_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "new_owner_id": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "AccountDeletionContextResponse": {
+      "type": "object",
+      "properties": {
+        "shared_shelves": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SharedShelfForDeletion"
+          }
+        }
+      }
+    },
+    "SharedShelfForDeletion": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SharedShelfMemberOption"
+          }
+        }
+      }
+    },
+    "SharedShelfMemberOption": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "username": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        }
+      }
+    },
+    "SuccessionVoteBody": {
+      "type": "object",
+      "required": [
+        "candidate_id"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "integer",
+          "format": "int64"
+        }
       }
     }
   }

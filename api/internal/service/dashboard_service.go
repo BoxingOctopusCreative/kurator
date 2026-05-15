@@ -9,6 +9,9 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 )
 
+// DashboardRecentShelvesMaxOffset caps pagination depth for the dashboard feed.
+const DashboardRecentShelvesMaxOffset = 5000
+
 // DashboardRecentShelvesLimit is the default page size for the dashboard recent shelves feed.
 const DashboardRecentShelvesLimit = 10
 
@@ -25,8 +28,9 @@ func NewDashboardService(repo *repository.PostgresDashboardRepository) *Dashboar
 
 // RecentShelves returns the viewer's most recently updated shelves (scope=mine) or shelves from
 // users they follow (scope=following), optionally filtered by kind. limit defaults to
-// DashboardRecentShelvesLimit and is capped at DashboardRecentShelvesMax.
-func (s *DashboardService) RecentShelves(ctx context.Context, userID int64, scope string, kind string, limit int) ([]models.DashboardShelf, error) {
+// DashboardRecentShelvesLimit and is capped at DashboardRecentShelvesMax. offset is the number of
+// rows to skip after ordering by updated_at (default 0, capped at DashboardRecentShelvesMaxOffset).
+func (s *DashboardService) RecentShelves(ctx context.Context, userID int64, scope string, kind string, limit, offset int) ([]models.DashboardShelf, error) {
 	if userID < 1 {
 		return nil, fmt.Errorf("unauthorized")
 	}
@@ -44,11 +48,18 @@ func (s *DashboardService) RecentShelves(ctx context.Context, userID int64, scop
 	if limit > DashboardRecentShelvesMax {
 		limit = DashboardRecentShelvesMax
 	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > DashboardRecentShelvesMaxOffset {
+		offset = DashboardRecentShelvesMaxOffset
+	}
 	return s.repo.ListRecentShelves(ctx, repository.RecentShelvesParams{
 		ViewerUserID: userID,
 		Scope:        ds,
 		Kinds:        kinds,
 		Limit:        limit,
+		Offset:       offset,
 	})
 }
 

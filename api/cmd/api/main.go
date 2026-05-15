@@ -1,12 +1,18 @@
 // @title Kurator API
 // @version 1.0
-// @description REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads.
+// @description REST API for Kurator: collections, items, search, external metadata lookup, session-based auth (cookie and/or Bearer token), bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads.
 // @host localhost:8080
 // @BasePath /
 
 // @securityDefinitions.apikey SessionCookie
 // @in cookie
 // @name kurator_session
+
+// @securityDefinitions.apikey BearerToken
+// @in header
+// @name Authorization
+// @description Bearer <session_token> — same opaque value as the kurator_session cookie (from login/register/login/2fa JSON field session_token).
+
 package main
 
 import (
@@ -201,7 +207,6 @@ func runAPI(cfg config.Config) error {
 		TMDBAPIKey:       cfg.TMDBAPIKey,
 		ComicVineAPIKey:  cfg.ComicVineAPIKey,
 	})
-	betaRepo := repository.NewPostgresBetaKeyRepository(pool)
 	betaInviteRepo := repository.NewPostgresBetaAccessInviteRepository(pool)
 	publicWeb := strings.TrimRight(strings.TrimSpace(cfg.PublicWebBaseURL), "/")
 	if publicWeb == "" && len(cfg.CORSOrigins) > 0 {
@@ -211,7 +216,6 @@ func runAPI(cfg config.Config) error {
 		pool,
 		userRepo,
 		sessionRepo,
-		betaRepo,
 		betaInviteRepo,
 		publicWeb,
 		cfg.AuthJWTSecret,
@@ -227,6 +231,9 @@ func runAPI(cfg config.Config) error {
 		}
 	}
 	socialSvc := service.NewSocialService(userRepo, followRepo, activityFanout)
+	accountDeletionRepo := repository.NewPostgresAccountDeletionRepository(pool)
+	accountDeletionSvc := service.NewAccountDeletionService(userRepo, sessionRepo, accountDeletionRepo, notifRepo, mg, publicWeb)
+	go runAccountPurgeLoop(context.Background(), accountDeletionSvc)
 
 	itemH := handler.NewItemHandler(itemSvc, collRepo, authSvc, metaSvc, listSvc, activityFanout)
 	collH := handler.NewCollectionHandler(collSvc, authSvc, itemSvc, collRepo, activityFanout, shelfShareSvc)
@@ -240,6 +247,7 @@ func runAPI(cfg config.Config) error {
 	metaH := handler.NewMetadataHandler(metaSvc)
 	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey, cfg.BetaAccessRequired, publicWeb)
 	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
+	accountDeletionH := handler.NewAccountDeletionHandler(accountDeletionSvc)
 	requireAuth := middleware.RequireAuth(authSvc)
 
 	imgH := handler.NewImageHandler(imgSvc)
@@ -270,7 +278,6 @@ func runAPI(cfg config.Config) error {
 
 	v1 := app.Group("/api/v1")
 	v1.Get("/auth/beta/status", authH.BetaAccessStatus)
-	v1.Post("/auth/beta/unlock", authH.BetaUnlock)
 	v1.Post("/auth/beta/request-access", authH.BetaRequestAccess)
 	v1.Get("/auth/beta/approve-access", authH.BetaApproveAccess)
 	v1.Get("/auth/beta/open-invite", authH.BetaOpenInvite)
@@ -281,6 +288,7 @@ func runAPI(cfg config.Config) error {
 	v1.Post("/auth/forgot-password", recoveryH.ForgotPassword)
 	v1.Post("/auth/forgot-password/verify", recoveryH.VerifyForgotPassword)
 	v1.Post("/auth/forgot-password/reset", recoveryH.ResetForgotPassword)
+	v1.Post("/auth/reactivate-account", accountDeletionH.ReactivateAccount)
 
 	me := v1.Group("/me", requireAuth)
 	me.Get("/", authH.Me)
@@ -301,6 +309,10 @@ func runAPI(cfg config.Config) error {
 	me.Post("/shelf-access-requests/:id/approve", shelfShareH.ApproveRequest)
 	me.Post("/shelf-access-requests/:id/dismiss", shelfShareH.DismissRequest)
 	me.Get("/shelves", dashboardH.RecentShelves)
+	me.Get("/account/deletion-context", accountDeletionH.DeletionContext)
+	me.Delete("/account", accountDeletionH.DeactivateAccount)
+	me.Post("/shelf-ownership-successions/:id/accept", accountDeletionH.AcceptShelfOwnershipTakeover)
+	me.Post("/shelf-ownership-successions/:id/vote", accountDeletionH.VoteShelfOwnershipElection)
 
 	v1.Post("/images", requireAuth, imgH.Upload)
 
@@ -327,6 +339,7 @@ func runAPI(cfg config.Config) error {
 	v1.Delete("/wishlists/:id", requireAuth, wishH.Delete)
 	v1.Get("/lists", listH.List)
 	v1.Post("/lists", requireAuth, listH.Create)
+	v1.Get("/lists/:id/items.csv", requireAuth, listH.ExportItemsCSV)
 	v1.Get("/lists/:id/items", requireAuth, listH.ListItems)
 	v1.Post("/lists/:id/items", requireAuth, listH.AddItem)
 	v1.Delete("/lists/:id/items/:itemId", requireAuth, listH.RemoveItem)
@@ -443,6 +456,21 @@ func betaDiscordWebhookStartupHint() string {
 
 func logStartup(component, detail string) {
 	log.Printf("startup: %s: %s", component, detail)
+}
+
+func runAccountPurgeLoop(ctx context.Context, svc *service.AccountDeletionService) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		if err := svc.RunPurgeCycle(ctx); err != nil {
+			log.Printf("account purge cycle: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 // Health reports that the HTTP server is running.

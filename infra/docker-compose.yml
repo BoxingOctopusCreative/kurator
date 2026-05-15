@@ -1,4 +1,4 @@
-# Local dependency stack (Postgres, MinIO, Meilisearch, Valkey, Swagger UI).
+# Local dependency stack (Postgres, Meilisearch, Valkey, Swagger UI).
 # Apply schema via API startup bootstrap, `go run ./cmd/migrate`, or DATABASE_URL + api/internal/migrate.
 # Run from repo root: podman compose -f infra/docker-compose.yml up -d  (or docker compose)
 # If another Postgres on the host already uses 5432, set POSTGRES_PORT.
@@ -27,39 +27,6 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-  
-  minio:
-    image: minio/minio:latest
-    container_name: kurator-infra-minio
-    command: ["server", "/data"]
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kurator}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-kurator}
-    ports:
-      - "${MINIO_PORT:-9000}:9000"
-    volumes:
-      - kurator_infra_minio:/data
-    restart: unless-stopped
-
-  minio-init:
-    image: minio/mc:latest
-    container_name: kurator-infra-minio-init
-    depends_on:
-      minio:
-        condition: service_started
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        sleep 2
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-        mc mb local/kurator-covers --ignore-existing
-        mc anonymous set download local/kurator-covers
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kurator}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-kurator}
-    restart: "no"
 
   meilisearch:
     image: getmeili/meilisearch:latest
@@ -103,5 +70,4 @@ services:
 
 volumes:
   kurator_infra_pg_data:
-  kurator_infra_minio:
   kurator_infra_meili_data:

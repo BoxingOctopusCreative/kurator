@@ -3,14 +3,12 @@
 
 BINARY_NAME     := kurator-api
 CMD_PATH        := ./cmd/api
-BETAKEYGEN_NAME := kurator-betakeygen
-BETAKEYGEN_PATH := ./cmd/betakeygen
 BIN_DIR         := bin
 
 LDFLAGS := -s -w
 GOFLAGS := -trimpath
 
-.PHONY: help build clean test vet swagger betakeygen build-betakeygen \
+.PHONY: help build dev clean test vet swagger \
 	build-darwin-amd64 build-darwin-arm64 \
 	build-linux-amd64 build-linux-arm64 \
 	build-macos-native build-all
@@ -19,6 +17,7 @@ help:
 	@echo "Kurator API — targets:"
 	@echo "  Migrations: the API applies bundled SQL migrations on boot; use ./cmd/migrate for DATABASE_URL-only runs"
 	@echo "  Config: env vars > CLI flags (-c/--config, -d/--database-url, …) > kurator.toml (see kurator.example.toml)"
+	@echo "  dev                — live-reload API via air (requires: go install github.com/air-verse/air@latest)"
 	@echo "  build              — current OS/arch -> $(BIN_DIR)/$(BINARY_NAME)"
 	@echo "  build-macos-native — macOS: auto amd64 (Intel) or arm64 (Apple Silicon)"
 	@echo "  build-darwin-amd64 — macOS Intel"
@@ -27,13 +26,11 @@ help:
 	@echo "  build-linux-arm64  — Linux arm64 (e.g. AWS Graviton, Raspberry Pi 64-bit)"
 	@echo "  build-all          — all four cross-compiled binaries under $(BIN_DIR)/"
 	@echo "  test / vet / clean"
-	@echo "  build-betakeygen — $(BIN_DIR)/$(BETAKEYGEN_NAME) (private beta key CLI)"
-	@echo "  betakeygen       — go run betakeygen; pass flags: make betakeygen ARGS='--database-url \"...\"'"
 	@echo "  swagger          — print OpenAPI doc location (Swagger UI runs via infra compose, not the API binary)"
 
 swagger:
 	@echo "OpenAPI 2.0 spec: docs/swagger.json"
-	@echo "Swagger UI:       docker compose -f ../infra/docker-compose.yml up -d swagger-ui"
+	@echo "Swagger UI:       make -C .. infra-up  (or podman compose -f ../infra/docker-compose.yml up -d)"
 	@echo "                  then http://localhost:$${SWAGGER_UI_PORT:-8081} (mounts this swagger.json)"
 	@echo "To regenerate from code annotations, install github.com/swaggo/swag and run:"
 	@echo "  go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/api/main.go -o docs --parseInternal --parseDependency"
@@ -42,17 +39,18 @@ swagger:
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
+# Live reload (Air). Set DATABASE_URL and other env before running; see README.
+dev:
+	@command -v air >/dev/null 2>&1 || { \
+	  echo "air not found. Install: go install github.com/air-verse/air@latest"; \
+	  echo "Ensure $$(go env GOPATH)/bin is on your PATH."; \
+	  exit 1; \
+	}
+	air
+
 # Native binary for whatever machine runs `make` (dev iteration).
 build: $(BIN_DIR)
 	CGO_ENABLED=0 go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(CMD_PATH)
-
-build-betakeygen: $(BIN_DIR)
-	CGO_ENABLED=0 go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BETAKEYGEN_NAME) $(BETAKEYGEN_PATH)
-
-# Example: make betakeygen ARGS='-c kurator.toml'
-# Example: make betakeygen ARGS='--database-url postgres://kurator:kurator@localhost:5432/kurator?sslmode=disable'
-betakeygen:
-	go run $(BETAKEYGEN_PATH) $(ARGS)
 
 # macOS: pick amd64 vs arm64 from uname (only meaningful when host is Darwin).
 build-macos-native: $(BIN_DIR)

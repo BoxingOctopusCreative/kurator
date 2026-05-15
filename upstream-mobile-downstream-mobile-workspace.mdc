@@ -1,0 +1,36 @@
+---
+description: This repo is Kurator mobile—upstream web+API is source of truth; read upstream memory before parity or product work
+alwaysApply: true
+---
+
+# Kurator mobile (this repo) vs upstream web + API
+
+## Repository roles
+
+- **This repository** is the Kurator **mobile** application.
+- **Upstream source of truth** for **features**, **UI design**, **API contracts**, and **product behavior** is the **Kurator web + API** repository (separate clone). This mobile client **follows** upstream unless the product explicitly documents a divergence.
+
+**Upstream root (local path):** replace the line below once after copying this file into the mobile repo (or use a submodule / symlink and point to that tree).
+
+- `PATH_TO_KURATOR_UPSTREAM` — e.g. `../kurator` or `/Users/you/src/BoxingOctopus/kurator`
+
+## Before you implement (mobile)
+
+Whenever the user asks for a change that affects **product behavior**, **UI parity**, **API usage**, or **alignment with Kurator web**, **start by reading all upstream memory files** at the **root of the upstream Kurator web+API repository** (the path above):
+
+- **`memory.md`**
+- **`memory-flutter-ui-port.md`**
+- Any other **`memory*.md`** files in that root
+
+Treat them as the **canonical** notes from the web/API side. If that directory is not in your workspace or path is unknown, **ask the user** for the correct path or a fresh export—**do not guess** documented behavior or visuals.
+
+## Scope discipline
+
+- Prefer implementing against the **documented API** and **memory** from upstream; do not invent contracts.
+- Do **not** treat this mobile repo as authoritative for product or web UI; if upstream is wrong or unclear, resolve in **upstream** first or get explicit user direction.
+
+## After copying this file
+
+1. Move or copy this file to **`<mobile-repo>/.cursor/rules/`** (same filename is fine).
+2. Set **`PATH_TO_KURATOR_UPSTREAM`** to a real path (or delete that bullet and hardcode the path in the paragraph above).
+3. Remove this file from the **Kurator** web+API repo if it was only stored there temporarily.

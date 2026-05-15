@@ -34,8 +34,9 @@ type RecentShelvesParams struct {
 	ViewerUserID int64
 	Scope        DashboardScope
 	// Kinds filters which shelf kinds are included. Empty = all three.
-	Kinds []ShelfKind
-	Limit int
+	Kinds  []ShelfKind
+	Limit  int
+	Offset int
 }
 
 // ListRecentShelves returns up to Limit shelves matching the scope and kind filter, ordered by
@@ -46,6 +47,9 @@ func (r *PostgresDashboardRepository) ListRecentShelves(ctx context.Context, p R
 	}
 	if p.Limit <= 0 || p.Limit > 50 {
 		p.Limit = 10
+	}
+	if p.Offset < 0 {
+		p.Offset = 0
 	}
 	kinds := dedupeKinds(p.Kinds)
 	if len(kinds) == 0 {
@@ -75,10 +79,10 @@ func (r *PostgresDashboardRepository) ListRecentShelves(ctx context.Context, p R
 		  %s
 		) AS shelves
 		ORDER BY updated_at DESC
-		LIMIT $2
+		LIMIT $2 OFFSET $3
 	`, union)
 
-	rows, err := r.pool.Query(ctx, sqlText, p.ViewerUserID, p.Limit)
+	rows, err := r.pool.Query(ctx, sqlText, p.ViewerUserID, p.Limit, p.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard shelves: %w", err)
 	}
