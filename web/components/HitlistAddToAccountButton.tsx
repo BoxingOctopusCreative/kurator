@@ -76,6 +76,7 @@ export function HitlistAddToAccountButton({ entry }: Props) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!payload) return;
     if (!selId.trim()) {
       setMsg("Choose a destination.");
       return;
