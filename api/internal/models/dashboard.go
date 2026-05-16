@@ -20,6 +20,8 @@ type DashboardShelf struct {
 	IsShared    bool         `json:"is_shared"`
 	ItemCount   int64        `json:"item_count"`
 	EntryCount  int64        `json:"entry_count"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	// Slug is set for list rows with a permalink segment (typically public hitlists).
+	Slug      *string   `json:"slug,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

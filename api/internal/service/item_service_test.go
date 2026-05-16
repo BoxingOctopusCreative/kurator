@@ -14,6 +14,8 @@ import (
 const testCollUUID = "22222222-2222-2222-2222-222222222222"
 const testItemUUID = "11111111-1111-1111-1111-111111111111"
 
+func shelvedItem(coll string) *string { return &coll }
+
 type stubItemRepo struct {
 	list    []models.Item
 	listErr error
@@ -22,6 +24,7 @@ type stubItemRepo struct {
 	getErr  error
 
 	lastCreateColl  string
+	lastCreateLoose bool
 	lastCreateTitle string
 	lastCreateCat   models.Category
 	createItem      *models.Item
@@ -73,8 +76,19 @@ func (s *stubItemRepo) GetByID(ctx context.Context, id string, viewer *int64) (*
 	return s.getItem, nil
 }
 
-func (s *stubItemRepo) Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
-	s.lastCreateColl = collectionID
+func (s *stubItemRepo) GetByIDLinkedFromList(ctx context.Context, itemID, listID string) (*models.Item, error) {
+	_ = listID
+	return s.GetByID(ctx, itemID, nil)
+}
+
+func (s *stubItemRepo) Create(ctx context.Context, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+	if collectionID == nil {
+		s.lastCreateLoose = true
+		s.lastCreateColl = ""
+	} else {
+		s.lastCreateLoose = false
+		s.lastCreateColl = *collectionID
+	}
 	s.lastCreateTitle = title
 	s.lastCreateCat = category
 	if s.createErr != nil {
@@ -83,9 +97,9 @@ func (s *stubItemRepo) Create(ctx context.Context, collectionID string, title st
 	return s.createItem, nil
 }
 
-func (s *stubItemRepo) CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+func (s *stubItemRepo) CreateTx(ctx context.Context, tx pgx.Tx, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
 	_ = tx
-	return s.Create(ctx, collectionID, title, category, metadata, rating, consumption)
+	return s.Create(ctx, collectionID, ownerUserID, title, category, metadata, rating, consumption)
 }
 
 func (s *stubItemRepo) UpdateTx(ctx context.Context, tx pgx.Tx, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
@@ -111,6 +125,7 @@ func TestItemService_Create_validation(t *testing.T) {
 	svc := NewItemService(repo, nil, nil)
 
 	_, err := svc.Create(ctx, CreateItemInput{
+		Loose:        false,
 		CollectionID: testCollUUID,
 		Title:        "",
 		Category:     models.CategoryGame,
@@ -121,6 +136,7 @@ func TestItemService_Create_validation(t *testing.T) {
 	}
 
 	_, err = svc.Create(ctx, CreateItemInput{
+		Loose:        false,
 		CollectionID: testCollUUID,
 		Title:        "Ok",
 		Category:     "nope",
@@ -131,9 +147,11 @@ func TestItemService_Create_validation(t *testing.T) {
 	}
 
 	_, err = svc.Create(ctx, CreateItemInput{
-		Title:    "Ok",
-		Category: models.CategoryGame,
-		Metadata: json.RawMessage(`{}`),
+		Loose:        false,
+		CollectionID: "",
+		Title:        "Ok",
+		Category:     models.CategoryGame,
+		Metadata:     json.RawMessage(`{}`),
 	})
 	if err == nil || err.Error() != "collection_id is required" {
 		t.Fatalf("Create missing collection: got err %v", err)
@@ -143,9 +161,10 @@ func TestItemService_Create_validation(t *testing.T) {
 func TestItemService_Create_passesCollectionID(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
+	coll := testCollUUID
 	want := &models.Item{
 		ID:           testItemUUID,
-		CollectionID: testCollUUID,
+		CollectionID: &coll,
 		Title:        "Chrono Trigger",
 		Category:     models.CategoryGame,
 		Metadata:     json.RawMessage(`{}`),
@@ -156,6 +175,7 @@ func TestItemService_Create_passesCollectionID(t *testing.T) {
 	svc := NewItemService(repo, nil, nil)
 
 	got, err := svc.Create(ctx, CreateItemInput{
+		Loose:        false,
 		CollectionID: testCollUUID,
 		Title:        "Chrono Trigger",
 		Category:     models.CategoryGame,
@@ -166,6 +186,9 @@ func TestItemService_Create_passesCollectionID(t *testing.T) {
 	}
 	if got.ID != want.ID {
 		t.Fatalf("item id: got %q", got.ID)
+	}
+	if repo.lastCreateLoose {
+		t.Fatal("expected shelved create")
 	}
 	if repo.lastCreateColl != testCollUUID {
 		t.Fatalf("expected collection %q, got %q", testCollUUID, repo.lastCreateColl)
@@ -180,7 +203,7 @@ func TestItemService_Update_validation(t *testing.T) {
 	repo := &stubItemRepo{
 		getItem: &models.Item{
 			ID:           testItemUUID,
-			CollectionID: testCollUUID,
+			CollectionID: shelvedItem(testCollUUID),
 			Title:        "x",
 			Category:     models.CategoryBook,
 			Metadata:     json.RawMessage(`{}`),

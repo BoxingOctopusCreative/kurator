@@ -14,7 +14,7 @@ Kurator is a collection tracker: users catalog games, music, books, movies, TV, 
 |-------|---------|
 | **API** | Go 1.25, Fiber v2, Cobra CLI, pgx, bundled SQL migrations on startup, optional Meilisearch indexer, optional S3 image service |
 | **Web** | Next.js 16, React 19, TypeScript, Tailwind 4; Turbopack for `dev` / `build`; Vitest + Testing Library for unit tests |
-| **Browser → API** | Same-origin **`/api/v1/*`** proxied by Next (`web/app/api/v1/[[...path]]/route.ts`) so session cookies stay on the web origin; server code uses `API_INTERNAL_URL` / `NEXT_PUBLIC_API_URL` (`web/lib/apiUrl.ts`) |
+| **Browser → API** | Same-origin **`/api/v1/*`** and **`/api/v2/*`** proxied by Next (`web/app/api/v1/[[...path]]/route.ts`, `web/app/api/v2/[[...path]]/route.ts`) so session cookies stay on the web origin; server code uses `API_INTERNAL_URL` / `NEXT_PUBLIC_API_URL` (`web/lib/apiUrl.ts`; use `{ version: "v2" }` or `/api/v2/...` for hitlists) |
 | **Native / direct API** | Same **`sessions`** table: send **`Authorization: Bearer <session_token>`**; obtain **`session_token`** from JSON on **`POST /auth/register`**, **`POST /auth/login`** (after password when 2FA off), or **`POST /auth/login/2fa`**. Cookie wins if both cookie and Bearer are sent (`api/internal/middleware/session_token.go`). OpenAPI: **`api/docs/swagger.json`** (`BearerToken`, `RegisterResponse`, `LoginResponse`, `Login2FAResponse`). |
 | **Production edge** | Root **`docker-compose.yml`**: Traefik labels on `api`, `web`, `swagger-ui`; external **`shared-network`**; GHCR images; Valkey + Meilisearch colocated |
 | **Local dependencies** | **`infra/docker-compose.yml`**: Postgres, Meilisearch, Swagger UI, Valkey (Compose project name `kurator-infra`). S3: use production bucket credentials in dev, not a local object store. |
@@ -33,7 +33,7 @@ kurator/
 │   ├── migrations/       # SQL migrations (applied by API on boot)
 │   └── docs/swagger.json # OpenAPI 2.0
 ├── web/
-│   ├── app/              # App Router, API proxy route
+│   ├── app/              # App Router, API proxy routes (`api/v1`, `api/v2`)
 │   ├── components/, lib/
 │   └── content/privacy-policy.md  # Source for /privacy (see web/lib/privacyPolicyMarkdown.ts)
 ├── docker-compose.yml    # Production-oriented Traefik stack
@@ -57,11 +57,28 @@ kurator/
 
 Auth (`/auth/*`, login/register/logout/2FA, password recovery, beta flows), **`/me`**, collections, items, lists, wishlists, search, metadata lookup, images, notifications, follows / social. Full contract and **`SessionCookie` / `BearerToken`** security: **`api/docs/swagger.json`**.
 
+## API v2 Hitlists (implemented in API)
+
+- **Base path**: **`/api/v2/hitlists`** (see **`api/docs/swagger.json`** tag `hitlists-v2`). **v1 `/lists`** remains unchanged; shared storage is table **`lists`** (not renamed). **Discover** (no `owner_user_id`): optional auth; returns non-private lists visible to the viewer with **`sort=recent|liked|active|hottest`**. **`view_count`** on lists (migration **`042`**) increments on v2 hitlist GET by id or slug (approximate traffic).
+- **Visibility**: model + DB add **`public`** (internet). **Collections** and **wishlists** constraints allow `public` too; **unauthenticated read**: collection GET (legacy + user-owned **`public`** rows), wishlist GET + list entries GET (**`public`** only); hitlist v2 GETs use optional auth for all visibility rules.
+- **Migration `039`**: `lists.slug` (unique), `lists.comments_enabled`; `list_entries` nullable `item_id` + stub columns; `hitlist_votes`, `hitlist_comments`. **`041`** adds **`lists.entries_numbered`** (default true): owners can choose ordered (numbered) vs unordered hitlist presentation. **`043`** adds **`list_entries.sort_order`** (backfilled to preserve former newest-first ordering); **`PUT /api/v2/hitlists/:id/entries/order`** with **`entry_ids`** (full permutation) updates order for owners / shared editors.
+- **Entry row description**: **`PATCH /api/v2/hitlists/:id/entries/:entryId`** with **`{ "description": "<markdown or empty>" }`** updates **`list_entries.description`** (curator blurb for that row only; does not change the linked shelf item). Web: **`patchHitlistEntryDescription`** + **`HitlistEntryListNoteEditor`** for rows whose linked **`item`** has a **`collection_id`** (shelf-sourced), when the viewer may edit the hitlist; loose items use the item’s own description fields.
+- **Slug suggestions**: `POST /api/v2/hitlists/slug-suggestions` (auth). Collision suffix per **`memory.md`** (alphanumeric from Base64 of last three runes + optional CSPRNG tail).
+- Discover **`GET /api/v2/hitlists`** includes **`viewer_has_voted`** when the caller is signed in (for feed voting UI); **`ListsBrowser`** renders **`HitlistVoteColumn`** per row (same up/down chevrons as list detail). **Web (lists UI)**: **`web/lib/api.ts`** routes list CRUD through **v2 `/hitlists`** (entries, votes, comments); nav copy uses **Hitlists**; **`/hitlists/[slug]`** is the public permalink page; descriptions and comments use **Markdown** (`MarkdownBody` + `react-markdown`) and **Tiptap** (`MarkdownRichEditor`) for authoring. Hitlist rows use **`HitlistEntryRow`** inside **`HitlistEntriesSortableList`** (drag handle + **@dnd-kit** when **`may_edit_entries`**) in **`ListDetailClient`** and **`HitlistSlugClient`** — **numbered vs unordered** is per list (`entries_numbered` on **`GET/PUT` hitlist**); when off, ranks are hidden and the list renders as unordered. **`GET /api/v1/items/:id/lists`** returns **`ListRef`** with **`slug`** + **`visibility`**; browsing surfaces use **`hitlistBrowsePath`**: **signed-out** viewers get **`/hitlists/:slug`** when **public + slug**; **signed-in** callers pass **`preferAppView`** so links default to **`/lists/:id`**. Visiting **`/hitlists/:slug`** while signed in **redirects** to **`/lists/:id`**; list detail still exposes the permalink for sharing. Signed-in viewers get **Add this to my account** (modal → choose **collection** or **wishlist**, then `POST /items` or `POST /wishlists/:id/entries` with copied title/category/metadata from the entry’s item or stub; see `HitlistAddToAccountButton`, `hitlistEntryCopy`). Profile **`owner_user_id`** queries use v2 for lists. **Downstream mobile**: mirror **`entries_numbered`** on list models and entry list UI; persist **`sort_order`** + reorder API; prefer permalink path for public lists when **`slug`** is present. **Still open** (optional): share on collections/wishlists, profile-wide public opt-in UX polish.
+
+## API v2 and public Hitlists (product notes)
+
+- **Browser / Next proxy**: Mirror v1’s pattern with **`/api/v2/*`** on the web app (same-origin cookie proxy); document **`API_INTERNAL_URL`** for server-side v2 calls.
+- **Hitlist votes and comments**: **No anonymous participation** — casting a vote and posting a comment **always** require an **authenticated session** (cookie or Bearer). There is no guest, pseudo-anonymous, or optional-auth path for these actions.
+- **Hitlist vote control (web)**: Reddit-style column (up / score / down); up toggles upvote; down removes your upvote only (no negative scores / downvotes in API). **`POST` / `DELETE`** **`/api/v2/hitlists/:id/votes`** return **`{ vote_count, viewer_has_voted }`** so clients match server counts (idempotent upvote does not inflate totals). Discover feed computes **`viewer_has_voted`** with a **`LEFT JOIN hitlist_votes`** + **`BOOL_OR`** grouped with list rows so it stays consistent with detail **`VoteStats`**.
+
 ## Data model notes
 
 - **Item categories** include: `game`, `music`, `book`, `movies`, `tv`, `anime`, `comic_book`, `manga` (see code and migrations for canonical enums).
+- **Standalone (“loose”) items** (migration **`040`**): not on any shelf — **`items.collection_id`** NULL, **`items.owner_user_id`** set; shelved rows keep **`owner_user_id`** NULL. **`POST /v1/items`** with JSON **`collection_id: null`** or **`standalone_item: true`** creates a loose item (omit **`collection_id`** without **`standalone_item`** still means “default shelf” when resolvable — web **`createItem`** sends both for standalone). Loose items are visible on **`GET /items/:id`** to the owner, or via list membership (e.g. a hitlist the viewer can read). **Downstream mobile**: mirror optional **`collection_id`**, optional **`owner_user_id`**, **`standalone_item`**, and create semantics.
 - **Consumption**: `pending` | `done` with category-specific UI labels in `web/lib/consumptionLabels.ts`.
-- **Collections**: visibility, optional pinned category, cover art.
+- **Collections**: visibility, optional pinned category, cover art. Main **`/collections`** list: **Create Your Own!** sits in the filter bar (opposite All/Following + search/sort filters) and opens **`CollectionCreateModal`**; unauthenticated click sends **`/login?next=/collections`**.
+- **Wishlist entries**: optional **`purchase_url`** (http/https only) for a store listing (Amazon, eBay, etc.); works on all existing entries after migration `038` (nullable column). **PATCH** `/wishlists/:id/entries/:entryId` updates only `purchase_url` without resubmitting metadata. Wishlist JSON includes **`may_edit_entries`** for owners and shared collaborators. Main **`/wishlists`** list: toolbar card below the hero (aligned with **`/collections`**) with **Create Your Own!** → **`WishlistCreateModal`**; unauthenticated click sends **`/login?next=/wishlists`**.
 
 ## Development commands
 

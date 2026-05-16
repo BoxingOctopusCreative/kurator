@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ListsBrowser } from "@/components/ListsBrowser";
 
 export const metadata: Metadata = {
-  title: "Lists",
+  title: "Hitlists",
 };
 
 export default function ListsPage() {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { useAuth } from "@/components/AuthProvider";
 import { ColorSchemeSelect } from "@/components/ColorSchemeSelect";
@@ -21,6 +21,12 @@ import {
   type AuthUser,
   type TwoFASetup,
 } from "@/lib/auth";
+import {
+  persistSidebarCollapsedPreference,
+  readSidebarCollapsedPreference,
+  SIDEBAR_COLLAPSED_CHANGED_EVENT,
+  SIDEBAR_COLLAPSED_STORAGE_KEY,
+} from "@/lib/sidebarCollapsedPreference";
 
 export function AppSettingsClient() {
   const router = useRouter();
@@ -44,6 +50,9 @@ export function AppSettingsClient() {
   const [pwdFeedback, setPwdFeedback] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [pwdTotpModalOpen, setPwdTotpModalOpen] = useState(false);
   const [pwdTotpError, setPwdTotpError] = useState<string | null>(null);
+  const compactNavFieldId = useId();
+  const [compactNav, setCompactNav] = useState(false);
+  const [compactNavHydrated, setCompactNavHydrated] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +81,36 @@ export function AppSettingsClient() {
     setPwdTotp("");
     setPwdTotpError(null);
   }, [user?.two_factor_enabled]);
+
+  useEffect(() => {
+    function syncCompactNavFromStorage() {
+      setCompactNav(readSidebarCollapsedPreference());
+    }
+
+    syncCompactNavFromStorage();
+    setCompactNavHydrated(true);
+
+    function onCollapsedChanged(ev: Event) {
+      const ce = ev as CustomEvent<boolean | undefined>;
+      if (typeof ce.detail === "boolean") {
+        setCompactNav(ce.detail);
+        return;
+      }
+      syncCompactNavFromStorage();
+    }
+
+    function onStorage(e: StorageEvent) {
+      if (e.key !== null && e.key !== SIDEBAR_COLLAPSED_STORAGE_KEY) return;
+      syncCompactNavFromStorage();
+    }
+
+    window.addEventListener(SIDEBAR_COLLAPSED_CHANGED_EVENT, onCollapsedChanged);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(SIDEBAR_COLLAPSED_CHANGED_EVENT, onCollapsedChanged);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   async function onSendPasswordEmailCode() {
     setPwdFeedback(null);
@@ -392,7 +431,8 @@ export function AppSettingsClient() {
       <section className="space-y-3 border-t border-kurator-border pt-8">
         <h2 className="kurator-panel-title text-kurator-fg">Appearance</h2>
         <p className="text-sm text-kurator-muted">
-          Choose light or dark mode, a typeface, and a colour palette for accents and surfaces.
+          Choose light or dark mode, a typeface, a colour palette for accents and surfaces, and how wide the desktop
+          navigation strip is when you load the site.
         </p>
         <label className="block text-sm">
           <span className="text-kurator-muted">Theme</span>
@@ -400,6 +440,27 @@ export function AppSettingsClient() {
             id="app-settings-theme"
             className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
           />
+        </label>
+        <label htmlFor={compactNavFieldId} className="flex cursor-pointer items-start gap-3 text-sm">
+          <input
+            id={compactNavFieldId}
+            type="checkbox"
+            className="mt-1 rounded-sm border-kurator-border"
+            checked={compactNavHydrated ? compactNav : false}
+            disabled={!compactNavHydrated}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setCompactNav(next);
+              persistSidebarCollapsedPreference(next);
+            }}
+          />
+          <span>
+            <span className="font-medium text-kurator-fg">Compact mode</span>
+            <span className="mt-0.5 block text-xs text-kurator-muted">
+              On desktop widths, starts the left navigation as the narrow/icon strip. Applies on this browser only; use
+              the chevron control on the nav edge anytime to widen or shrink it — this checkbox matches that preference.
+            </span>
+          </span>
         </label>
         <label className="block text-sm">
           <span className="text-kurator-muted">Font</span>

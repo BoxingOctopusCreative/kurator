@@ -94,6 +94,12 @@ func LooseMultilineText(s string, maxLen int, field string, allowEmpty bool) (st
 	return t, nil
 }
 
+// NormalizeOptionalPurchaseURLPointer validates an optional purchase link (http/https) for wishlist entries.
+// nil means omitted on create (no URL). A non-nil pointer to empty string after trim clears the URL.
+func NormalizeOptionalPurchaseURLPointer(raw *string, field string) (*string, error) {
+	return NormalizeCoverArtURLPointer(raw, field)
+}
+
 // NormalizeCoverArtURLPointer interprets an optional JSON field for shelf / list / wishlist cover images.
 // nil means the field was omitted (leave the DB value unchanged).
 // A non-nil pointer to an empty string (after trim) means clear (store NULL).

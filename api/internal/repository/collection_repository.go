@@ -129,9 +129,17 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 	limitArg := addArg(p.Limit)
 	offsetArg := addArg(p.Offset)
 
+	mayEditSQL := "false"
+	if p.ViewerUserID != nil {
+		mayEditSQL = fmt.Sprintf(`((c.user_id IS NOT NULL AND c.user_id = $%d) OR (c.is_shared AND EXISTS (
+			SELECT 1 FROM shelf_members sm
+			WHERE sm.shelf_kind = 'collection' AND sm.shelf_id = c.id AND sm.user_id = $%d)))`, viewerArg, viewerArg)
+	}
+
 	listSQL := fmt.Sprintf(`
 		SELECT `+collectionSelectWithAuthor+`,
-		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
+		       COALESCE(COUNT(i.id), 0)::bigint AS item_count,
+		       %s AS may_edit_entries
 		FROM collections c
 		LEFT JOIN users owner ON owner.id = c.user_id
 		LEFT JOIN items i ON i.collection_id = c.id
@@ -139,7 +147,7 @@ func (r *PostgresCollectionRepository) List(ctx context.Context, p CollectionLis
 		GROUP BY `+collectionGroupWithAuthor+`
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
-	`, whereSQL, order, limitArg, offsetArg)
+	`, mayEditSQL, whereSQL, order, limitArg, offsetArg)
 
 	rows, err := r.pool.Query(ctx, listSQL, args...)
 	if err != nil {
@@ -185,15 +193,22 @@ func (r *PostgresCollectionRepository) GetByID(ctx context.Context, id string, v
 	}
 
 	whereSQL := strings.Join(where, " AND ")
+	mayEditSQL := "false"
+	if viewer != nil {
+		mayEditSQL = fmt.Sprintf(`((c.user_id IS NOT NULL AND c.user_id = $%d) OR (c.is_shared AND EXISTS (
+			SELECT 1 FROM shelf_members sm
+			WHERE sm.shelf_kind = 'collection' AND sm.shelf_id = c.id AND sm.user_id = $%d)))`, viewerArg, viewerArg)
+	}
 	q := fmt.Sprintf(`
 		SELECT `+collectionSelectWithAuthor+`,
-		       COALESCE(COUNT(i.id), 0)::bigint AS item_count
+		       COALESCE(COUNT(i.id), 0)::bigint AS item_count,
+		       %s AS may_edit_entries
 		FROM collections c
 		LEFT JOIN users owner ON owner.id = c.user_id
 		LEFT JOIN items i ON i.collection_id = c.id
 		WHERE %s
 		GROUP BY `+collectionGroupWithAuthor+`
-	`, whereSQL)
+	`, mayEditSQL, whereSQL)
 
 	c, err := scanCollectionRow(r.pool.QueryRow(ctx, q, args...))
 	if err != nil {
@@ -320,6 +335,7 @@ func scanCollectionRow(row pgx.Row) (models.Collection, error) {
 		&c.ID, &uid, &c.Name, &desc, &cat, &cover, &vis, &c.IsShared, &c.CreatedAt, &c.UpdatedAt,
 		&auUser, &auDn, &auAv,
 		&c.ItemCount,
+		&c.MayEditEntries,
 	); err != nil {
 		return c, fmt.Errorf("scan collection: %w", err)
 	}
@@ -373,7 +389,7 @@ func (r *PostgresCollectionRepository) Create(ctx context.Context, userID int64,
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO collections (user_id, name, description, visibility, is_public, category, is_shared)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`, 0::bigint AS item_count
+		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`, 0::bigint AS item_count, true AS may_edit_entries
 	`, userID, name, descVal, string(visibility), visibility.IsPublic(), catVal, isShared)
 	c, err := scanCollectionRow(row)
 	if err != nil {
@@ -431,7 +447,8 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 			updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
 		RETURNING `+collectionReturningColumns+collectionReturningAuthor+`,
-		         (SELECT COUNT(*) FROM items WHERE collection_id = collections.id)::bigint AS item_count
+		         (SELECT COUNT(*) FROM items WHERE collection_id = collections.id)::bigint AS item_count,
+		         true AS may_edit_entries
 	`, id, ownerID, setName, nameVal, setDesc, descVal, setVis, visArg, setCover, coverVal, setShared, sharedVal)
 	c, err := scanCollectionRow(row)
 	if err != nil {
@@ -447,7 +464,7 @@ func (r *PostgresCollectionRepository) UpdateByOwner(ctx context.Context, ownerI
 // ListOwnerCollectionsExcept returns the signed-in user's other collections (for move targets when deleting a shelf).
 func (r *PostgresCollectionRepository) ListOwnerCollectionsExcept(ctx context.Context, ownerID int64, excludeID string) ([]models.Collection, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+collectionSelectWithAuthor+`, 0::bigint AS item_count
+		SELECT `+collectionSelectWithAuthor+`, 0::bigint AS item_count, true AS may_edit_entries
 		FROM collections c
 		LEFT JOIN users owner ON owner.id = c.user_id
 		WHERE c.user_id = $1 AND c.id <> $2::uuid

@@ -45,12 +45,14 @@ func (s ConsumptionStatus) Valid() bool {
 }
 
 type Item struct {
-	ID           string          `json:"id"`
-	CollectionID string          `json:"collection_id"`
-	Title        string          `json:"title"`
-	Category     Category        `json:"category"`
-	Metadata     json.RawMessage `json:"metadata"`
-	Rating       *int            `json:"rating,omitempty"`
+	ID           string  `json:"id"`
+	CollectionID *string `json:"collection_id,omitempty"`
+	// OwnerUserID is set only for loose items (no collection_id).
+	OwnerUserID *int64          `json:"owner_user_id,omitempty"`
+	Title       string          `json:"title"`
+	Category    Category        `json:"category"`
+	Metadata    json.RawMessage `json:"metadata"`
+	Rating      *int            `json:"rating,omitempty"`
 	// ConsumptionStatus is pending (not yet consumed) or done; omitted in JSON when the column is absent (pre-migration DB).
 	ConsumptionStatus ConsumptionStatus `json:"consumption_status,omitempty"`
 	CreatedAt         time.Time         `json:"created_at"`
@@ -77,10 +79,13 @@ type Collection struct {
 	// Visibility is the source of truth for who can see this shelf: private, followers, or friends.
 	Visibility Visibility `json:"visibility"`
 	// IsPublic is kept for backward compatibility with older clients; derived from Visibility.
-	IsPublic  bool      `json:"is_public"`
+	IsPublic bool `json:"is_public"`
 	// IsShared enables explicit members and join/invite flows (see shelf_members).
-	IsShared  bool      `json:"is_shared"`
-	ItemCount int64     `json:"item_count"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	IsShared  bool  `json:"is_shared"`
+	ItemCount int64 `json:"item_count"`
+	// MayEditEntries is true when the authenticated viewer may add or curate items (owner or shared collaborator).
+	// Omitted/false for unsigned list/get responses and when the viewer may only see the shelf.
+	MayEditEntries bool      `json:"may_edit_entries"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }

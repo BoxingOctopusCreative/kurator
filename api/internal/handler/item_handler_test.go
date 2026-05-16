@@ -22,6 +22,8 @@ const (
 	testItem2  = "77777777-7777-7777-7777-777777777777"
 )
 
+func collP(s string) *string { return &s }
+
 func newItemTestApp(t *testing.T, repo *handlerStubItemRepo) *fiber.App {
 	t.Helper()
 	svc := service.NewItemService(repo, nil, nil)
@@ -45,6 +47,7 @@ type handlerStubItemRepo struct {
 	getErr  error
 
 	lastCreateColl string
+	lastCreateLoose bool
 	createItem     *models.Item
 	createErr      error
 
@@ -81,17 +84,28 @@ func (s *handlerStubItemRepo) GetByID(ctx context.Context, id string, viewer *in
 	return s.getItem, nil
 }
 
-func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
-	s.lastCreateColl = collectionID
+func (s *handlerStubItemRepo) GetByIDLinkedFromList(ctx context.Context, itemID, listID string) (*models.Item, error) {
+	_ = listID
+	return s.GetByID(ctx, itemID, nil)
+}
+
+func (s *handlerStubItemRepo) Create(ctx context.Context, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+	if collectionID == nil {
+		s.lastCreateLoose = true
+		s.lastCreateColl = ""
+	} else {
+		s.lastCreateLoose = false
+		s.lastCreateColl = *collectionID
+	}
 	if s.createErr != nil {
 		return nil, s.createErr
 	}
 	return s.createItem, nil
 }
 
-func (s *handlerStubItemRepo) CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+func (s *handlerStubItemRepo) CreateTx(ctx context.Context, tx pgx.Tx, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
 	_ = tx
-	return s.Create(ctx, collectionID, title, category, metadata, rating, consumption)
+	return s.Create(ctx, collectionID, ownerUserID, title, category, metadata, rating, consumption)
 }
 
 func (s *handlerStubItemRepo) Update(ctx context.Context, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
@@ -143,7 +157,7 @@ func TestItemHandler_Get_ok(t *testing.T) {
 	now := time.Now().UTC()
 	item := &models.Item{
 		ID:           testItemID,
-		CollectionID: testCollID,
+		CollectionID: collP(testCollID),
 		Title:        "Test",
 		Category:     models.CategoryMusic,
 		Metadata:     json.RawMessage(`{"a":1}`),
@@ -207,7 +221,7 @@ func TestItemHandler_Create_created(t *testing.T) {
 	now := time.Now().UTC()
 	created := &models.Item{
 		ID:           testItem2,
-		CollectionID: testCollID,
+		CollectionID: collP(testCollID),
 		Title:        "New",
 		Category:     models.CategoryBook,
 		Metadata:     json.RawMessage(`{}`),
@@ -230,8 +244,72 @@ func TestItemHandler_Create_created(t *testing.T) {
 	if resp.StatusCode != 201 {
 		t.Fatalf("status %d want 201", resp.StatusCode)
 	}
-	if repo.lastCreateColl != testCollID {
-		t.Fatalf("collection: got %q", repo.lastCreateColl)
+	if repo.lastCreateLoose || repo.lastCreateColl != testCollID {
+		t.Fatalf("collection: loose=%v got %q", repo.lastCreateLoose, repo.lastCreateColl)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestItemHandler_Create_loose_standaloneItem(t *testing.T) {
+	now := time.Now().UTC()
+	created := &models.Item{
+		ID:       testItem2,
+		Title:    "Loose",
+		Category: models.CategoryBook,
+		Metadata: json.RawMessage(`{}`),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	repo := &handlerStubItemRepo{createItem: created}
+	app := newItemTestApp(t, repo)
+	payload := map[string]any{
+		"title": "Loose", "category": "book", "metadata": map[string]any{},
+		"collection_id": nil,
+	}
+	raw, _ := json.Marshal(payload)
+	req := httptest.NewRequest("POST", "/items", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 201 {
+		t.Fatalf("status %d want 201", resp.StatusCode)
+	}
+	if !repo.lastCreateLoose || repo.lastCreateColl != "" {
+		t.Fatalf("expected loose create, got loose=%v coll=%q", repo.lastCreateLoose, repo.lastCreateColl)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestItemHandler_Create_loose_standaloneItem_flag_omits_collection_id(t *testing.T) {
+	now := time.Now().UTC()
+	created := &models.Item{
+		ID:        testItem2,
+		Title:     "Loose",
+		Category:  models.CategoryBook,
+		Metadata:  json.RawMessage(`{}`),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	repo := &handlerStubItemRepo{createItem: created}
+	app := newItemTestApp(t, repo)
+	payload := map[string]any{
+		"title": "Loose", "category": "book", "metadata": map[string]any{},
+		"standalone_item": true,
+	}
+	raw, _ := json.Marshal(payload)
+	req := httptest.NewRequest("POST", "/items", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 201 {
+		t.Fatalf("status %d want 201", resp.StatusCode)
+	}
+	if !repo.lastCreateLoose || repo.lastCreateColl != "" {
+		t.Fatalf("expected loose create, got loose=%v coll=%q", repo.lastCreateLoose, repo.lastCreateColl)
 	}
 	_ = resp.Body.Close()
 }
@@ -240,7 +318,7 @@ func TestItemHandler_List(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &handlerStubItemRepo{
 		list: []models.Item{
-			{ID: testItemID, CollectionID: testCollID, Title: "A", Category: models.CategoryGame, Metadata: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now},
+			{ID: testItemID, CollectionID: collP(testCollID), Title: "A", Category: models.CategoryGame, Metadata: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now},
 		},
 	}
 	app := newItemTestApp(t, repo)
@@ -268,7 +346,7 @@ func TestItemHandler_Delete_noContent(t *testing.T) {
 	repo := &handlerStubItemRepo{
 		getItem: &models.Item{
 			ID:           testItemID,
-			CollectionID: testCollID,
+			CollectionID: collP(testCollID),
 			Title:        "X",
 			Category:     models.CategoryGame,
 			Metadata:     json.RawMessage(`{}`),

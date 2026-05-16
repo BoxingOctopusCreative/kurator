@@ -6,12 +6,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowUp,
   ArrowUpDown,
   CircleHelp,
   Download,
   LayoutGrid,
   List,
+  Loader2,
   Lock,
   MoreHorizontal,
   Pencil,
@@ -60,6 +62,8 @@ import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ItemStarRating } from "@/components/ItemStarRating";
+import { MarkdownBody } from "@/components/MarkdownBody";
+import { MarkdownRichEditor } from "@/components/MarkdownRichEditor";
 import { categoryLabel } from "@/lib/categoryLabels";
 import {
   consumptionBadgeText,
@@ -172,7 +176,7 @@ export function CollectionDetailClient() {
   const [consumptionFilter, setConsumptionFilter] = useState<
     "all" | ConsumptionStatus
   >("all");
-  const [viewMode, setViewMode] = useState<"list" | "tiles">("tiles");
+  const [viewMode, setViewMode] = useState<"list" | "tiles">("list");
   const [listSortKey, setListSortKey] = useState<ListSortKey>("title");
   const [listSortDir, setListSortDir] = useState<"asc" | "desc">("asc");
   const [privacySaving, setPrivacySaving] = useState(false);
@@ -188,8 +192,8 @@ export function CollectionDetailClient() {
   const [shelfMsg, setShelfMsg] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
+  const [descFocusTick, setDescFocusTick] = useState(0);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [itemBusy, setItemBusy] = useState<{
     id: string;
     op: "move" | "remove";
@@ -229,7 +233,7 @@ export function CollectionDetailClient() {
   }, [editingTitle]);
 
   useEffect(() => {
-    if (editingDesc) descTextareaRef.current?.focus();
+    if (editingDesc) setDescFocusTick((n) => n + 1);
   }, [editingDesc]);
 
   useEffect(() => {
@@ -474,7 +478,7 @@ export function CollectionDetailClient() {
       }
       setShelfMsg("Saved.");
       if (opts?.keepEditing) {
-        requestAnimationFrame(() => descTextareaRef.current?.focus());
+        requestAnimationFrame(() => setDescFocusTick((n) => n + 1));
       }
     } catch (err) {
       setShelfMsg(
@@ -932,27 +936,18 @@ export function CollectionDetailClient() {
                 {isOwner ? (
                   editingDesc ? (
                     <div className="mt-3 max-w-3xl">
-                      <textarea
-                        ref={descTextareaRef}
+                      <MarkdownRichEditor
                         value={shelfDesc}
-                        onChange={(e) => setShelfDesc(e.target.value)}
-                        onBlur={() => void commitDescEdit()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Escape") {
-                            e.preventDefault();
-                            cancelDescEdit();
-                          } else if (
-                            (e.metaKey || e.ctrlKey) &&
-                            e.key === "Enter"
-                          ) {
-                            e.preventDefault();
-                            void commitDescEdit({ keepEditing: true });
-                          }
-                        }}
+                        onChange={setShelfDesc}
+                        variant="full"
                         disabled={shelfSaving}
-                        rows={4}
-                        className="w-full resize-y rounded-lg border border-kurator-accent bg-kurator-bg px-3 py-2 text-sm leading-relaxed text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                        focusTick={descFocusTick}
                         aria-label="Collection description"
+                        placeholder="Describe this shelf…"
+                        className="border-kurator-accent ring-kurator-accent"
+                        onBlurShell={() => void commitDescEdit()}
+                        onSaveChord={() => void commitDescEdit({ keepEditing: true })}
+                        onCancelChord={() => cancelDescEdit()}
                       />
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-kurator-muted">
@@ -988,9 +983,9 @@ export function CollectionDetailClient() {
                       disabled={shelfSaving}
                       className="group mt-2 flex w-fit max-w-3xl items-start gap-2 rounded-lg text-left outline-hidden ring-kurator-accent hover:bg-kurator-border/40 focus-visible:ring-2 disabled:opacity-50"
                     >
-                      <span className="min-w-0 text-sm leading-relaxed text-kurator-muted group-hover:text-kurator-fg/90">
+                      <span className="min-w-0 text-left text-sm leading-relaxed text-kurator-muted group-hover:text-kurator-fg/90">
                         {(collection.description ?? "").trim() ? (
-                          collection.description
+                          <MarkdownBody markdown={collection.description ?? ""} />
                         ) : (
                           <span className="italic">Add a description…</span>
                         )}
@@ -1003,10 +998,10 @@ export function CollectionDetailClient() {
                     </button>
                   )
                 ) : (
-                  collection.description && (
-                    <p className="mt-2 text-sm text-kurator-muted">
-                      {collection.description}
-                    </p>
+                  collection.description?.trim() && (
+                    <div className="mt-2 max-w-3xl text-sm text-kurator-muted">
+                      <MarkdownBody markdown={collection.description} />
+                    </div>
                   )
                 )}
 
@@ -1441,7 +1436,7 @@ export function CollectionDetailClient() {
                         {isOwner && (
                           <th
                             scope="col"
-                            className="w-52 px-3 py-3 text-right text-xs font-medium uppercase tracking-wide text-kurator-muted"
+                            className="min-w-[18rem] w-72 px-3 py-3 text-right text-xs font-medium uppercase tracking-wide text-kurator-muted"
                           >
                             Manage
                           </th>
@@ -1511,74 +1506,93 @@ export function CollectionDetailClient() {
                                 onClick={(e) => e.stopPropagation()}
                                 onKeyDown={(e) => e.stopPropagation()}
                               >
-                                {moveTargets.length > 0 ? (
-                                  <div className="flex flex-col items-stretch gap-2 sm:inline-flex sm:flex-row sm:items-center sm:justify-end">
-                                    <select
-                                      aria-label={`Move “${item.title}” to another shelf`}
-                                      className="max-w-44 rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg"
-                                      value={String(movePick[item.id] ?? "")}
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        setMovePick((m) => ({
-                                          ...m,
-                                          [item.id]: v,
-                                        }));
-                                      }}
-                                    >
-                                      <option value="">Move to…</option>
-                                      {moveTargets.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                          {c.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        itemBusy?.id === item.id ||
-                                        !movePick[item.id] ||
-                                        movePick[item.id] === item.collection_id
-                                      }
-                                      onClick={() =>
-                                        void onMoveItemToShelf(
-                                          item,
-                                          movePick[item.id] ?? "",
-                                        )
-                                      }
-                                      className="rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50"
-                                    >
-                                      {itemBusy?.id === item.id &&
-                                      itemBusy.op === "move"
-                                        ? "Moving…"
-                                        : "Move"}
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-kurator-muted">
-                                    No other shelf
-                                  </span>
-                                )}
-                                <div className="mt-2 flex flex-col gap-2 sm:mt-0 sm:ml-2 sm:inline-flex sm:flex-row sm:flex-wrap sm:justify-end">
+                                <div className="flex flex-nowrap items-center justify-end gap-2">
+                                  {moveTargets.length > 0 ? (
+                                    <>
+                                      <select
+                                        aria-label={`Move “${item.title}” to another shelf`}
+                                        className="max-w-44 min-w-0 shrink rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg"
+                                        value={String(movePick[item.id] ?? "")}
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          setMovePick((m) => ({
+                                            ...m,
+                                            [item.id]: v,
+                                          }));
+                                        }}
+                                      >
+                                        <option value="">Move to…</option>
+                                        {moveTargets.map((c) => (
+                                          <option key={c.id} value={c.id}>
+                                            {c.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        type="button"
+                                        title="Move to selected shelf"
+                                        aria-label={`Move “${item.title}” to selected shelf`}
+                                        disabled={
+                                          itemBusy?.id === item.id ||
+                                          !movePick[item.id] ||
+                                          movePick[item.id] === item.collection_id
+                                        }
+                                        onClick={() =>
+                                          void onMoveItemToShelf(
+                                            item,
+                                            movePick[item.id] ?? "",
+                                          )
+                                        }
+                                        className="inline-flex shrink-0 items-center justify-center rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/35 disabled:opacity-50"
+                                      >
+                                        {itemBusy?.id === item.id &&
+                                        itemBusy.op === "move" ? (
+                                          <Loader2
+                                            className="h-4 w-4 animate-spin"
+                                            aria-hidden
+                                          />
+                                        ) : (
+                                          <ArrowLeftRight
+                                            className="h-4 w-4"
+                                            aria-hidden
+                                          />
+                                        )}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="shrink-0 text-xs text-kurator-muted">
+                                      No other shelf
+                                    </span>
+                                  )}
                                   <button
                                     type="button"
+                                    title="Edit item"
+                                    aria-label={`Edit “${item.title}”`}
                                     disabled={itemBusy?.id === item.id}
                                     onClick={() => setItemToEdit(item)}
-                                    className="w-full rounded-lg border border-kurator-border bg-kurator-bg px-2 py-1.5 text-xs text-kurator-fg hover:border-kurator-accent/50 disabled:opacity-50 sm:w-auto"
+                                    className="inline-flex shrink-0 items-center justify-center rounded-lg p-2 text-kurator-fg hover:bg-kurator-border/35 disabled:opacity-50"
                                   >
-                                    Edit
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </button>
                                   <button
                                     type="button"
+                                    title="Remove from library"
+                                    aria-label={`Remove “${item.title}” from library permanently`}
                                     disabled={itemBusy?.id === item.id}
                                     onClick={() =>
                                       void onRemoveItemForever(item)
                                     }
-                                    className="w-full rounded-lg border border-red-500/35 px-2 py-1.5 text-xs text-red-200/90 hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
+                                    className="inline-flex shrink-0 items-center justify-center rounded-lg p-2 text-red-200/90 hover:bg-red-500/10 disabled:opacity-50"
                                   >
                                     {itemBusy?.id === item.id &&
-                                    itemBusy.op === "remove"
-                                      ? "Removing…"
-                                      : "Remove"}
+                                    itemBusy.op === "remove" ? (
+                                      <Loader2
+                                        className="h-4 w-4 animate-spin"
+                                        aria-hidden
+                                      />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" aria-hidden />
+                                    )}
                                   </button>
                                 </div>
                               </td>

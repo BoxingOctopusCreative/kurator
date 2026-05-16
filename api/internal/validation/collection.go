@@ -11,7 +11,7 @@ import (
 func Visibility(s string) (models.Visibility, error) {
 	v, ok := models.ParseVisibility(s)
 	if !ok {
-		return "", Invalidf("visibility must be one of: private, followers, friends")
+		return "", Invalidf("visibility must be one of: private, followers, friends, public")
 	}
 	return v, nil
 }

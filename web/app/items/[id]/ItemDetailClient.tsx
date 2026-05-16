@@ -5,7 +5,16 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { Collection, ConsumptionStatus, Item, ItemEnrichment, ItemListRef } from "@/lib/api";
-import { fetchCollection, fetchCollections, fetchItem, fetchItemEnrichment, fetchItemLists, updateItem } from "@/lib/api";
+import {
+  collectionMayReceiveItems,
+  fetchCollection,
+  fetchCollections,
+  fetchItem,
+  fetchItemEnrichment,
+  fetchItemLists,
+  updateItem,
+  visibilityOf,
+} from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 import {
   consumptionDoneLabel,
@@ -19,6 +28,7 @@ import { categoryLabel } from "@/lib/categoryLabels";
 import { isEntityUuid } from "@/lib/entityId";
 import { getCoverArtUrl, getItemYear, getTvEditionSummary } from "@/lib/itemDisplay";
 import { safeHttpUrl } from "@/lib/safeUrl";
+import { hitlistBrowsePath } from "@/lib/hitlistBrowsePath";
 
 function formatMetaValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -74,13 +84,17 @@ export function ItemDetailClient() {
           .catch(() => {
             if (!cancelled) setItemLists([]);
           });
-        void fetchCollection(data.collection_id)
-          .then((col) => {
-            if (!cancelled) setCollectionName(col.name.trim() || null);
-          })
-          .catch(() => {
-            if (!cancelled) setCollectionName(null);
-          });
+        if (data.collection_id) {
+          void fetchCollection(data.collection_id)
+            .then((col) => {
+              if (!cancelled) setCollectionName(col.name.trim() || null);
+            })
+            .catch(() => {
+              if (!cancelled) setCollectionName(null);
+            });
+        } else if (!cancelled) {
+          setCollectionName(null);
+        }
         try {
           const e = await fetchItemEnrichment(id);
           if (!cancelled) setEnrichment(e);
@@ -127,14 +141,17 @@ export function ItemDetailClient() {
     return allCollections.filter((c) => {
       const categoryOk = !c.category || c.category === item.category;
       if (!categoryOk) return false;
-      return c.user_id != null && c.user_id === user.id;
+      return collectionMayReceiveItems(c);
     });
   }, [allCollections, item, user]);
 
-  const canEditCollectionLocation = useMemo(
-    () => !!item && !!user && moveTargetCollections.some((c) => c.id === item.collection_id),
-    [item, user, moveTargetCollections],
-  );
+  const canEditCollectionLocation = useMemo(() => {
+    if (!item || !user) return false;
+    if (item.collection_id) {
+      return moveTargetCollections.some((c) => c.id === item.collection_id);
+    }
+    return item.owner_user_id === user.id && moveTargetCollections.length > 0;
+  }, [item, user, moveTargetCollections]);
 
   async function saveRating(next: number | null) {
     if (!item) return;
@@ -184,7 +201,7 @@ export function ItemDetailClient() {
   }
 
   async function saveCollectionMove(nextCollectionId: string) {
-    if (!item || nextCollectionId === item.collection_id) return;
+    if (!item || nextCollectionId === (item.collection_id ?? "")) return;
     setCollectionMoveError(null);
     setCollectionMoveBusy(true);
     try {
@@ -200,9 +217,13 @@ export function ItemDetailClient() {
         collection_id: nextCollectionId,
       });
       setItem(updated);
-      void fetchCollection(updated.collection_id)
-        .then((col) => setCollectionName(col.name.trim() || null))
-        .catch(() => setCollectionName(null));
+      if (updated.collection_id) {
+        void fetchCollection(updated.collection_id)
+          .then((col) => setCollectionName(col.name.trim() || null))
+          .catch(() => setCollectionName(null));
+      } else {
+        setCollectionName(null);
+      }
     } catch (e: unknown) {
       setCollectionMoveError(e instanceof Error ? e.message : "Could not move item.");
     } finally {
@@ -322,31 +343,36 @@ export function ItemDetailClient() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                     <select
                       aria-label="Shelf for this item"
-                      value={item.collection_id}
+                      value={item.collection_id ?? ""}
                       disabled={collectionMoveBusy}
                       onChange={(e) => void saveCollectionMove(e.target.value)}
                       className="max-w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 sm:max-w-xs"
                     >
+                      {!item.collection_id ? <option value="">Move to shelf…</option> : null}
                       {moveTargetCollections.map((c) => (
                         <option key={c.id} value={c.id}>
                           {(c.name || "").trim() || "Untitled shelf"}
                         </option>
                       ))}
                     </select>
-                    <Link
-                      href={`/collections/${item.collection_id}`}
-                      className="shrink-0 text-sm text-kurator-accent hover:underline"
-                    >
-                      Open shelf
-                    </Link>
+                    {item.collection_id ? (
+                      <Link
+                        href={`/collections/${item.collection_id}`}
+                        className="shrink-0 text-sm text-kurator-accent hover:underline"
+                      >
+                        Open shelf
+                      </Link>
+                    ) : null}
                   </div>
-                ) : (
+                ) : item.collection_id ? (
                   <Link
                     href={`/collections/${item.collection_id}`}
                     className="text-sm text-kurator-accent hover:underline"
                   >
                     {collectionName ?? "Open collection"}
                   </Link>
+                ) : (
+                  <span className="text-sm text-kurator-muted">Not on a shelf</span>
                 )}
                 {collectionMoveError ? (
                   <p className="mt-1 text-xs text-red-400" role="alert">
@@ -380,17 +406,21 @@ export function ItemDetailClient() {
 
       <div className="mx-auto max-w-5xl">
       <Link
-        href={`/collections/${item.collection_id}`}
+        href={item.collection_id ? `/collections/${item.collection_id}` : "/collections"}
         className="mb-6 inline-flex items-center gap-2 text-sm text-kurator-muted hover:text-kurator-accent"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        {collectionName ? `Back to ${collectionName}` : "Back to Collection"}
+        {item.collection_id
+          ? collectionName
+            ? `Back to ${collectionName}`
+            : "Back to Collection"
+          : "Back to Collections"}
       </Link>
 
       {itemLists.length > 0 ? (
         <section className="mb-8" aria-labelledby="item-in-lists-heading">
           <h2 id="item-in-lists-heading" className="text-sm font-semibold uppercase tracking-wide text-kurator-muted">
-            Lists
+            Hitlists containing this item
           </h2>
           <div className="mt-3 space-y-2">
             {itemLists.map((list) => (
@@ -407,7 +437,15 @@ export function ItemDetailClient() {
                     />
                   </span>
                 ) : null}
-                <Link href={`/lists/${list.id}`} className="text-kurator-accent hover:underline">
+                <Link
+                  href={hitlistBrowsePath({
+                    id: list.id,
+                    slug: list.slug,
+                    visibility: visibilityOf(list),
+                    preferAppView: !!user,
+                  })}
+                  className="text-kurator-accent hover:underline"
+                >
                   {list.name.trim() || "Untitled list"}
                 </Link>
               </h3>

@@ -20,9 +20,9 @@ import {
   LayoutGrid,
   Layers,
   Library,
-  ListOrdered,
   PlusCircle,
   ScanBarcode,
+  ThumbsUp,
   Users,
 } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -30,6 +30,12 @@ import { NotificationDropdown } from "@/components/NotificationDropdown";
 import Image from "next/image";
 import { Copyright } from "@/components/Copyright";
 import { useFeatureGates } from "@/components/LoggedInFeatureFlags";
+import {
+  persistSidebarCollapsedPreference,
+  readSidebarCollapsedPreference,
+  SIDEBAR_COLLAPSED_CHANGED_EVENT,
+  SIDEBAR_COLLAPSED_STORAGE_KEY,
+} from "@/lib/sidebarCollapsedPreference";
 
 const scanNavItem = { href: "/scan", label: "Scan", icon: ScanBarcode } as const;
 
@@ -37,7 +43,7 @@ const navDashboard = { href: "/", label: "Dashboard", icon: LayoutGrid } as cons
 const navPeople = { href: "/people", label: "People", icon: Users } as const;
 const shelfSubItems = [
   { href: "/collections", label: "Collections", icon: Layers },
-  { href: "/lists", label: "Lists", icon: ListOrdered },
+  { href: "/lists", label: "Hitlists", icon: ThumbsUp },
   { href: "/wishlists", label: "Wishlists", icon: Heart },
 ] as const;
 const navAddItem = { href: "/items/add", label: "Add Item", icon: PlusCircle } as const;
@@ -59,8 +65,6 @@ const SIDEBAR_MARK_LIGHT =
 const SIDEBAR_MARK_DARK =
   "https://assets.kuratorapp.cc/brand/SVG/kurator_favicon-white.svg";
 
-const SIDEBAR_COLLAPSED_KEY = "kurator.sidebarCollapsed";
-
 function topRightSafeInsetStyle(): CSSProperties {
   return {
     top: "max(0.75rem, env(safe-area-inset-top, 0px))",
@@ -73,26 +77,67 @@ function useSidebarCollapsed() {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");
-    } catch {
-      /* ignore */
+    setCollapsed(readSidebarCollapsedPreference());
+
+    function onCollapsedChanged(ev: Event) {
+      const ce = ev as CustomEvent<boolean | undefined>;
+      if (typeof ce.detail === "boolean") {
+        setCollapsed(ce.detail);
+        return;
+      }
+      setCollapsed(readSidebarCollapsedPreference());
     }
+
+    function onStorage(e: StorageEvent) {
+      if (e.key !== null && e.key !== SIDEBAR_COLLAPSED_STORAGE_KEY) return;
+      setCollapsed(readSidebarCollapsedPreference());
+    }
+
+    window.addEventListener(SIDEBAR_COLLAPSED_CHANGED_EVENT, onCollapsedChanged);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(SIDEBAR_COLLAPSED_CHANGED_EVENT, onCollapsedChanged);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
-      try {
-        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
+      persistSidebarCollapsedPreference(next);
       return next;
     });
   }, []);
 
   return { collapsed, toggle };
+}
+
+function CompactNavSidebarTooltipPortal({
+  label,
+  position,
+  mounted,
+}: {
+  label: string;
+  position: { left: number; top: number };
+  mounted: boolean;
+}) {
+  if (!mounted || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      role="tooltip"
+      style={{
+        position: "fixed",
+        left: position.left,
+        top: position.top,
+        transform: "translateY(-50%)",
+        zIndex: 400,
+      }}
+      className="pointer-events-none max-w-[min(16rem,calc(100vw-2rem))] truncate rounded-md border border-kurator-border bg-kurator-surface px-2 py-1 text-left text-xs font-medium text-kurator-fg shadow-dropdown"
+    >
+      {label}
+    </div>,
+    document.body
+  );
 }
 
 function SidebarLegalPopover({
@@ -208,6 +253,48 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const [closeNotif, setCloseNotif] = useState(0);
   const [closeAccount, setCloseAccount] = useState(0);
   const [shelvesOpen, setShelvesOpen] = useState(() => isShelfPath(pathname));
+  const [compactTipPortalReady, setCompactTipPortalReady] = useState(false);
+  const [compactTipLabel, setCompactTipLabel] = useState<string | null>(null);
+  const [compactTipPos, setCompactTipPos] = useState<{ left: number; top: number } | null>(null);
+  const compactTipAnchorRef = useRef<HTMLElement | null>(null);
+
+  const hideCompactTip = useCallback(() => {
+    compactTipAnchorRef.current = null;
+    setCompactTipLabel(null);
+    setCompactTipPos(null);
+  }, []);
+
+  const showCompactTip = useCallback((anchor: HTMLElement, label: string) => {
+    compactTipAnchorRef.current = anchor;
+    setCompactTipLabel(label);
+    const r = anchor.getBoundingClientRect();
+    setCompactTipPos({ left: r.right + 8, top: r.top + r.height / 2 });
+  }, []);
+
+  useEffect(() => {
+    setCompactTipPortalReady(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!compactTipLabel) return;
+    const sync = () => {
+      const el = compactTipAnchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setCompactTipPos({ left: r.right + 8, top: r.top + r.height / 2 });
+    };
+    sync();
+    window.addEventListener("scroll", sync, true);
+    window.addEventListener("resize", sync);
+    return () => {
+      window.removeEventListener("scroll", sync, true);
+      window.removeEventListener("resize", sync);
+    };
+  }, [compactTipLabel]);
+
+  useEffect(() => {
+    if (!sidebarCollapsed) hideCompactTip();
+  }, [sidebarCollapsed, hideCompactTip]);
 
   useEffect(() => {
     if (isShelfPath(pathname)) setShelvesOpen(true);
@@ -302,17 +389,38 @@ export function AppChrome({ children }: { children: ReactNode }) {
               }) => {
                 const active = isNavActive(item.href, pathname);
                 const Icon = item.icon;
-                return (
+                if (!sidebarCollapsed) {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={linkClass(active, sidebarCollapsed)}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                }
+                const link = (
                   <Link
-                    key={item.href}
                     href={item.href}
-                    title={sidebarCollapsed ? item.label : undefined}
                     aria-current={active ? "page" : undefined}
                     className={linkClass(active, sidebarCollapsed)}
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className={sidebarCollapsed ? "sr-only" : undefined}>{item.label}</span>
+                    <span className="sr-only">{item.label}</span>
                   </Link>
+                );
+                return (
+                  <div
+                    key={item.href}
+                    className="flex w-full justify-center"
+                    onMouseEnter={(e) => showCompactTip(e.currentTarget, item.label)}
+                    onMouseLeave={hideCompactTip}
+                  >
+                    {link}
+                  </div>
                 );
               };
 
@@ -375,7 +483,13 @@ export function AppChrome({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-4 border-t border-kurator-border pt-3">
             {sidebarCollapsed ? (
-              <SidebarLegalPopover privacyActive={privacyActive} />
+              <div
+                className="flex justify-center"
+                onMouseEnter={(e) => showCompactTip(e.currentTarget, "Legal & privacy")}
+                onMouseLeave={hideCompactTip}
+              >
+                <SidebarLegalPopover privacyActive={privacyActive} />
+              </div>
             ) : (
               <>
                 <Copyright />
@@ -393,6 +507,13 @@ export function AppChrome({ children }: { children: ReactNode }) {
             )}
           </div>
         </div>
+        {compactTipLabel && compactTipPos ? (
+          <CompactNavSidebarTooltipPortal
+            label={compactTipLabel}
+            position={compactTipPos}
+            mounted={compactTipPortalReady}
+          />
+        ) : null}
       </aside>
         {/* Hit corridor + control on the sidebar / main boundary (md+) */}
         <div

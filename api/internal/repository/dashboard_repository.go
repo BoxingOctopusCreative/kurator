@@ -74,7 +74,7 @@ func (r *PostgresDashboardRepository) ListRecentShelves(ctx context.Context, p R
 	sqlText := fmt.Sprintf(`
 		SELECT kind, id, user_id, author_username, author_display_name, author_avatar_url,
 		       name, description, cover_art_url, category, visibility, is_shared,
-		       item_count, entry_count, created_at, updated_at
+		       item_count, entry_count, slug, created_at, updated_at
 		FROM (
 		  %s
 		) AS shelves
@@ -92,12 +92,12 @@ func (r *PostgresDashboardRepository) ListRecentShelves(ctx context.Context, p R
 	for rows.Next() {
 		var s models.DashboardShelf
 		var auUser, auDn, auAv sql.NullString
-		var desc, cover, cat sql.NullString
+		var desc, cover, cat, slug sql.NullString
 		var vis string
 		if err := rows.Scan(
 			&s.Kind, &s.ID, &s.UserID, &auUser, &auDn, &auAv,
 			&s.Name, &desc, &cover, &cat, &vis, &s.IsShared,
-			&s.ItemCount, &s.EntryCount, &s.CreatedAt, &s.UpdatedAt,
+			&s.ItemCount, &s.EntryCount, &slug, &s.CreatedAt, &s.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan dashboard shelf: %w", err)
 		}
@@ -115,6 +115,10 @@ func (r *PostgresDashboardRepository) ListRecentShelves(ctx context.Context, p R
 			if cc.Valid() {
 				s.Category = &cc
 			}
+		}
+		if slug.Valid && strings.TrimSpace(slug.String) != "" {
+			t := strings.TrimSpace(slug.String)
+			s.Slug = &t
 		}
 		s.Visibility = models.Visibility(vis)
 		if !s.Visibility.Valid() {
@@ -193,6 +197,7 @@ func collectionSubquery(scope DashboardScope) string {
 		       c.is_shared AS is_shared,
 		       COALESCE((SELECT COUNT(*) FROM items i WHERE i.collection_id = c.id), 0)::bigint AS item_count,
 		       0::bigint AS entry_count,
+		       NULL::text AS slug,
 		       c.created_at AS created_at,
 		       c.updated_at AS updated_at
 		FROM collections c
@@ -217,6 +222,7 @@ func listSubquery(scope DashboardScope) string {
 		       l.is_shared AS is_shared,
 		       COALESCE((SELECT COUNT(*) FROM list_entries le WHERE le.list_id = l.id), 0)::bigint AS item_count,
 		       0::bigint AS entry_count,
+		       l.slug AS slug,
 		       l.created_at AS created_at,
 		       l.updated_at AS updated_at
 		FROM lists l
@@ -241,6 +247,7 @@ func wishlistSubquery(scope DashboardScope) string {
 		       w.is_shared AS is_shared,
 		       0::bigint AS item_count,
 		       COALESCE((SELECT COUNT(*) FROM wishlist_entries we WHERE we.wishlist_id = w.id), 0)::bigint AS entry_count,
+		       NULL::text AS slug,
 		       w.created_at AS created_at,
 		       w.updated_at AS updated_at
 		FROM wishlists w

@@ -41,13 +41,19 @@ function FontSync() {
   return null;
 }
 
-/** Wraps the app with next-themes. Logged-out sessions stay on the dark palette; signed-in users control theme via their profile. */
+/** Wraps the app with next-themes. Logged-out sessions use dark only (no toggle); signed-in users control theme via their profile. */
 export function ThemedShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const forcedTheme = user === undefined || user === null ? "dark" : undefined;
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem forcedTheme={forcedTheme} disableTransitionOnChange>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      enableSystem
+      forcedTheme={forcedTheme}
+      disableTransitionOnChange
+    >
       <UserThemeSync />
       <PaletteSync />
       <FontSync />

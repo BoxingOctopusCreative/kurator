@@ -89,4 +89,31 @@ describe("CategoryMetadataFields", () => {
     );
     expect(screen.getByRole("textbox", { name: /issue #/i })).toBeInTheDocument();
   });
+
+  it("hides serial and cover art for games when hideManualCoverAndSerial", () => {
+    render(
+      <CategoryMetadataFields
+        category="game"
+        values={{}}
+        onChange={() => {}}
+        hideManualCoverAndSerial
+      />,
+    );
+    expect(screen.queryByText("Serial number")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cover Art")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/SNES/i)).toBeInTheDocument();
+  });
+
+  it("uses Description label and Markdown rich editor when richDescriptionNotes", () => {
+    render(
+      <CategoryMetadataFields
+        category="book"
+        values={{}}
+        onChange={() => {}}
+        richDescriptionNotes
+      />,
+    );
+    expect(screen.getByText("Description")).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "Formatting" })).toBeInTheDocument();
+  });
 });

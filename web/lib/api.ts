@@ -14,8 +14,8 @@ export type Category =
 /** Whether the item is still queued vs finished for its category (wording depends on category). */
 export type ConsumptionStatus = "pending" | "done";
 
-/** Tri-state visibility for user-owned shelves (lists, collections, wishlists). */
-export type Visibility = "private" | "followers" | "friends";
+/** Tri-state visibility for user-owned shelves (lists, collections, wishlists), plus public (internet). */
+export type Visibility = "private" | "followers" | "friends" | "public";
 
 /** Default selected visibility used when the user hasn't picked one yet. */
 export const DEFAULT_VISIBILITY: Visibility = "followers";
@@ -25,7 +25,12 @@ export function visibilityOf(value: {
   visibility?: Visibility | null;
   is_public?: boolean | null;
 }): Visibility {
-  if (value.visibility === "private" || value.visibility === "followers" || value.visibility === "friends") {
+  if (
+    value.visibility === "private" ||
+    value.visibility === "followers" ||
+    value.visibility === "friends" ||
+    value.visibility === "public"
+  ) {
     return value.visibility;
   }
   return value.is_public === false ? "private" : "followers";
@@ -39,13 +44,20 @@ export function visibilityLabel(v: Visibility): string {
     case "followers":
       return "Followers";
     case "friends":
-      return "Friends";
+      return "Friends only";
+    case "public":
+      return "Public";
   }
 }
 
 export type Item = {
   id: string;
-  collection_id: string;
+  /** Present when the item lives on a shelf; omitted for standalone items. */
+  collection_id?: string;
+  /** Present for standalone items (no shelf). */
+  owner_user_id?: number;
+  /** Absolute cover image URL when set (same-origin uploads or HTTPS). */
+  cover_art_url?: string | null;
   title: string;
   category: Category;
   metadata: Record<string, unknown>;
@@ -82,9 +94,16 @@ export type Collection = {
   /** When true, others can request membership or accept invites (see shelf sharing). */
   is_shared?: boolean;
   item_count: number;
+  /** True when the signed-in viewer may add or curate items (owner or shared collaborator). */
+  may_edit_entries?: boolean;
   created_at: string;
   updated_at: string;
 };
+
+/** Shelves the viewer may add items to. Treat absent as true for older API responses. */
+export function collectionMayReceiveItems(c: Collection): boolean {
+  return c.may_edit_entries !== false;
+}
 
 export type CollectionListResponse = {
   items: Collection[];
@@ -153,6 +172,8 @@ export type ItemListRef = {
   id: string;
   name: string;
   cover_art_url?: string | null;
+  slug?: string | null;
+  visibility?: Visibility;
 };
 
 export async function fetchItemLists(id: string): Promise<ItemListRef[]> {
@@ -530,6 +551,8 @@ export type DashboardShelf = {
   /** Counts items (for collections/lists) or wishlist entries (for wishlists). */
   item_count: number;
   entry_count: number;
+  /** Permalink slug for list rows when set. */
+  slug?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -690,7 +713,7 @@ export async function fetchProfileOwnerLists(
   } else if (!isServer) {
     init.credentials = "include";
   }
-  const res = await fetch(apiUrl(`/lists?${sp}`), init);
+  const res = await fetch(apiUrl(`/hitlists?${sp}`, { version: "v2" }), init);
   if (!res.ok) {
     return [];
   }
@@ -847,6 +870,8 @@ export type Wishlist = {
   /** Legacy boolean kept for older clients; prefer `visibility`. */
   is_public: boolean;
   is_shared?: boolean;
+  /** True when the signed-in viewer may add or edit entries (owner or shared collaborator). */
+  may_edit_entries?: boolean;
   entry_count: number;
   created_at: string;
   updated_at: string;
@@ -858,6 +883,8 @@ export type WishlistEntry = {
   title: string;
   category: Category;
   metadata: Record<string, unknown>;
+  /** Optional http(s) link where the item can be purchased. */
+  purchase_url?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1026,21 +1053,85 @@ export async function createWishlistEntry(
     title: string;
     category: Category;
     metadata: Record<string, unknown>;
+    purchase_url?: string | null;
   },
 ): Promise<WishlistEntry> {
+  const payload: Record<string, unknown> = {
+    title: body.title.trim(),
+    category: body.category,
+    metadata: body.metadata,
+  };
+  if (body.purchase_url !== undefined) {
+    const u = body.purchase_url?.trim() ?? "";
+    payload.purchase_url = u === "" ? null : u;
+  }
   const res = await fetch(apiUrl(`/wishlists/${wishlistId}/entries`), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: body.title.trim(),
-      category: body.category,
-      metadata: body.metadata,
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const t = await res.text();
     throw new Error(t || `add entry: ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Set or clear purchase_url on an existing entry without resubmitting metadata. */
+export async function patchWishlistEntryPurchaseUrl(
+  wishlistId: string,
+  entryId: string,
+  purchaseUrl: string | null,
+): Promise<WishlistEntry> {
+  const u = purchaseUrl?.trim() ?? "";
+  const res = await fetch(
+    apiUrl(`/wishlists/${wishlistId}/entries/${entryId}`),
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ purchase_url: u === "" ? null : u }),
+    },
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `update purchase link: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateWishlistEntry(
+  wishlistId: string,
+  entryId: string,
+  body: {
+    title: string;
+    category: Category;
+    metadata: Record<string, unknown>;
+    purchase_url?: string | null;
+  },
+): Promise<WishlistEntry> {
+  const payload: Record<string, unknown> = {
+    title: body.title.trim(),
+    category: body.category,
+    metadata: body.metadata,
+  };
+  if (body.purchase_url !== undefined) {
+    const u = body.purchase_url?.trim() ?? "";
+    payload.purchase_url = u === "" ? null : u;
+  }
+  const res = await fetch(
+    apiUrl(`/wishlists/${wishlistId}/entries/${entryId}`),
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `update entry: ${res.status}`);
   }
   return res.json();
 }
@@ -1059,7 +1150,7 @@ export async function deleteWishlistEntry(
   if (!res.ok) throw new Error(`delete entry: ${res.status}`);
 }
 
-/** CSV columns: id, title, category, metadata (JSON). Owner-only. */
+/** CSV columns: id, title, category, metadata (JSON), optional purchase_url. Owner-only. */
 export async function exportWishlistEntriesCsv(
   wishlistId: string,
 ): Promise<Blob> {
@@ -1134,20 +1225,106 @@ export type List = {
   item_count: number;
   created_at: string;
   updated_at: string;
+  /** Globally unique permalink segment when set (public hitlists). */
+  slug?: string | null;
+  /** When false, comments are hidden and new comments are rejected. */
+  comments_enabled?: boolean;
+  /** When false, entries render as an unordered list (no rank column). Default true / ordered. */
+  entries_numbered?: boolean;
+  /** Approximate page views (detail/slug loads). */
+  view_count?: number;
+  /** Upvote count (discover feed and detail). */
+  vote_count?: number;
+  /** Comment count (discover feed). */
+  comment_count?: number;
+  /** Present on discover/detail when session allows (vote toggling). */
+  viewer_has_voted?: boolean;
 };
 
-export async function fetchLists(): Promise<List[]> {
-  const res = await fetch(apiUrl("/lists"), { credentials: "include" });
-  if (res.status === 401) throw new Error("Sign in to view lists.");
-  if (!res.ok) throw new Error(`lists: ${res.status}`);
+/** v2 GET /hitlists/:id or /hitlists/by-slug/:slug detail payload. */
+export type HitlistDetail = List & {
+  may_edit_entries?: boolean;
+};
+
+export type HitlistStub = {
+  title: string;
+  category: Category;
+  metadata: Record<string, unknown>;
+};
+
+/** One row on a hitlist (item link; legacy API responses may include `stub` only). */
+export type HitlistEntry = {
+  id: string;
+  list_id: string;
+  item?: Item | null;
+  stub?: HitlistStub | null;
+  description?: string | null;
+  created_at: string;
+};
+
+export type HitlistSlugSuggestion = {
+  stem: string;
+  slug: string;
+  available: boolean;
+  suggested?: string;
+};
+
+export async function suggestHitlistSlug(body: {
+  stem: string;
+  exclude_list_id?: string;
+}): Promise<HitlistSlugSuggestion> {
+  const res = await fetch(apiUrl("/hitlists/slug-suggestions", { version: "v2" }), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      stem: body.stem.trim(),
+      exclude_list_id: body.exclude_list_id ?? "",
+    }),
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `slug suggest: ${res.status}`);
+  }
+  return res.json();
+}
+
+export type HitlistDiscoverSort = "recent" | "liked" | "active" | "hottest";
+
+export async function fetchLists(opts?: { sort?: HitlistDiscoverSort }): Promise<List[]> {
+  const sort = opts?.sort ?? "recent";
+  const sp = new URLSearchParams({ sort });
+  const res = await fetch(apiUrl(`/hitlists?${sp}`, { version: "v2" }), { credentials: "include" });
+  if (!res.ok) {
+    throw new Error(`lists: ${res.status}`);
+  }
   const data: unknown = await res.json();
   return Array.isArray(data) ? data : [];
 }
 
-export async function fetchList(id: string): Promise<List> {
-  const res = await fetch(apiUrl(`/lists/${id}`), { credentials: "include" });
+export async function fetchList(id: string): Promise<HitlistDetail> {
+  const res = await fetch(apiUrl(`/hitlists/${id}`, { version: "v2" }), {
+    credentials: "include",
+  });
   if (res.status === 404) throw new Error("List not found.");
   if (!res.ok) throw new Error(`list: ${res.status}`);
+  return res.json();
+}
+
+/** Public hitlist by permalink slug (optional session for personalized vote fields). */
+export async function fetchHitlistBySlug(
+  slug: string,
+  init?: RequestInit,
+): Promise<HitlistDetail | null> {
+  const enc = encodeURIComponent(slug.trim());
+  const res = await fetch(apiUrl(`/hitlists/by-slug/${enc}`, { version: "v2" }), {
+    credentials: init?.credentials ?? "include",
+    cache: "no-store",
+    ...init,
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`hitlist slug: ${res.status}`);
   return res.json();
 }
 
@@ -1169,6 +1346,9 @@ export async function createList(body: {
   is_public?: boolean;
   is_shared?: boolean;
   invite_user_ids?: number[];
+  slug?: string;
+  comments_enabled?: boolean;
+  entries_numbered?: boolean;
 }): Promise<List> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
@@ -1180,7 +1360,10 @@ export async function createList(body: {
   if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
     payload.invite_user_ids = body.invite_user_ids;
   }
-  const res = await fetch(apiUrl("/lists"), {
+  if (body.slug !== undefined && body.slug.trim() !== "") payload.slug = body.slug.trim();
+  if (body.comments_enabled !== undefined) payload.comments_enabled = body.comments_enabled;
+  if (body.entries_numbered !== undefined) payload.entries_numbered = body.entries_numbered;
+  const res = await fetch(apiUrl("/hitlists", { version: "v2" }), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -1204,8 +1387,11 @@ export async function updateList(
     cover_art_url?: string;
     is_shared?: boolean;
     invite_user_ids?: number[];
+    slug?: string;
+    comments_enabled?: boolean;
+    entries_numbered?: boolean;
   },
-): Promise<List> {
+): Promise<HitlistDetail> {
   const payload: Record<string, unknown> = {
     name: body.name.trim(),
     description: body.description?.trim() ?? "",
@@ -1218,7 +1404,10 @@ export async function updateList(
   if (body.invite_user_ids != null && body.invite_user_ids.length > 0) {
     payload.invite_user_ids = body.invite_user_ids;
   }
-  const res = await fetch(apiUrl(`/lists/${id}`), {
+  if (body.slug !== undefined) payload.slug = body.slug;
+  if (body.comments_enabled !== undefined) payload.comments_enabled = body.comments_enabled;
+  if (body.entries_numbered !== undefined) payload.entries_numbered = body.entries_numbered;
+  const res = await fetch(apiUrl(`/hitlists/${id}`, { version: "v2" }), {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -1244,7 +1433,7 @@ export async function deleteList(
   const body: Record<string, unknown> = {};
   if (opts?.move_entries_to) body.move_entries_to = opts.move_entries_to;
   if (opts?.discard_entries) body.discard_entries = true;
-  const res = await fetch(apiUrl(`/lists/${id}`), {
+  const res = await fetch(apiUrl(`/hitlists/${id}`, { version: "v2" }), {
     method: "DELETE",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -1272,8 +1461,8 @@ export async function deleteList(
   return { ok: false, message: t || `delete list: ${res.status}` };
 }
 
-export async function fetchListItems(listId: string): Promise<Item[]> {
-  const res = await fetch(apiUrl(`/lists/${listId}/items`), {
+export async function fetchListItems(listId: string): Promise<HitlistEntry[]> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/entries`, { version: "v2" }), {
     credentials: "include",
   });
   if (!res.ok) throw new Error(`list items: ${res.status}`);
@@ -1281,11 +1470,8 @@ export async function fetchListItems(listId: string): Promise<Item[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function addListItem(
-  listId: string,
-  itemId: string,
-): Promise<void> {
-  const res = await fetch(apiUrl(`/lists/${listId}/items`), {
+export async function addListItem(listId: string, itemId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/entries`, { version: "v2" }), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -1302,34 +1488,170 @@ export async function addListItem(
   }
 }
 
-export async function removeListItem(
-  listId: string,
-  itemId: string,
-): Promise<void> {
-  const res = await fetch(apiUrl(`/lists/${listId}/items/${itemId}`), {
+export async function removeListEntry(listId: string, entryId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/entries/${entryId}`, { version: "v2" }), {
     method: "DELETE",
     credentials: "include",
   });
   if (!res.ok) throw new Error(`remove from list: ${res.status}`);
 }
 
+/** Per-row markdown blurb on a hitlist entry (does not change the linked shelf item). */
+export async function patchHitlistEntryDescription(
+  listId: string,
+  entryId: string,
+  description: string,
+): Promise<void> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/entries/${entryId}`, { version: "v2" }), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description }),
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (res.status === 403) throw new Error("You can't edit this hitlist.");
+  if (res.status === 404) throw new Error("Entry not found.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `save list note: ${res.status}`);
+  }
+}
+
+/** Full permutation of entry ids in display order (top first). Owner or shared editor only. */
+export async function reorderHitlistEntries(listId: string, entryIds: string[]): Promise<void> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/entries/order`, { version: "v2" }), {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entry_ids: entryIds }),
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `reorder: ${res.status}`);
+  }
+}
+
+/** Pass list **entry** id (not item id). */
+export async function removeListItem(listId: string, entryId: string): Promise<void> {
+  return removeListEntry(listId, entryId);
+}
+
+/** Returned after POST/DELETE hitlist vote so clients stay in sync with server counts. */
+export type HitlistVoteStats = {
+  vote_count: number;
+  viewer_has_voted: boolean;
+};
+
+export async function voteHitlist(listId: string): Promise<HitlistVoteStats> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/votes`, { version: "v2" }), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in to vote.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `vote: ${res.status}`);
+  }
+  const data = (await res.json()) as { vote_count?: number; viewer_has_voted?: boolean };
+  return {
+    vote_count: Math.max(0, Number(data.vote_count ?? 0)),
+    viewer_has_voted: !!data.viewer_has_voted,
+  };
+}
+
+export async function unvoteHitlist(listId: string): Promise<HitlistVoteStats> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/votes`, { version: "v2" }), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (res.status === 401) throw new Error("Sign in.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `unvote: ${res.status}`);
+  }
+  const data = (await res.json()) as { vote_count?: number; viewer_has_voted?: boolean };
+  return {
+    vote_count: Math.max(0, Number(data.vote_count ?? 0)),
+    viewer_has_voted: !!data.viewer_has_voted,
+  };
+}
+
+export type HitlistComment = {
+  id: string;
+  list_id: string;
+  user_id: number;
+  author?: ShelfAuthor | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchHitlistComments(
+  listId: string,
+  opts?: { limit?: number },
+): Promise<HitlistComment[]> {
+  const sp = new URLSearchParams();
+  if (opts?.limit != null) sp.set("limit", String(opts.limit));
+  const q = sp.toString();
+  const res = await fetch(
+    apiUrl(`/hitlists/${listId}/comments${q ? `?${q}` : ""}`, { version: "v2" }),
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`comments: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+export async function addHitlistComment(listId: string, body: string): Promise<HitlistComment> {
+  const res = await fetch(apiUrl(`/hitlists/${listId}/comments`, { version: "v2" }), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body: body.trim() }),
+  });
+  if (res.status === 401) throw new Error("Sign in to comment.");
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `comment: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteHitlistComment(listId: string, commentId: string): Promise<void> {
+  const res = await fetch(
+    apiUrl(`/hitlists/${listId}/comments/${commentId}`, { version: "v2" }),
+    {
+      method: "DELETE",
+      credentials: "include",
+    },
+  );
+  if (!res.ok) throw new Error(`delete comment: ${res.status}`);
+}
+
 export async function createItem(body: {
   title: string;
   category: Category;
-  /** Omit to let the API use your oldest shelf (requires at least one collection). */
-  collection_id?: string;
+  /**
+   * Target shelf UUID to shelve the item immediately, or `null` (default) for a standalone item.
+   * Standalone creates also send **`standalone_item: true`** so the API never treats the item as
+   * “default shelf” if `collection_id` is missing from the JSON in transit.
+   */
+  collection_id?: string | null;
   metadata: Record<string, unknown>;
   /** 1–5, or null to leave unrated. */
   rating?: number | null;
   consumption_status?: ConsumptionStatus;
 }): Promise<Item> {
+  const coll = body.collection_id ?? null;
   const payload: Record<string, unknown> = {
     title: body.title,
     category: body.category,
     metadata: body.metadata,
+    collection_id: coll,
   };
-  if (body.collection_id !== undefined) {
-    payload.collection_id = body.collection_id;
+  if (coll == null) {
+    payload.standalone_item = true;
   }
   if (body.rating !== undefined) {
     payload.rating = body.rating;

@@ -59,6 +59,12 @@
     border-radius: unset;
     box-shadow: none;
   }
+
+  /* Already inside an elevated `.shadow-surface` panel — avoid a second shadow on <form>. */
+  .shadow-surface form {
+    border-radius: unset;
+    box-shadow: none;
+  }
 }
 
 @utility safe-pb {

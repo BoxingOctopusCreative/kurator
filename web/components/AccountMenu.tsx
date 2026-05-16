@@ -7,6 +7,7 @@ import { User } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { useAuth } from "@/components/AuthProvider";
 import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
+import { KURATOR_DISCORD_INVITE_URL } from "@/lib/kuratorDiscordInvite";
 
 type Props = {
   /** Increment to force-close this menu (e.g. sibling notifications opened). */
@@ -122,7 +123,7 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
             Profile Settings
           </Link>
           <a
-            href="https://discord.gg/rjHYuGHFNG"
+            href={KURATOR_DISCORD_INVITE_URL}
             role="menuitem"
             target="_blank"
             rel="noopener noreferrer"

@@ -27,7 +27,7 @@ Kurator is a collection tracker: a **Go (Fiber) REST API**, a **Next.js** web ap
 
 ## How the web app talks to the API
 
-- In the **browser**, the client uses same-origin paths under **`/api/v1/...`**. Next.js proxies those to the real API (`web/app/api/v1/[[...path]]/route.ts`) so the **session cookie** stays on the web origin (important for production and for local dev on `http://localhost:3000`).
+- In the **browser**, the client uses same-origin paths under **`/api/v1/...`** and **`/api/v2/...`**. Next.js proxies those to the real API (`web/app/api/v1/[[...path]]/route.ts`, `web/app/api/v2/[[...path]]/route.ts`) so the **session cookie** stays on the web origin (important for production and for local dev on `http://localhost:3000`).
 - **Server-side** rendering and server actions resolve the upstream API with **`API_INTERNAL_URL`** (or **`API_PROXY_TARGET`**), then **`NEXT_PUBLIC_API_URL`** as fallback (see `web/lib/apiUrl.ts`).
 - **Native apps and other non-browser clients** should call the **Go API host** directly (for example `https://api.example.com/api/v1/...`). Authenticate with **`Authorization: Bearer <session_token>`**; the opaque **`session_token`** is returned in JSON from **`POST /api/v1/auth/register`**, **`POST /api/v1/auth/login`** (when 2FA is not required), and **`POST /api/v1/auth/login/2fa`**, in addition to **`Set-Cookie: kurator_session`** for clients that use cookies. Details and OpenAPI models: **`api/docs/swagger.json`** (`BearerToken`, `RegisterResponse`, `LoginResponse`, `Login2FAResponse`). If both cookie and Bearer are sent, the **cookie takes precedence** (same as the API middleware).
 ---
@@ -107,7 +107,7 @@ export API_INTERNAL_URL='http://127.0.0.1:8080'
 npm run dev
 ```
 
-Open **http://localhost:3000**. Ensure the API **`CORS_ORIGINS`** includes the web origin if you ever call the API **directly** from the browser; with the default proxy pattern, same-origin `/api/v1` avoids that for same-site dev.
+Open **http://localhost:3000**. Ensure the API **`CORS_ORIGINS`** includes the web origin if you ever call the API **directly** from the browser; with the default proxy pattern, same-origin `/api/v1` and `/api/v2` avoid that for same-site dev.
 
 ### 4. Tests
 

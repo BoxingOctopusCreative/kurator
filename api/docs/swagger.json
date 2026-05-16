@@ -3,7 +3,7 @@
   "info": {
     "title": "Kurator API",
     "version": "1.0",
-    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads.\n\n**Authentication:** Sessions are opaque tokens stored hashed in the database. The API accepts (1) the **kurator_session** HTTP-only cookie (typical browser flow via the Next.js same-origin proxy) or (2) **`Authorization: Bearer <session_token>`** on any protected route. When both are present, the **cookie wins**. After **POST /api/v1/auth/register**, **POST /api/v1/auth/login** (when 2FA is not required), or **POST /api/v1/auth/login/2fa**, the JSON body includes **session_token** \u2014 the same secret as the cookie \u2014 for native and non-cookie clients. **POST /api/v1/auth/logout** revokes the session for either mechanism; browsers also receive `Set-Cookie` clearing the cookie."
+    "description": "REST API for Kurator: collections, items, search, external metadata lookup, session-based auth, bundled SQL migrations with first-boot bootstrap, and optional S3-backed image uploads.\n\n**API v2:** **`/api/v2/hitlists`** adds permalink slugs, internet-**public** visibility, stub entries, votes, and comments (see tag hitlists-v2).\n\n**Authentication:** Sessions are opaque tokens stored hashed in the database. The API accepts (1) the **kurator_session** HTTP-only cookie (typical browser flow via the Next.js same-origin proxy) or (2) **`Authorization: Bearer <session_token>`** on any protected route. When both are present, the **cookie wins**. After **POST /api/v1/auth/register**, **POST /api/v1/auth/login** (when 2FA is not required), or **POST /api/v1/auth/login/2fa**, the JSON body includes **session_token** \u2014 the same secret as the cookie \u2014 for native and non-cookie clients. **POST /api/v1/auth/logout** revokes the session for either mechanism; browsers also receive `Set-Cookie` clearing the cookie."
   },
   "host": "localhost:8080",
   "basePath": "/",
@@ -58,6 +58,10 @@
     {
       "name": "search",
       "description": "Meilisearch-backed item search."
+    },
+    {
+      "name": "hitlists-v2",
+      "description": "Hitlists (v2): public permalinks, stubs, votes, comments. Base path **/api/v2/hitlists**."
     },
     {
       "name": "metadata",
@@ -2836,14 +2840,7 @@
           "wishlists"
         ],
         "summary": "Get wishlist",
-        "security": [
-          {
-            "SessionCookie": []
-          },
-          {
-            "BearerToken": []
-          }
-        ],
+        "description": "Optional session: when omitted, only wishlists with visibility public are returned.",
         "produces": [
           "application/json"
         ],
@@ -2862,9 +2859,6 @@
             "schema": {
               "type": "object"
             }
-          },
-          "401": {
-            "description": "Unauthorized"
           },
           "404": {
             "description": "Not Found"
@@ -2967,14 +2961,7 @@
           "wishlists"
         ],
         "summary": "List wishlist entries",
-        "security": [
-          {
-            "SessionCookie": []
-          },
-          {
-            "BearerToken": []
-          }
-        ],
+        "description": "Optional session: when omitted, only entries on public wishlists are returned.",
         "produces": [
           "application/json"
         ],
@@ -2996,9 +2983,6 @@
                 "type": "object"
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized"
           },
           "404": {
             "description": "Not Found"
@@ -3052,6 +3036,10 @@
                 },
                 "metadata": {
                   "type": "object"
+                },
+                "purchase_url": {
+                  "type": "string",
+                  "description": "Optional http(s) link where the item can be purchased (e.g. Amazon, eBay)."
                 }
               }
             }
@@ -3077,6 +3065,155 @@
       }
     },
     "/api/v1/wishlists/{id}/entries/{entryId}": {
+      "put": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Update wishlist entry",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "title",
+                "category",
+                "metadata"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "type": "object"
+                },
+                "purchase_url": {
+                  "type": "string",
+                  "description": "Optional http(s) link where the item can be purchased (e.g. Amazon, eBay)."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "wishlists"
+        ],
+        "summary": "Update wishlist entry purchase link only",
+        "description": "Sets or clears purchase_url on an existing entry without resubmitting title, category, or metadata.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "purchase_url": {
+                  "type": "string",
+                  "description": "Optional http(s) link where the item can be purchased; null or empty clears."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
       "delete": {
         "tags": [
           "wishlists"
@@ -3350,6 +3487,575 @@
           }
         }
       }
+    },
+    "/api/v2/hitlists": {
+      "get": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Discover hitlists or list by owner",
+        "description": "Without **owner_user_id**: returns non-private hitlists visible to the caller (public lists for anonymous users; followers/friends rules when signed in). Query **sort** orders the discover feed. With **owner_user_id**, returns that owner’s lists visible to the viewer (same as profile).",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "recent",
+              "liked",
+              "active",
+              "hottest"
+            ],
+            "description": "Discover ordering when owner_user_id is omitted (default recent)."
+          },
+          {
+            "name": "owner_user_id",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/List"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request (e.g. invalid sort)"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Create hitlist (v2)",
+        "description": "Creates a list with optional slug, comments_enabled, and entries_numbered (default true). Visibility may include **public** (internet). Public hitlists require a unique slug.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict (e.g. slug taken)"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/by-slug/{slug}": {
+      "get": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Get public or visible hitlist by permalink slug",
+        "description": "Optional session for vote/follow context. Unauthenticated callers only resolve **public** hitlists.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/{id}": {
+      "get": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Get hitlist by id",
+        "description": "Optional session. Unauthenticated callers only resolve **public** hitlists. Response includes vote_count and comments_enabled.",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Update hitlist (v2)",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Delete hitlist",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict (entries present)"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/{id}/entries": {
+      "get": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "List hitlist entries (items and stubs)",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Add item link or stub entry",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/{id}/entries/order": {
+      "put": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Reorder hitlist entries (owner or shared editor)",
+        "description": "Body must list every entry id on the hitlist exactly once, in top-to-bottom display order.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "entry_ids"
+              ],
+              "properties": {
+                "entry_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request (invalid permutation)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/{id}/entries/{entryId}": {
+      "patch": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Update hitlist entry description (per-row blurb; markdown)",
+        "description": "Sets optional **description** on a list entry (item link or stub). Send empty string to clear.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "description"
+              ],
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "description": "Markdown-supported blurb for this row only (max 4000 chars after trim)"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request (validation)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/{id}/votes": {
+      "post": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Upvote hitlist (authenticated)",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — current vote total and whether the viewer has upvoted",
+            "schema": {
+              "$ref": "#/definitions/HitlistVoteStats"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Remove hitlist vote",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — current vote total and whether the viewer has upvoted",
+            "schema": {
+              "$ref": "#/definitions/HitlistVoteStats"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/{id}/comments": {
+      "get": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "List comments (empty when comments disabled)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Post comment (authenticated only)",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uuid"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v2/hitlists/slug-suggestions": {
+      "post": {
+        "tags": [
+          "hitlists-v2"
+        ],
+        "summary": "Check slug availability and suggest disambiguated slug",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -3548,6 +4254,10 @@
         "name": {
           "type": "string"
         },
+        "slug": {
+          "type": "string",
+          "description": "Hitlist permalink segment when present (list rows only)."
+        },
         "updated_at": {
           "type": "string",
           "format": "date-time"
@@ -3593,6 +4303,22 @@
         },
         "name": {
           "type": "string"
+        },
+        "cover_art_url": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string",
+          "description": "Permalink segment when set (e.g. public hitlists)."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "private",
+            "followers",
+            "friends",
+            "public"
+          ]
         }
       }
     },
@@ -3728,16 +4454,94 @@
         }
       }
     },
+    "HitlistVoteStats": {
+      "type": "object",
+      "properties": {
+        "vote_count": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "viewer_has_voted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "List": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "user_id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "comments_enabled": {
+          "type": "boolean"
+        },
+        "entries_numbered": {
+          "type": "boolean",
+          "description": "When true (default), the UI shows ordered entry ranks; false is unordered presentation."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "private",
+            "followers",
+            "friends",
+            "public"
+          ]
+        },
+        "is_public": {
+          "type": "boolean"
+        },
+        "is_shared": {
+          "type": "boolean"
+        },
+        "item_count": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "viewer_has_voted": {
+          "type": "boolean",
+          "description": "Discover feed (authenticated): whether the viewer has upvoted this hitlist. Omitted when false/unauthenticated."
+        }
+      }
+    },
     "Item": {
       "type": "object",
       "properties": {
         "id": {
-          "type": "integer",
-          "format": "int64"
+          "type": "string",
+          "format": "uuid"
         },
         "collection_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Omitted when the item is standalone (not on any shelf)."
+        },
+        "owner_user_id": {
           "type": "integer",
-          "format": "int64"
+          "format": "int64",
+          "description": "Set only for standalone items (no collection_id)."
         },
         "title": {
           "type": "string"
@@ -3762,8 +4566,14 @@
       "type": "object",
       "properties": {
         "collection_id": {
-          "type": "integer",
-          "format": "int64"
+          "type": "string",
+          "format": "uuid",
+          "nullable": true,
+          "description": "Omit to use default shelf; explicit JSON null creates a standalone item (not on any shelf). Prefer also sending standalone_item true when creating a standalone item so missing or stripped null does not fall back to the default shelf."
+        },
+        "standalone_item": {
+          "type": "boolean",
+          "description": "When true on create, forces a standalone item (not on any shelf), same as collection_id: null. Use when intermediaries may strip JSON null or omit collection_id would otherwise select the default shelf."
         },
         "title": {
           "type": "string"
@@ -3796,6 +4606,10 @@
         "item_count": {
           "type": "integer",
           "format": "int64"
+        },
+        "may_edit_entries": {
+          "type": "boolean",
+          "description": "True when the authenticated viewer may add or curate items (owner or shared collaborator); false for browse-only visibility."
         },
         "created_at": {
           "type": "string",

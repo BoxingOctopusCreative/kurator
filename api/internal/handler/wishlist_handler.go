@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,22 @@ func NewWishlistHandler(svc *service.WishlistService, auth *service.AuthService,
 	return &WishlistHandler{svc: svc, auth: auth, fanout: fanout, share: share}
 }
 
+func (h *WishlistHandler) applyMayEditEntries(ctx context.Context, viewerID int64, wl *models.Wishlist) {
+	if wl == nil {
+		return
+	}
+	ok, err := h.svc.UserMayMutateWishlistContent(ctx, wl.ID, viewerID)
+	if err == nil {
+		wl.MayEditEntries = ok
+	}
+}
+
+func (h *WishlistHandler) applyMayEditEntriesList(ctx context.Context, viewerID int64, list []models.Wishlist) {
+	for i := range list {
+		h.applyMayEditEntries(ctx, viewerID, &list[i])
+	}
+}
+
 // List returns the signed-in user's wishlists, or when owner_user_id is set, that owner's wishlists visible to the viewer (optional session cookie).
 func (h *WishlistHandler) List(c *fiber.Ctx) error {
 	var viewer *int64
@@ -45,6 +62,9 @@ func (h *WishlistHandler) List(c *fiber.Ctx) error {
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 		}
+		if viewer != nil {
+			h.applyMayEditEntriesList(c.Context(), *viewer, items)
+		}
 		return c.JSON(items)
 	}
 	if viewer == nil {
@@ -54,6 +74,7 @@ func (h *WishlistHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
+	h.applyMayEditEntriesList(c.Context(), *viewer, items)
 	return c.JSON(items)
 }
 
@@ -84,6 +105,9 @@ func (h *WishlistHandler) Create(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
 	}
 	wl, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, body.TargetCollectionID, vis, body.IsShared)
+	if errors.Is(err, service.ErrForbiddenCollectionTarget) {
+		return fiber.NewError(fiber.StatusForbidden, err.Error())
+	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -95,6 +119,7 @@ func (h *WishlistHandler) Create(c *fiber.Ctx) error {
 	if h.fanout != nil {
 		h.fanout.NotifyWishlistCreated(c.Context(), uid, wl.Visibility, wl.ID, wl.Name)
 	}
+	h.applyMayEditEntries(c.Context(), uid, wl)
 	return c.Status(fiber.StatusCreated).JSON(wl)
 }
 
@@ -133,6 +158,9 @@ func (h *WishlistHandler) Update(c *fiber.Ctx) error {
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
+	if errors.Is(err, service.ErrForbiddenCollectionTarget) {
+		return fiber.NewError(fiber.StatusForbidden, err.Error())
+	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -146,6 +174,7 @@ func (h *WishlistHandler) Update(c *fiber.Ctx) error {
 			}
 		}
 	}
+	h.applyMayEditEntries(c.Context(), uid, wl)
 	return c.JSON(wl)
 }
 
@@ -259,34 +288,45 @@ func (h *WishlistHandler) ImportEntriesCSV(c *fiber.Ctx) error {
 }
 
 func (h *WishlistHandler) Get(c *fiber.Ctx) error {
-	uid, ok := c.Locals("userID").(int64)
-	if !ok || uid < 1 {
-		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	var viewer *int64
+	raw := middleware.SessionRawFromRequest(c)
+	if raw != "" && h.auth != nil {
+		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
+		if err == nil {
+			viewer = &uid
+		}
 	}
 	id, err := httpx.PathUUID(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
-	wl, err := h.svc.Get(c.Context(), id, uid)
+	wl, err := h.svc.GetVisible(c.Context(), id, viewer)
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
+	if viewer != nil {
+		h.applyMayEditEntries(c.Context(), *viewer, wl)
+	}
 	return c.JSON(wl)
 }
 
 func (h *WishlistHandler) ListEntries(c *fiber.Ctx) error {
-	uid, ok := c.Locals("userID").(int64)
-	if !ok || uid < 1 {
-		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	var viewer *int64
+	raw := middleware.SessionRawFromRequest(c)
+	if raw != "" && h.auth != nil {
+		uid, err := h.auth.UserIDFromSession(c.Context(), raw)
+		if err == nil {
+			viewer = &uid
+		}
 	}
 	wid, err := httpx.PathUUID(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
 	}
-	entries, err := h.svc.ListEntries(c.Context(), wid, uid)
+	entries, err := h.svc.ListEntriesVisible(c.Context(), wid, viewer)
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
@@ -296,10 +336,11 @@ func (h *WishlistHandler) ListEntries(c *fiber.Ctx) error {
 	return c.JSON(entries)
 }
 
-type createWishlistEntryBody struct {
-	Title    string          `json:"title"`
-	Category models.Category `json:"category"`
-	Metadata json.RawMessage `json:"metadata"`
+type wishlistEntryBody struct {
+	Title       string          `json:"title"`
+	Category    models.Category `json:"category"`
+	Metadata    json.RawMessage `json:"metadata"`
+	PurchaseURL *string         `json:"purchase_url"`
 }
 
 func (h *WishlistHandler) CreateEntry(c *fiber.Ctx) error {
@@ -311,11 +352,11 @@ func (h *WishlistHandler) CreateEntry(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
 	}
-	var body createWishlistEntryBody
+	var body wishlistEntryBody
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	entry, err := h.svc.AddEntry(c.Context(), wid, uid, body.Title, body.Category, body.Metadata)
+	entry, err := h.svc.AddEntry(c.Context(), wid, uid, body.Title, body.Category, body.Metadata, body.PurchaseURL)
 	if errors.Is(err, repository.ErrWishlistNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
@@ -323,6 +364,65 @@ func (h *WishlistHandler) CreateEntry(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	return c.Status(fiber.StatusCreated).JSON(entry)
+}
+
+func (h *WishlistHandler) UpdateEntry(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
+	}
+	eid, err := httpx.PathUUID(c.Params("entryId"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid entry id")
+	}
+	var body wishlistEntryBody
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	entry, err := h.svc.UpdateEntry(c.Context(), wid, eid, uid, body.Title, body.Category, body.Metadata, body.PurchaseURL)
+	if errors.Is(err, repository.ErrWishlistNotFound) || errors.Is(err, repository.ErrWishlistEntryNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(entry)
+}
+
+type patchWishlistEntryPurchaseURLBody struct {
+	PurchaseURL *string `json:"purchase_url"`
+}
+
+// PatchEntryPurchaseURL updates only purchase_url (for existing entries without resubmitting metadata).
+func (h *WishlistHandler) PatchEntryPurchaseURL(c *fiber.Ctx) error {
+	uid, ok := c.Locals("userID").(int64)
+	if !ok || uid < 1 {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+	}
+	wid, err := httpx.PathUUID(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid wishlist id")
+	}
+	eid, err := httpx.PathUUID(c.Params("entryId"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid entry id")
+	}
+	var body patchWishlistEntryPurchaseURLBody
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	entry, err := h.svc.PatchEntryPurchaseURL(c.Context(), wid, eid, uid, body.PurchaseURL)
+	if errors.Is(err, repository.ErrWishlistNotFound) || errors.Is(err, repository.ErrWishlistEntryNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "not found")
+	}
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(entry)
 }
 
 func (h *WishlistHandler) DeleteEntry(c *fiber.Ctx) error {
@@ -375,6 +475,9 @@ func (h *WishlistHandler) Obtain(c *fiber.Ctx) error {
 	}
 	if errors.Is(err, repository.ErrCollectionNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "collection not found")
+	}
+	if errors.Is(err, service.ErrForbiddenCollectionTarget) {
+		return fiber.NewError(fiber.StatusForbidden, err.Error())
 	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())

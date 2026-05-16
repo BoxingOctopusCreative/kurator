@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Heart, Layers, ListOrdered } from "lucide-react";
@@ -12,8 +13,11 @@ import {
   followUser,
   unfollowUser,
   publicLegalNameLine,
+  visibilityOf,
 } from "@/lib/api";
-import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
+import { hitlistBrowsePath } from "@/lib/hitlistBrowsePath";
+import { PageHeroUnsplash, MAIN_COLUMN_BRAND_STRIP_CLASS } from "@/components/PageHeroUnsplash";
+import { PublicBrandMenu } from "@/components/PublicBrandMenu";
 import { FollowListDialog } from "@/components/FollowListDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { SocialLinkDecorativeIcon } from "@/lib/socialLinkIcon";
@@ -228,9 +232,27 @@ export function UserProfileClient({
       )}
 
       <>
-        <header className="mb-8">
+        <header className="mb-8 flex flex-col gap-0">
+          {!user ? (
+            <div className={`${MAIN_COLUMN_BRAND_STRIP_CLASS} bg-black`}>
+              <div className="flex items-center justify-between gap-3 px-5 py-3 md:px-8 md:py-3.5">
+                <Link href="/" className="inline-block min-w-0 max-w-full shrink">
+                  <Image
+                    src="https://assets.kuratorapp.cc/brand/PNG/kurator_wide-white.png"
+                    alt="Kurator"
+                    width={256}
+                    height={128}
+                    className="h-auto w-32 max-w-full sm:w-40 md:w-48"
+                    priority
+                  />
+                </Link>
+                <PublicBrandMenu />
+              </div>
+            </div>
+          ) : null}
           <PageHeroUnsplash
             bleedBottomMargin={false}
+            bleedToMainTop={!!user}
             customBackgroundUrl={(profile.banner_url ?? "").trim() || null}
           >
             <div className="pb-6">{profileHeaderInner}</div>
@@ -272,7 +294,7 @@ export function UserProfileClient({
         </section>
 
         <section className="mt-10">
-          <h2 className="kurator-profile-section-title mb-4 text-2xl font-medium text-kurator-fg">Lists</h2>
+          <h2 className="kurator-profile-section-title mb-4 text-2xl font-medium text-kurator-fg">Hitlists</h2>
           {lists.length === 0 ? (
             <p className="text-sm text-kurator-muted">No lists to show here.</p>
           ) : (
@@ -280,7 +302,12 @@ export function UserProfileClient({
               {lists.map((lst) => (
                 <li key={lst.id} className="min-w-0">
                   <Link
-                    href={`/lists/${lst.id}`}
+                    href={hitlistBrowsePath({
+                      id: lst.id,
+                      slug: lst.slug,
+                      visibility: visibilityOf(lst),
+                      preferAppView: !!user,
+                    })}
                     className="flex h-full min-w-0 items-start gap-3 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 hover:border-kurator-accent/50"
                   >
                     <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">

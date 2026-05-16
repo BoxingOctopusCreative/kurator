@@ -206,8 +206,12 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 					}
 					continue
 				}
-				if existing.CollectionID != collectionID {
-					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "item belongs to another collection"})
+				if existing.CollectionID == nil || *existing.CollectionID != collectionID {
+					if existing.CollectionID == nil {
+						out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "item is not on a shelf"})
+					} else {
+						out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: "item belongs to another collection"})
+					}
 					continue
 				}
 				var ru *models.RatingUpdate
@@ -235,6 +239,7 @@ func (s *ItemService) ImportCollectionItemsFromCSV(ctx context.Context, collecti
 		}
 
 		_, cerr := s.Create(ctx, CreateItemInput{
+			Loose:        false,
 			CollectionID: collectionID,
 			Title:        title2,
 			Category:     category,

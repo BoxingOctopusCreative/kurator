@@ -1,49 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { CircleHelp, Heart, Lock, Trash2, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Heart, Lock, Trash2, Users } from "lucide-react";
 import {
-  createWishlist,
-  DEFAULT_VISIBILITY,
+  collectionMayReceiveItems,
   fetchCollections,
-  fetchMyFriends,
   fetchWishlists,
-  type PublicUser,
-  type Visibility,
   visibilityOf,
   type Wishlist,
 } from "@/lib/api";
+import {
+  type WishlistsListFilters,
+  filterWishlistsByQuery,
+  parseWishlistsListSearchString,
+  stringifyWishlistsListFilters,
+} from "@/lib/wishlistsListUrl";
 import { useAuth } from "@/components/AuthProvider";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { DeleteEntryBucketDialog, type EntryDeleteSubject } from "@/components/DeleteEntryBucketDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
-import { VisibilitySelect } from "@/components/VisibilitySelect";
-import {
-  assertCollectionOrWishlistName,
-  assertLooseMultilineText,
-  LIMITS,
-} from "@/lib/validation";
+import { WishlistCreateModal } from "@/components/WishlistCreateModal";
 
-export function WishlistsBrowser() {
+const WISHLISTS_BASE_PATH = "/wishlists";
+
+type Props = {
+  initialFilters: WishlistsListFilters;
+};
+
+export function WishlistsBrowser({ initialFilters }: Props) {
+  const router = useRouter();
   const { user } = useAuth();
+  const [filterState, setFilterState] = useState<WishlistsListFilters>(initialFilters);
+  const [qInput, setQInput] = useState(initialFilters.q);
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
-
-  const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [targetCol, setTargetCol] = useState<string>("");
-  const [newVisibility, setNewVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
-  const [creating, setCreating] = useState(false);
-  const [formMsg, setFormMsg] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [deleteSubject, setDeleteSubject] = useState<EntryDeleteSubject | null>(null);
-  const [newIsShared, setNewIsShared] = useState(false);
-  const [friends, setFriends] = useState<PublicUser[]>([]);
-  const [friendsLoading, setFriendsLoading] = useState(false);
-  const [inviteFriendIds, setInviteFriendIds] = useState<Set<number>>(() => new Set());
+
+  const commitFilters = useCallback((next: WishlistsListFilters | ((prev: WishlistsListFilters) => WishlistsListFilters)) => {
+    setFilterState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      const qs = stringifyWishlistsListFilters(resolved);
+      const url = qs ? `${WISHLISTS_BASE_PATH}?${qs}` : WISHLISTS_BASE_PATH;
+      window.history.replaceState(window.history.state, "", url);
+      return resolved;
+    });
+  }, []);
 
   function reload() {
     setLoading(true);
@@ -59,10 +66,39 @@ export function WishlistsBrowser() {
   }, []);
 
   useEffect(() => {
+    const onPopState = () => {
+      const next = parseWishlistsListSearchString(window.location.search);
+      setFilterState(next);
+      setQInput(next.q);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const trimmed = qInput.trim();
+      if (trimmed !== filterState.q.trim()) {
+        commitFilters({ q: trimmed });
+        setQInput(trimmed);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [qInput, filterState.q, commitFilters]);
+
+  const visibleWishlists = useMemo(
+    () => filterWishlistsByQuery(wishlists, filterState.q),
+    [wishlists, filterState.q],
+  );
+
+  useEffect(() => {
     let cancelled = false;
     fetchCollections({ limit: 100, sort: "name_asc" })
       .then((res) => {
-        if (!cancelled) setCollections(res.items.map((c) => ({ id: c.id, name: c.name })));
+        if (!cancelled)
+          setCollections(
+            res.items.filter(collectionMayReceiveItems).map((c) => ({ id: c.id, name: c.name })),
+          );
       })
       .catch(() => {
         if (!cancelled) setCollections([]);
@@ -72,61 +108,12 @@ export function WishlistsBrowser() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!user || !newIsShared) {
-      setFriends([]);
+  function onCreateClick() {
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(WISHLISTS_BASE_PATH)}`);
       return;
     }
-    let cancelled = false;
-    setFriendsLoading(true);
-    fetchMyFriends({ limit: 200 })
-      .then((r) => {
-        if (!cancelled) setFriends(r.items);
-      })
-      .catch(() => {
-        if (!cancelled) setFriends([]);
-      })
-      .finally(() => {
-        if (!cancelled) setFriendsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, newIsShared]);
-
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setFormMsg(null);
-    setCreating(true);
-    try {
-      const name = assertCollectionOrWishlistName(newName, "Wishlist name");
-      const descRaw = newDesc.trim();
-      const description = descRaw
-        ? assertLooseMultilineText(newDesc, LIMITS.description, "Description")
-        : undefined;
-      await createWishlist({
-        name,
-        description,
-        target_collection_id: targetCol.trim() === "" ? undefined : targetCol.trim(),
-        visibility: newVisibility,
-        is_public: newVisibility !== "private",
-        is_shared: newIsShared ? true : undefined,
-        invite_user_ids:
-          newIsShared && inviteFriendIds.size > 0 ? Array.from(inviteFriendIds) : undefined,
-      });
-      setNewName("");
-      setNewDesc("");
-      setTargetCol("");
-      setNewVisibility(DEFAULT_VISIBILITY);
-      setNewIsShared(false);
-      setInviteFriendIds(new Set());
-      setFormMsg("Wishlist created.");
-      reload();
-    } catch (err) {
-      setFormMsg(err instanceof Error ? err.message : "Could not create wishlist.");
-    } finally {
-      setCreating(false);
-    }
+    setCreateOpen(true);
   }
 
   function isMyWishlist(w: Wishlist): boolean {
@@ -135,6 +122,12 @@ export function WishlistsBrowser() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      <WishlistCreateModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        collectionOptions={collections}
+        onCreated={() => reload()}
+      />
       <DeleteEntryBucketDialog
         variant="wishlist"
         subject={deleteSubject}
@@ -148,145 +141,44 @@ export function WishlistsBrowser() {
         }}
       />
       <PageHeroUnsplash>
-        <header>
+        <div>
           <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Wishlists</h1>
           <p className="mt-1 text-sm text-kurator-muted">
             Track what you want. Choose who can see each wishlist — yourself only, your followers, or just mutuals.
             Link a wishlist to a collection so items move to the right shelf when you get them.
           </p>
-        </header>
+        </div>
       </PageHeroUnsplash>
 
-      <form
-        onSubmit={onCreate}
-        className="mb-10 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:p-6"
-      >
-        <h2 className="kurator-panel-title text-kurator-fg">New Wishlist</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="text-kurator-muted">Name</span>
-            <input
-              required
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Vinyl to buy"
-            />
-          </label>
-          <label className="block text-sm md:col-span-2">
-            <span className="text-kurator-muted">Description (Optional)</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm md:col-span-2">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-              <div className="group relative inline-flex shrink-0 items-center gap-1.5">
-                <span className="text-kurator-muted">Link to Collection (Optional)</span>
-                <button
-                  type="button"
-                  className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
-                  aria-label='When set, “Add to collection” defaults to this shelf unless you pick another.'
-                >
-                  <CircleHelp className="h-3.5 w-3.5" aria-hidden />
-                </button>
-                <span
-                  role="tooltip"
-                  className="pointer-events-none invisible absolute bottom-full left-0 z-60 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-                >
-                  When set, “Add to collection” defaults to this shelf unless you pick another.
-                </span>
-              </div>
-              <select
-                className="w-full max-w-md rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2 sm:min-w-0 sm:flex-1"
-                value={targetCol}
-                onChange={(e) => setTargetCol(e.target.value)}
-              >
-                <option value="">None — choose when you obtain each item</option>
-                {collections.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </label>
-          <div className="md:col-span-2">
-            <VisibilitySelect
-              name="new-wishlist-visibility"
-              legend="Visibility"
-              value={newVisibility}
-              onChange={setNewVisibility}
-            />
+      <div className="mb-6 flex flex-col gap-4 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0 flex-1 space-y-4">
+          <p className="text-sm text-kurator-muted">
+            {user
+              ? "Wishlists you own and shared lists you collaborate on appear below."
+              : "Sign in to create wishlists and link them to collections."}
+          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <label className="block min-w-[200px] flex-1 text-sm">
+              <span className="text-kurator-muted">Search</span>
+              <input
+                type="search"
+                value={qInput}
+                onChange={(e) => setQInput(e.target.value)}
+                placeholder="Name or description…"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                autoComplete="off"
+              />
+            </label>
           </div>
-          {user ? (
-            <div className="md:col-span-2 space-y-3 rounded-lg border border-kurator-border/70 bg-kurator-bg/30 p-3">
-              <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={newIsShared}
-                  onChange={(e) => {
-                    const v = e.target.checked;
-                    setNewIsShared(v);
-                    if (!v) setInviteFriendIds(new Set());
-                  }}
-                />
-                <span>
-                  <span className="font-medium">Shared wishlist</span>
-                  <span className="mt-0.5 block text-xs text-kurator-muted">
-                    Collaborators can add or remove wished items. Others can request to join from the wishlist page.
-                  </span>
-                </span>
-              </label>
-              {newIsShared ? (
-                <div>
-                  <p className="text-xs font-medium text-kurator-muted">Invite mutual friends (optional)</p>
-                  {friendsLoading ? (
-                    <p className="mt-2 text-xs text-kurator-muted">Loading friends…</p>
-                  ) : friends.length === 0 ? (
-                    <p className="mt-2 text-xs text-kurator-muted">No mutual friends to show.</p>
-                  ) : (
-                    <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
-                      {friends.map((f) => (
-                        <li key={f.id}>
-                          <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
-                            <input
-                              type="checkbox"
-                              checked={inviteFriendIds.has(f.id)}
-                              onChange={() => {
-                                setInviteFriendIds((prev) => {
-                                  const n = new Set(prev);
-                                  if (n.has(f.id)) n.delete(f.id);
-                                  else n.add(f.id);
-                                  return n;
-                                });
-                              }}
-                            />
-                            @{f.username}
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            disabled={creating}
-            className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
-          >
-            {creating ? "Creating…" : "Create Wishlist"}
-          </button>
-          {formMsg && <p className="text-sm text-kurator-muted">{formMsg}</p>}
-        </div>
-      </form>
+        <button
+          type="button"
+          onClick={onCreateClick}
+          className="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-kurator-accent px-4 py-2 text-sm font-semibold text-kurator-onAccent hover:opacity-90 md:ms-4 md:w-auto md:self-end"
+        >
+          Create Your Own!
+        </button>
+      </div>
 
       {loading && <p className="text-sm text-kurator-muted">Loading wishlists…</p>}
       {error && (
@@ -297,13 +189,19 @@ export function WishlistsBrowser() {
 
       {!loading && !error && wishlists.length === 0 && (
         <p className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
-          No wishlists yet. Create one above.
+          No wishlists yet. {!user ? "Sign in to create one." : "Create one with Create Your Own!"}
         </p>
       )}
 
-      {!loading && !error && wishlists.length > 0 && (
+      {!loading && !error && wishlists.length > 0 && visibleWishlists.length === 0 && (
+        <p className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
+          No wishlists match your search.
+        </p>
+      )}
+
+      {!loading && !error && visibleWishlists.length > 0 && (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {wishlists.map((w) => (
+          {visibleWishlists.map((w) => (
             <li key={w.id} className="relative">
               {isMyWishlist(w) && (
                 <button
@@ -347,19 +245,19 @@ export function WishlistsBrowser() {
                           </span>
                         )}
                         {user != null &&
-                          w.user_id === user.id &&
-                          (() => {
-                            const v = visibilityOf(w);
-                            if (v === "followers") return null;
-                            const Icon = v === "private" ? Lock : Users;
-                            const label = v === "private" ? "Private" : "Friends";
-                            return (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
-                                <Icon className="h-3 w-3" aria-hidden />
-                                {label}
-                              </span>
-                            );
-                          })()}
+                            w.user_id === user.id &&
+                            (() => {
+                              const v = visibilityOf(w);
+                              if (v === "followers") return null;
+                              const Icon = v === "private" ? Lock : Users;
+                              const label = v === "private" ? "Private" : "Friends";
+                              return (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
+                                  <Icon className="h-3 w-3" aria-hidden />
+                                  {label}
+                                </span>
+                              );
+                            })()}
                       </p>
                     </div>
                   </div>

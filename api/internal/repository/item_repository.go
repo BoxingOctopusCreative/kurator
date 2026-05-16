@@ -29,8 +29,12 @@ type ItemRepository interface {
 	ListRecentForOwner(ctx context.Context, ownerUserID int64, limit int) ([]models.Item, error)
 	ListRecentFromFollowedUsers(ctx context.Context, followerUserID int64, limit int) ([]models.Item, error)
 	GetByID(ctx context.Context, id string, viewer *int64) (*models.Item, error)
-	Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error)
-	CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error)
+	// GetByIDLinkedFromList returns an item when it is linked from list_entries for listID.
+	// Caller must only use this after list visibility is established (e.g. ListEntryRowsVisible).
+	GetByIDLinkedFromList(ctx context.Context, itemID, listID string) (*models.Item, error)
+	// Create inserts a shelved item when collectionID is non-nil, otherwise a loose item (ownerUserID required).
+	Create(ctx context.Context, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error)
+	CreateTx(ctx context.Context, tx pgx.Tx, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error)
 	Update(ctx context.Context, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error)
 	UpdateTx(ctx context.Context, tx pgx.Tx, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error)
 	Delete(ctx context.Context, id string) error
@@ -53,7 +57,7 @@ func ratingPtrFromNull(n sql.NullInt32) *int {
 }
 
 func selectItemColumns(withRating, withConsumption bool) string {
-	s := "id, collection_id, title, category, metadata"
+	s := "id, collection_id, owner_user_id, title, category, metadata"
 	if withRating {
 		s += ", rating"
 	}
@@ -65,7 +69,7 @@ func selectItemColumns(withRating, withConsumption bool) string {
 
 func selectItemColumnsAliased(alias string, withRating, withConsumption bool) string {
 	a := func(c string) string { return alias + "." + c }
-	parts := []string{a("id"), a("collection_id"), a("title"), a("category"), a("metadata")}
+	parts := []string{a("id"), a("collection_id"), a("owner_user_id"), a("title"), a("category"), a("metadata")}
 	if withRating {
 		parts = append(parts, a("rating"))
 	}
@@ -78,10 +82,12 @@ func selectItemColumnsAliased(alias string, withRating, withConsumption bool) st
 
 func scanItemRow(scan func(dest ...any) error, withRating, withConsumption bool) (models.Item, error) {
 	var it models.Item
+	var coll sql.NullString
+	var owner sql.NullInt64
 	var rating sql.NullInt32
 	var consumption sql.NullString
 	var err error
-	dest := []any{&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata}
+	dest := []any{&it.ID, &coll, &owner, &it.Title, &it.Category, &it.Metadata}
 	if withRating {
 		dest = append(dest, &rating)
 	}
@@ -92,6 +98,16 @@ func scanItemRow(scan func(dest ...any) error, withRating, withConsumption bool)
 	err = scan(dest...)
 	if err != nil {
 		return it, err
+	}
+	if coll.Valid {
+		s := strings.TrimSpace(coll.String)
+		if s != "" {
+			it.CollectionID = &s
+		}
+	}
+	if owner.Valid {
+		o := owner.Int64
+		it.OwnerUserID = &o
 	}
 	if withRating {
 		it.Rating = ratingPtrFromNull(rating)
@@ -275,8 +291,9 @@ func (r *PostgresItemRepository) ListRecentForOwner(ctx context.Context, ownerUs
 	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s
 		FROM items i
-		INNER JOIN collections c ON c.id = i.collection_id
-		WHERE c.user_id = $1
+		LEFT JOIN collections c ON c.id = i.collection_id
+		WHERE (i.collection_id IS NOT NULL AND c.user_id = $1)
+		   OR (i.collection_id IS NULL AND i.owner_user_id = $1)
 		ORDER BY i.created_at DESC
 		LIMIT $2
 	`, cols), ownerUserID, limit)
@@ -347,21 +364,30 @@ func (r *PostgresItemRepository) GetByID(ctx context.Context, id string, viewer 
 		return nil, fmt.Errorf("get item: %w", err)
 	}
 	cols := selectItemColumnsAliased("i", withR, withC)
-	where := "i.id = $1"
-	args := []interface{}{id}
-	nextArg := 2
+	var vis string
+	var args []interface{}
 	if viewer == nil {
-		where += " AND " + CollectionRowVisibleAnonSQL()
+		// Shelved: public collection, OR loose item surfaced on a public list, OR any item (including
+		// shelved on a private collection) linked from a hitlist/list row the viewer may see as public.
+		shelved := "(i.collection_id IS NOT NULL AND (" + CollectionRowVisibleAnonSQL() + "))"
+		loose := "(i.collection_id IS NULL AND " + LooseItemVisibleViaListAnonSQL("i.id") + ")"
+		viaList := LooseItemVisibleViaListAnonSQL("i.id")
+		vis = "(" + shelved + " OR " + loose + " OR " + viaList + ")"
+		args = []interface{}{id}
 	} else {
-		where += " AND " + CollectionRowVisibleSQL(fmt.Sprintf("$%d", nextArg))
-		args = append(args, *viewer)
+		vph := "$2"
+		shelved := "(i.collection_id IS NOT NULL AND (" + CollectionRowVisibleSQL(vph) + "))"
+		loose := "(i.collection_id IS NULL AND (i.owner_user_id = " + vph + " OR " + LooseItemVisibleViaListSQL("i.id", vph) + "))"
+		viaList := LooseItemVisibleViaListSQL("i.id", vph)
+		vis = "(" + shelved + " OR " + loose + " OR " + viaList + ")"
+		args = []interface{}{id, *viewer}
 	}
 	row := r.pool.QueryRow(ctx, fmt.Sprintf(`
 		SELECT %s
 		FROM items i
-		INNER JOIN collections c ON c.id = i.collection_id
-		WHERE %s
-	`, cols, where), args...)
+		LEFT JOIN collections c ON c.id = i.collection_id
+		WHERE i.id = $1 AND %s
+	`, cols, vis), args...)
 	it, err := scanItemRow(row.Scan, withR, withC)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrItemNotFound
@@ -372,17 +398,69 @@ func (r *PostgresItemRepository) GetByID(ctx context.Context, id string, viewer 
 	return &it, nil
 }
 
-func (r *PostgresItemRepository) Create(ctx context.Context, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
-	return r.createUsing(ctx, r.pool, collectionID, title, category, metadata, rating, consumption)
+func (r *PostgresItemRepository) GetByIDLinkedFromList(ctx context.Context, itemID, listID string) (*models.Item, error) {
+	withR, err := itemsTableHasRatingColumn(ctx, r.pool)
+	if err != nil {
+		return nil, fmt.Errorf("get item for list entry: %w", err)
+	}
+	withC, err := itemsTableHasConsumptionStatusColumn(ctx, r.pool)
+	if err != nil {
+		return nil, fmt.Errorf("get item for list entry: %w", err)
+	}
+	cols := selectItemColumnsAliased("i", withR, withC)
+	row := r.pool.QueryRow(ctx, fmt.Sprintf(`
+		SELECT %s
+		FROM items i
+		LEFT JOIN collections c ON c.id = i.collection_id
+		WHERE i.id = $1::uuid
+		AND EXISTS (
+			SELECT 1 FROM list_entries le
+			WHERE le.list_id = $2::uuid AND le.item_id = i.id
+		)
+	`, cols), itemID, listID)
+	it, err := scanItemRow(row.Scan, withR, withC)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrItemNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get item for list entry: %w", err)
+	}
+	return &it, nil
 }
 
-func (r *PostgresItemRepository) CreateTx(ctx context.Context, tx pgx.Tx, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
-	return r.createUsing(ctx, tx, collectionID, title, category, metadata, rating, consumption)
+func (r *PostgresItemRepository) Create(ctx context.Context, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+	return r.createUsing(ctx, r.pool, collectionID, ownerUserID, title, category, metadata, rating, consumption)
 }
 
-func (r *PostgresItemRepository) createUsing(ctx context.Context, db rowQuerier, collectionID string, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+func (r *PostgresItemRepository) CreateTx(ctx context.Context, tx pgx.Tx, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
+	return r.createUsing(ctx, tx, collectionID, ownerUserID, title, category, metadata, rating, consumption)
+}
+
+func (r *PostgresItemRepository) createUsing(ctx context.Context, db rowQuerier, collectionID *string, ownerUserID *int64, title string, category models.Category, metadata json.RawMessage, rating *int, consumption *models.ConsumptionStatus) (*models.Item, error) {
 	if len(metadata) == 0 {
 		metadata = json.RawMessage(`{}`)
+	}
+	shelved := collectionID != nil && strings.TrimSpace(*collectionID) != ""
+	if shelved {
+		if ownerUserID != nil {
+			return nil, fmt.Errorf("create item: invalid target")
+		}
+	} else {
+		if ownerUserID == nil || *ownerUserID < 1 {
+			return nil, fmt.Errorf("create item: loose items require owner_user_id")
+		}
+	}
+	var collArg any
+	if shelved {
+		collArg = strings.TrimSpace(*collectionID)
+	} else {
+		collArg = nil
+	}
+	var ownerArg any
+	if shelved {
+		ownerArg = nil
+	} else {
+		ownerArg = *ownerUserID
 	}
 	withR, err := itemsTableHasRatingColumn(ctx, r.pool)
 	if err != nil {
@@ -393,74 +471,42 @@ func (r *PostgresItemRepository) createUsing(ctx context.Context, db rowQuerier,
 		return nil, fmt.Errorf("create item: %w", err)
 	}
 	cols := selectItemColumns(withR, withC)
-	var it models.Item
 	cs := models.ConsumptionPending
 	if consumption != nil && (*consumption).Valid() {
 		cs = *consumption
 	}
-
+	var row pgx.Row
 	switch {
 	case withR && withC:
-		var ratingOut sql.NullInt32
-		var consOut sql.NullString
-		err = db.QueryRow(ctx, `
-			INSERT INTO items (collection_id, title, category, metadata, rating, consumption_status)
-			VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+		row = db.QueryRow(ctx, `
+			INSERT INTO items (collection_id, owner_user_id, title, category, metadata, rating, consumption_status)
+			VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
 			RETURNING `+cols+`
-		`, collectionID, title, string(category), string(metadata), rating, string(cs)).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &ratingOut, &consOut, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("create item: %w", err)
-		}
-		it.Rating = ratingPtrFromNull(ratingOut)
-		if consOut.Valid {
-			it.ConsumptionStatus = models.ConsumptionStatus(consOut.String)
-		}
-		return &it, nil
+		`, collArg, ownerArg, title, string(category), string(metadata), rating, string(cs))
 	case withR && !withC:
-		var ratingOut sql.NullInt32
-		err = db.QueryRow(ctx, `
-			INSERT INTO items (collection_id, title, category, metadata, rating)
-			VALUES ($1, $2, $3, $4::jsonb, $5)
+		row = db.QueryRow(ctx, `
+			INSERT INTO items (collection_id, owner_user_id, title, category, metadata, rating)
+			VALUES ($1, $2, $3, $4, $5::jsonb, $6)
 			RETURNING `+cols+`
-		`, collectionID, title, string(category), string(metadata), rating).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &ratingOut, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("create item: %w", err)
-		}
-		it.Rating = ratingPtrFromNull(ratingOut)
-		return &it, nil
+		`, collArg, ownerArg, title, string(category), string(metadata), rating)
 	case !withR && withC:
-		var consOut sql.NullString
-		err = db.QueryRow(ctx, `
-			INSERT INTO items (collection_id, title, category, metadata, consumption_status)
-			VALUES ($1, $2, $3, $4::jsonb, $5)
+		row = db.QueryRow(ctx, `
+			INSERT INTO items (collection_id, owner_user_id, title, category, metadata, consumption_status)
+			VALUES ($1, $2, $3, $4, $5::jsonb, $6)
 			RETURNING `+cols+`
-		`, collectionID, title, string(category), string(metadata), string(cs)).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &consOut, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("create item: %w", err)
-		}
-		if consOut.Valid {
-			it.ConsumptionStatus = models.ConsumptionStatus(consOut.String)
-		}
-		return &it, nil
+		`, collArg, ownerArg, title, string(category), string(metadata), string(cs))
 	default:
-		err = db.QueryRow(ctx, `
-			INSERT INTO items (collection_id, title, category, metadata)
-			VALUES ($1, $2, $3, $4::jsonb)
+		row = db.QueryRow(ctx, `
+			INSERT INTO items (collection_id, owner_user_id, title, category, metadata)
+			VALUES ($1, $2, $3, $4, $5::jsonb)
 			RETURNING `+cols+`
-		`, collectionID, title, string(category), string(metadata)).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("create item: %w", err)
-		}
-		return &it, nil
+		`, collArg, ownerArg, title, string(category), string(metadata))
 	}
+	it, err := scanItemRow(row.Scan, withR, withC)
+	if err != nil {
+		return nil, fmt.Errorf("create item: %w", err)
+	}
+	return &it, nil
 }
 
 func (r *PostgresItemRepository) Update(ctx context.Context, id string, title string, category models.Category, metadata json.RawMessage, rating *models.RatingUpdate, consumption *models.ConsumptionStatus, newCollectionID *string) (*models.Item, error) {
@@ -492,6 +538,7 @@ func (r *PostgresItemRepository) updateUsing(ctx context.Context, db rowQuerier,
 		setParts = append(setParts, fmt.Sprintf("collection_id = $%d", next))
 		args = append(args, *newCollectionID)
 		next++
+		setParts = append(setParts, "owner_user_id = NULL")
 	}
 	if withR {
 		if rating != nil {
@@ -512,41 +559,8 @@ func (r *PostgresItemRepository) updateUsing(ctx context.Context, db rowQuerier,
 	setParts = append(setParts, "updated_at = NOW()")
 	q := fmt.Sprintf(`UPDATE items SET %s WHERE id = $1 RETURNING %s`, strings.Join(setParts, ", "), cols)
 
-	var it models.Item
-	switch {
-	case withR && withC:
-		var ratingOut sql.NullInt32
-		var consOut sql.NullString
-		err = db.QueryRow(ctx, q, args...).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &ratingOut, &consOut, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err == nil {
-			it.Rating = ratingPtrFromNull(ratingOut)
-			if consOut.Valid {
-				it.ConsumptionStatus = models.ConsumptionStatus(consOut.String)
-			}
-		}
-	case withR && !withC:
-		var ratingOut sql.NullInt32
-		err = db.QueryRow(ctx, q, args...).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &ratingOut, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err == nil {
-			it.Rating = ratingPtrFromNull(ratingOut)
-		}
-	case !withR && withC:
-		var consOut sql.NullString
-		err = db.QueryRow(ctx, q, args...).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &consOut, &it.CreatedAt, &it.UpdatedAt,
-		)
-		if err == nil && consOut.Valid {
-			it.ConsumptionStatus = models.ConsumptionStatus(consOut.String)
-		}
-	default:
-		err = db.QueryRow(ctx, q, args...).Scan(
-			&it.ID, &it.CollectionID, &it.Title, &it.Category, &it.Metadata, &it.CreatedAt, &it.UpdatedAt,
-		)
-	}
+	row := db.QueryRow(ctx, q, args...)
+	it, err := scanItemRow(row.Scan, withR, withC)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrItemNotFound
 	}

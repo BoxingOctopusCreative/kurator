@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CategoryMetadataFields,
   type CategoryFormSlice,
@@ -9,7 +9,14 @@ import {
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { TitleMetadataSearch } from "@/components/TitleMetadataSearch";
 import { ItemStarRating } from "@/components/ItemStarRating";
-import { createItem, fetchCollections, type Category, type Collection, type ConsumptionStatus } from "@/lib/api";
+import {
+  collectionMayReceiveItems,
+  createItem,
+  fetchCollections,
+  type Category,
+  type Collection,
+  type ConsumptionStatus,
+} from "@/lib/api";
 import { consumptionDoneLabel, consumptionPendingLabel } from "@/lib/consumptionLabels";
 import { buildItemMetadata } from "@/lib/itemMetadata";
 import { mergeCategoryFormSlice } from "@/lib/mergeCategoryFormSlice";
@@ -37,6 +44,8 @@ export default function AddItemPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [allCollections, setAllCollections] = useState<Collection[]>([]);
   const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [standalone, setStandalone] = useState(true);
+  const urlShelfAppliedRef = useRef(false);
   const [rating, setRating] = useState<number | null>(null);
   const [consumption, setConsumption] = useState<ConsumptionStatus>("pending");
 
@@ -56,41 +65,51 @@ export default function AddItemPage() {
   }, []);
 
   const visibleCollections = useMemo(
-    () => allCollections.filter((c) => !c.category || c.category === category),
-    [allCollections, category]
+    () =>
+      allCollections.filter(
+        (c) => collectionMayReceiveItems(c) && (!c.category || c.category === category),
+      ),
+    [allCollections, category],
   );
 
   useEffect(() => {
+    if (visibleCollections.length === 0) return;
     const fromUrl =
       collectionParam?.trim() &&
       visibleCollections.some((c) => c.id === collectionParam.trim())
         ? collectionParam.trim()
         : null;
+    if (fromUrl && !urlShelfAppliedRef.current) {
+      urlShelfAppliedRef.current = true;
+      setStandalone(false);
+      setCollectionId(fromUrl);
+    }
+  }, [visibleCollections, collectionParam]);
+
+  useEffect(() => {
+    if (standalone) return;
     setCollectionId((prev) => {
       if (visibleCollections.length === 0) return null;
-      if (fromUrl) return fromUrl;
       if (prev != null && visibleCollections.some((c) => c.id === prev)) return prev;
       return visibleCollections[0].id;
     });
-  }, [visibleCollections, collectionParam]);
+  }, [standalone, visibleCollections]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
+    if (!standalone && (collectionId == null || collectionId.trim() === "")) {
+      setMessage("Choose a collection, or keep “Not on a shelf” selected.");
+      return;
+    }
     setStatus("saving");
     try {
-      if (collectionId == null || collectionId.trim() === "") {
-        setMessage("Choose a collection.");
-        setStatus("idle");
-        return;
-      }
       const safeTitle = assertItemTitle(title);
       const metadata = buildItemMetadata(category, slice);
-      const cid = collectionId.trim();
       await createItem({
         title: safeTitle,
         category,
-        collection_id: cid,
+        collection_id: standalone ? null : collectionId!.trim(),
         metadata,
         rating: rating ?? undefined,
         consumption_status: consumption,
@@ -110,7 +129,8 @@ export default function AddItemPage() {
         <div>
           <h1 className="text-2xl font-semibold text-kurator-fg">Add Item</h1>
           <p className="mt-1 text-sm text-kurator-muted">
-            Add a title, pick a type, and fill in what you know.
+            Add a title, pick a type, and fill in what you know. New items stay standalone unless you place
+            them on a shelf.
           </p>
         </div>
       </PageHeroUnsplash>
@@ -140,6 +160,22 @@ export default function AddItemPage() {
           </span>
         </label>
 
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 rounded border-kurator-border"
+            checked={standalone}
+            onChange={(e) => setStandalone(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium text-kurator-fg">Not on a shelf</span>
+            <span className="mt-0.5 block text-xs text-kurator-muted">
+              Standalone item—you can move it onto a shelf later from the item page or opt into a shelf
+              below.
+            </span>
+          </span>
+        </label>
+
         <label className="block text-sm">
           <span className="text-kurator-muted">Collection</span>
           <select
@@ -149,10 +185,12 @@ export default function AddItemPage() {
               const v = e.target.value;
               setCollectionId(v === "" ? null : v);
             }}
-            disabled={visibleCollections.length === 0}
-            required
+            disabled={standalone || visibleCollections.length === 0}
+            required={!standalone}
           >
-            {allCollections.length === 0 ? (
+            {standalone ? (
+              <option value="">—</option>
+            ) : allCollections.length === 0 ? (
               <option value="">Loading collections…</option>
             ) : visibleCollections.length === 0 ? (
               <option value="">No shelf for this category — create one on Collections</option>
@@ -166,7 +204,8 @@ export default function AddItemPage() {
             )}
           </select>
           <span className="mt-1 block text-xs text-kurator-muted">
-            Items are saved to this shelf. Create more collections on the Collections page.
+            Uncheck “Not on a shelf” to save directly to a collection. Opening this page from a shelf
+            pre-selects that shelf.
           </span>
         </label>
 

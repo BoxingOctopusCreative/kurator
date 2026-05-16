@@ -1,6 +1,7 @@
 "use client";
 
 import { CoverArtField } from "@/components/CoverArtField";
+import { MarkdownRichEditor } from "@/components/MarkdownRichEditor";
 import type { Category } from "@/lib/api";
 
 export type CategoryFormSlice = {
@@ -50,15 +51,43 @@ type Props = {
   category: Category;
   values: CategoryFormSlice;
   onChange: (next: CategoryFormSlice) => void;
+  /**
+   * Hide manual cover art UI and (for games) serial number — use when catalog cover comes only from
+   * title search (e.g. hitlist quick-add).
+   */
+  hideManualCoverAndSerial?: boolean;
+  /**
+   * When true, free-form notes use the label "Description" and a Markdown rich editor (still stored as
+   * `metadata.notes`).
+   */
+  richDescriptionNotes?: boolean;
 };
 
 function ItemNotesField({
   values,
   onChange,
+  richDescription,
 }: {
   values: CategoryFormSlice;
   onChange: (next: CategoryFormSlice) => void;
+  richDescription?: boolean;
 }) {
+  if (richDescription) {
+    return (
+      <div className="block text-sm">
+        <span className="text-kurator-muted">Description</span>
+        <div className="mt-1">
+          <MarkdownRichEditor
+            value={values.notes ?? ""}
+            onChange={(md) => onChange({ ...values, notes: md })}
+            variant="compact"
+            placeholder="Optional: why it’s on this list, edition notes, links…"
+            aria-label="Description"
+          />
+        </div>
+      </div>
+    );
+  }
   return (
     <label className="block text-sm">
       <span className="text-kurator-muted">Notes</span>
@@ -74,7 +103,13 @@ function ItemNotesField({
   );
 }
 
-export function CategoryMetadataFields({ category, values, onChange }: Props) {
+export function CategoryMetadataFields({
+  category,
+  values,
+  onChange,
+  hideManualCoverAndSerial = false,
+  richDescriptionNotes = false,
+}: Props) {
   if (category === "music") {
     return (
       <div className="space-y-3">
@@ -157,14 +192,16 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             autoComplete="off"
           />
         </label>
+        {!hideManualCoverAndSerial && (
         <div className="sm:col-span-2">
           <CoverArtField
             value={values.cover_art ?? ""}
             onChange={(u) => onChange({ ...values, cover_art: u })}
           />
         </div>
+        )}
       </div>
-      <ItemNotesField values={values} onChange={onChange} />
+      <ItemNotesField values={values} onChange={onChange} richDescription={richDescriptionNotes} />
       </div>
     );
   }
@@ -261,14 +298,16 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             ) : null}
           </>
         ) : null}
+        {!hideManualCoverAndSerial && (
         <div className="sm:col-span-2">
           <CoverArtField
             value={values.cover_art ?? ""}
             onChange={(u) => onChange({ ...values, cover_art: u })}
           />
         </div>
+        )}
       </div>
-      <ItemNotesField values={values} onChange={onChange} />
+      <ItemNotesField values={values} onChange={onChange} richDescription={richDescriptionNotes} />
       </div>
     );
   }
@@ -300,6 +339,7 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             autoComplete="off"
           />
         </label>
+        {!hideManualCoverAndSerial && (
         <label className="block text-sm sm:col-span-2">
           <span className="text-kurator-muted">Serial number</span>
           <input
@@ -310,14 +350,17 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             autoComplete="off"
           />
         </label>
+        )}
+        {!hideManualCoverAndSerial && (
         <div className="sm:col-span-2">
           <CoverArtField
             value={values.cover_art ?? ""}
             onChange={(u) => onChange({ ...values, cover_art: u })}
           />
         </div>
+        )}
       </div>
-      <ItemNotesField values={values} onChange={onChange} />
+      <ItemNotesField values={values} onChange={onChange} richDescription={richDescriptionNotes} />
       </div>
     );
   }
@@ -372,11 +415,13 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             spellCheck={false}
           />
         </label>
+        {!hideManualCoverAndSerial && (
         <CoverArtField
           value={values.cover_art ?? ""}
           onChange={(u) => onChange({ ...values, cover_art: u })}
         />
-        <ItemNotesField values={values} onChange={onChange} />
+        )}
+        <ItemNotesField values={values} onChange={onChange} richDescription={richDescriptionNotes} />
       </div>
     );
   }
@@ -461,11 +506,13 @@ export function CategoryMetadataFields({ category, values, onChange }: Props) {
             />
           </label>
         </div>
+        {!hideManualCoverAndSerial && (
         <CoverArtField
           value={values.cover_art ?? ""}
           onChange={(u) => onChange({ ...values, cover_art: u })}
         />
-        <ItemNotesField values={values} onChange={onChange} />
+        )}
+        <ItemNotesField values={values} onChange={onChange} richDescription={richDescriptionNotes} />
       </div>
     );
   }

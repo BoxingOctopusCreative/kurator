@@ -211,9 +211,24 @@ func (h *ItemHandler) Enrichment(c *fiber.Ctx) error {
 	return c.JSON(out)
 }
 
+func itemOnShelf(it *models.Item) (shelfID string, ok bool) {
+	if it == nil || it.CollectionID == nil {
+		return "", false
+	}
+	s := strings.TrimSpace(*it.CollectionID)
+	if s == "" {
+		return "", false
+	}
+	return s, true
+}
+
 // ItemBody is the JSON body for creating or updating an item.
 type ItemBody struct {
-	CollectionID      string                    `json:"collection_id"`
+	// For create: omit collection_id to use your default shelf; set to JSON null for a loose item (not on any shelf).
+	CollectionID string `json:"collection_id"`
+	// StandaloneItem forces a loose item when true (same as collection_id: null), including when collection_id is omitted
+	// because an intermediary stripped JSON null and the server would otherwise attach to the default shelf.
+	StandaloneItem    bool                      `json:"standalone_item"`
 	Title             string                    `json:"title"`
 	Category          models.Category           `json:"category"`
 	Metadata          json.RawMessage           `json:"metadata"`
@@ -226,25 +241,59 @@ func (h *ItemHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	var body ItemBody
-	if err := c.BodyParser(&body); err != nil {
+	raw := c.Body()
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	cid := strings.TrimSpace(body.CollectionID)
-	if cid == "" {
-		if h.coll == nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "server misconfigured")
-		}
-		var rerr error
-		cid, rerr = h.coll.ResolveDefaultCollectionForItemCreate(c.Context(), uid)
-		if rerr != nil {
-			return fiber.NewError(fiber.StatusBadRequest, rerr.Error())
+	var body ItemBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
+	}
+	var loose bool
+	if rawKey, has := keys["standalone_item"]; has {
+		var st bool
+		if err := json.Unmarshal(rawKey, &st); err == nil && st {
+			loose = true
 		}
 	}
-	if err := h.assertMayMutateCollection(c, uid, cid); err != nil {
-		return err
+	var cid string
+	if !loose {
+		if rawKey, has := keys["collection_id"]; has {
+			if bytes.Equal(bytes.TrimSpace(rawKey), []byte("null")) {
+				loose = true
+			} else {
+				var cidVal string
+				if err := json.Unmarshal(rawKey, &cidVal); err != nil {
+					return fiber.NewError(fiber.StatusBadRequest, "invalid collection_id")
+				}
+				cid = strings.TrimSpace(cidVal)
+				if cid == "" {
+					return fiber.NewError(fiber.StatusBadRequest, "invalid collection_id")
+				}
+				if _, perr := httpx.PathUUID(cid); perr != nil {
+					return fiber.NewError(fiber.StatusBadRequest, "invalid collection_id")
+				}
+			}
+		} else {
+			if h.coll == nil {
+				return fiber.NewError(fiber.StatusInternalServerError, "server misconfigured")
+			}
+			var rerr error
+			cid, rerr = h.coll.ResolveDefaultCollectionForItemCreate(c.Context(), uid)
+			if rerr != nil {
+				return fiber.NewError(fiber.StatusBadRequest, rerr.Error())
+			}
+		}
+	}
+	if !loose {
+		if err := h.assertMayMutateCollection(c, uid, cid); err != nil {
+			return err
+		}
 	}
 	item, err := h.svc.Create(c.Context(), service.CreateItemInput{
+		Loose:        loose,
+		OwnerUserID:  uid,
 		CollectionID: cid,
 		Title:        body.Title,
 		Category:     body.Category,
@@ -256,8 +305,10 @@ func (h *ItemHandler) Create(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	if h.fanout != nil && h.coll != nil {
-		if fctx, ferr := h.coll.GetFanoutContextByCollectionID(c.Context(), item.CollectionID); ferr == nil {
-			h.fanout.NotifyItemAdded(c.Context(), uid, fctx.OwnerID, fctx.Visibility, item.CollectionID, fctx.Name, item.ID, item.Title, item.Rating)
+		if sid, ok := itemOnShelf(item); ok {
+			if fctx, ferr := h.coll.GetFanoutContextByCollectionID(c.Context(), sid); ferr == nil {
+				h.fanout.NotifyItemAdded(c.Context(), uid, fctx.OwnerID, fctx.Visibility, sid, fctx.Name, item.ID, item.Title, item.Rating)
+			}
 		}
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
@@ -288,8 +339,14 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 	if gerr != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, gerr.Error())
 	}
-	if err := h.assertMayMutateCollection(c, uid, existing.CollectionID); err != nil {
-		return err
+	if shelfID, ok := itemOnShelf(existing); ok {
+		if err := h.assertMayMutateCollection(c, uid, shelfID); err != nil {
+			return err
+		}
+	} else {
+		if existing.OwnerUserID == nil || *existing.OwnerUserID != uid {
+			return fiber.NewError(fiber.StatusForbidden, "forbidden")
+		}
 	}
 	var newColl *string
 	if _, has := keys["collection_id"]; has {
@@ -308,7 +365,8 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 		if _, perr := httpx.PathUUID(cid); perr != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "invalid collection_id")
 		}
-		if cid != existing.CollectionID {
+		exShelf, _ := itemOnShelf(existing)
+		if cid != exShelf {
 			if err := h.assertMayMutateCollection(c, uid, cid); err != nil {
 				return err
 			}
@@ -353,8 +411,10 @@ func (h *ItemHandler) Update(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	if h.fanout != nil && h.coll != nil && ru != nil && !ru.SetNull {
-		if fctx, ferr := h.coll.GetFanoutContextByCollectionID(c.Context(), item.CollectionID); ferr == nil {
-			h.fanout.NotifyItemRated(c.Context(), uid, fctx.OwnerID, fctx.Visibility, item.CollectionID, fctx.Name, item.ID, item.Title, ru.Stars)
+		if sid, ok := itemOnShelf(item); ok {
+			if fctx, ferr := h.coll.GetFanoutContextByCollectionID(c.Context(), sid); ferr == nil {
+				h.fanout.NotifyItemRated(c.Context(), uid, fctx.OwnerID, fctx.Visibility, sid, fctx.Name, item.ID, item.Title, ru.Stars)
+			}
 		}
 	}
 	return c.JSON(item)
@@ -376,8 +436,14 @@ func (h *ItemHandler) Delete(c *fiber.Ctx) error {
 	if gerr != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, gerr.Error())
 	}
-	if err := h.assertMayMutateCollection(c, uid, existing.CollectionID); err != nil {
-		return err
+	if shelfID, ok := itemOnShelf(existing); ok {
+		if err := h.assertMayMutateCollection(c, uid, shelfID); err != nil {
+			return err
+		}
+	} else {
+		if existing.OwnerUserID == nil || *existing.OwnerUserID != uid {
+			return fiber.NewError(fiber.StatusForbidden, "forbidden")
+		}
 	}
 	if err := h.svc.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repository.ErrItemNotFound) {

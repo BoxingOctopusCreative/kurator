@@ -101,6 +101,7 @@ Flutter: prefer `NavigationRail` + `NavigationDrawer` or a custom rail that matc
 
 - Fetches **`/api/unsplash-page-banner?path=…`** with **per-route cache** (~1 hour) via `web/lib/unsplash-page-hero-cache.ts` and `web/lib/unsplash-page-banner.server.ts` (curated terms in `web/lib/unsplash-page-banner-terms.ts`).
 - Supports **`customBackgroundUrl`** (shelf/item cover): then skips Unsplash and uses cover image with similar **black/45** + **kurator-bg/70** tint stack (slightly different from marketing shell—hero uses `bg-black/45` on first tint).
+- **Hitlists**: optional **`collageCoverUrls`**—when non-empty, entry covers **replace** the custom/Unsplash banner. **≤6** unique covers: horizontal **strip** (one tile per cover). **7+**: **6×4 grid** mosaic (URLs cycle to fill cells). Same tint stack as other heroes (`PageHeroUnsplash`, `web/lib/hitlistHeroCollage.ts`).
 - **Negative top margin** “bleed” cancels main column top padding so the image meets the scroll top (`bleedToMainTop`).
 - **Typography**: children live in `[data-kurator-page-hero]` — hero **H1** uses condensed uppercase styling from `globals.css`.
 - **Attribution** line at bottom of hero (same pattern as marketing, 11px muted).
@@ -130,7 +131,7 @@ Flutter: prefer `NavigationRail` + `NavigationDrawer` or a custom rail that matc
 ## API auth (direct to Go / Flutter)
 
 - **Spec**: **`api/docs/swagger.json`** — `securityDefinitions` **`SessionCookie`** and **`BearerToken`**; response models **`RegisterResponse`**, **`LoginResponse`**, **`Login2FAResponse`**; **`tags`** entry **auth** summarizes the flow.
-- **Implementation**: `api/internal/middleware/session_token.go` (**`SessionRawFromRequest`**), **`RequireAuth`** in `auth.go`, and handlers that need an optional viewer session (collections, items, lists, wishlists, social) use the same helper.
+- **Implementation**: `api/internal/middleware/session_token.go` (**`SessionRawFromRequest`**), **`RequireAuth`** and **`OptionalAuth`** in `auth.go`, and handlers that need an optional viewer session (collections, items, lists, wishlists, social, **`/api/v2/hitlists` GETs**) use the same helper.
 - Successful **`POST /api/v1/auth/register`**, **`POST /api/v1/auth/login`** (when `two_factor_required` is false), and **`POST /api/v1/auth/login/2fa`** return **`session_token`** in JSON — the same opaque secret as the **`kurator_session`** cookie body.
 - **Authenticated requests**: **`Authorization: Bearer <session_token>`**. If both cookie and Bearer are present, the **cookie is used** (web proxy behavior).
 - **`POST /api/v1/auth/logout`** revokes the session for either mechanism; responses still clear **`Set-Cookie`** when applicable.

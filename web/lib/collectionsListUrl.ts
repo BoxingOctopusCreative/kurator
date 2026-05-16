@@ -11,7 +11,6 @@ export type CollectionsListFilters = {
   q: string;
   page: number;
   sort: string;
-  has_description: "" | "yes" | "no";
   scope: "all" | "following";
 };
 
@@ -29,11 +28,9 @@ export function parseCollectionsListRecord(
   const sortIn = first(raw.sort) || SORT_DEFAULT;
   const sort = ALLOWED_SORT.has(sortIn) ? sortIn : SORT_DEFAULT;
   const q = first(raw.q);
-  const hd = first(raw.has_description) as string;
-  const has_description = hd === "yes" || hd === "no" ? hd : "";
   const scopeRaw = first(raw.scope);
   const scope: "all" | "following" = scopeRaw === "following" ? "following" : "all";
-  return { q, page, sort, has_description, scope };
+  return { q, page, sort, scope };
 }
 
 /** Parse from `window.location.search` or a `?foo=bar` string. */
@@ -54,7 +51,6 @@ export function stringifyCollectionsListFilters(f: CollectionsListFilters): stri
   if (q) p.set("q", q);
   if (f.page > 1) p.set("page", String(f.page));
   if (f.sort && f.sort !== SORT_DEFAULT) p.set("sort", f.sort);
-  if (f.has_description) p.set("has_description", f.has_description);
   if (f.scope === "following") p.set("scope", "following");
   return p.toString();
 }

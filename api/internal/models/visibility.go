@@ -6,12 +6,14 @@ import "strings"
 //   - "private":   only the owner.
 //   - "followers": the owner plus anyone who follows them (mutual followers — friends — included).
 //   - "friends":   the owner plus mutual followers only.
+//   - "public":    visible to anyone (including unauthenticated clients), subject to route auth.
 type Visibility string
 
 const (
 	VisibilityPrivate   Visibility = "private"
 	VisibilityFollowers Visibility = "followers"
 	VisibilityFriends   Visibility = "friends"
+	VisibilityPublic    Visibility = "public"
 )
 
 // DefaultVisibility is used when a client creates a shelf without specifying visibility.
@@ -21,7 +23,7 @@ const DefaultVisibility Visibility = VisibilityFollowers
 // Valid reports whether v is one of the recognized visibility values.
 func (v Visibility) Valid() bool {
 	switch v {
-	case VisibilityPrivate, VisibilityFollowers, VisibilityFriends:
+	case VisibilityPrivate, VisibilityFollowers, VisibilityFriends, VisibilityPublic:
 		return true
 	default:
 		return false
@@ -31,7 +33,7 @@ func (v Visibility) Valid() bool {
 // IsPublic reports whether the value allows anyone other than the owner. Used for the legacy
 // is_public boolean kept in API responses for backward compatibility.
 func (v Visibility) IsPublic() bool {
-	return v == VisibilityFollowers || v == VisibilityFriends
+	return v == VisibilityFollowers || v == VisibilityFriends || v == VisibilityPublic
 }
 
 // ParseVisibility normalizes user input. Empty input returns ("", true) so callers can decide

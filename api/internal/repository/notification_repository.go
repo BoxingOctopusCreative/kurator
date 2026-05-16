@@ -52,7 +52,8 @@ func (r *PostgresNotificationRepository) InsertFanout(
 		WHERE f.following_id = $1
 		  AND f.follower_id <> $1
 		  AND (
-		    $3::text = 'followers'
+		    $3::text = 'public'
+		    OR $3::text = 'followers'
 		    OR (
 		      $3::text = 'friends' AND EXISTS (
 		        SELECT 1 FROM user_follows m

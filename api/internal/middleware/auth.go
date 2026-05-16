@@ -29,3 +29,20 @@ func RequireAuth(auth *service.AuthService) fiber.Handler {
 		return c.Next()
 	}
 }
+
+// OptionalAuth parses the session when present and sets c.Locals("userID", int64); invalid or
+// missing sessions continue without locals (for public v2 routes).
+func OptionalAuth(auth *service.AuthService) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		raw := SessionRawFromRequest(c)
+		if raw == "" {
+			return c.Next()
+		}
+		uid, err := auth.UserIDFromSession(c.Context(), raw)
+		if err != nil {
+			return c.Next()
+		}
+		c.Locals("userID", uid)
+		return c.Next()
+	}
+}

@@ -18,17 +18,20 @@ type Wishlist struct {
 	// IsPublic is kept for backward compatibility with older clients; derived from Visibility.
 	IsPublic   bool      `json:"is_public"`
 	IsShared   bool      `json:"is_shared"`
-	EntryCount int64     `json:"entry_count"`
+	// MayEditEntries is true when the authenticated viewer may add, update, or remove entries (owner or shared collaborator).
+	MayEditEntries bool `json:"may_edit_entries"`
+	EntryCount     int64 `json:"entry_count"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type WishlistEntry struct {
-	ID         string          `json:"id"`
-	WishlistID string          `json:"wishlist_id"`
-	Title      string          `json:"title"`
-	Category   Category        `json:"category"`
-	Metadata   json.RawMessage `json:"metadata"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	ID          string          `json:"id"`
+	WishlistID  string          `json:"wishlist_id"`
+	Title       string          `json:"title"`
+	Category    Category        `json:"category"`
+	Metadata    json.RawMessage `json:"metadata"`
+	PurchaseURL *string         `json:"purchase_url,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
@@ -41,11 +42,18 @@ func (f *ActivityFanout) NotifyCollectionCreated(ctx context.Context, actorID in
 	})
 }
 
-func (f *ActivityFanout) NotifyListCreated(ctx context.Context, actorID int64, visibility models.Visibility, listID, name string) {
-	f.insert(ctx, actorID, visibility, models.NotificationKindListCreated, map[string]any{
-		"list_id": listID,
-		"name":    name,
-	})
+func (f *ActivityFanout) NotifyListCreated(ctx context.Context, actorID int64, visibility models.Visibility, listID, name string, slug *string) {
+	p := map[string]any{
+		"list_id":    listID,
+		"name":       name,
+		"visibility": string(visibility),
+	}
+	if slug != nil {
+		if t := strings.TrimSpace(*slug); t != "" {
+			p["list_slug"] = t
+		}
+	}
+	f.insert(ctx, actorID, visibility, models.NotificationKindListCreated, p)
 }
 
 func (f *ActivityFanout) NotifyWishlistCreated(ctx context.Context, actorID int64, visibility models.Visibility, wishlistID, name string) {

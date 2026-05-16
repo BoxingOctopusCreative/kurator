@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe2, Lock, Users } from "lucide-react";
+import { Globe2, Lock, Users, Globe } from "lucide-react";
 import type { Visibility } from "@/lib/api";
 
 type Option = {
@@ -29,6 +29,12 @@ const OPTIONS: Option[] = [
     description: "Only mutual follows can see this.",
     icon: Globe2,
   },
+  {
+    value: "public",
+    label: "Public",
+    description: "Anyone on the internet can view this (requires a unique link slug).",
+    icon: Globe,
+  },
 ];
 
 type Props = {
@@ -41,7 +47,7 @@ type Props = {
   disabled?: boolean;
 };
 
-/** Three-way visibility radio group for lists, collections, and wishlists. */
+/** Four-way visibility radio group for lists, collections, and wishlists. */
 export function VisibilitySelect({ value, onChange, name, legend, disabled }: Props) {
   return (
     <fieldset className="flex flex-col gap-2" disabled={disabled}>

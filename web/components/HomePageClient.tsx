@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Heart, Layers, ListOrdered, Lock, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Globe, Globe2, Heart, Layers, ListOrdered, Lock, Users } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { LandingPage } from "@/components/LandingPage";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import {
   fetchRecentShelves,
+  visibilityLabel,
   visibilityOf,
   type DashboardShelf,
   type ShelfKind,
   type Visibility,
 } from "@/lib/api";
+import { hitlistBrowsePath } from "@/lib/hitlistBrowsePath";
 import { categoryLabel } from "@/lib/categoryLabels";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 
@@ -31,7 +33,7 @@ type KindFilter = "all" | ShelfKind;
 const KIND_FILTERS: { value: KindFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "collection", label: "Collections" },
-  { value: "list", label: "Lists" },
+  { value: "list", label: "Hitlists" },
   { value: "wishlist", label: "Wishlists" },
 ];
 
@@ -40,7 +42,12 @@ function shelfHref(shelf: DashboardShelf): string {
     case "collection":
       return `/collections/${shelf.id}`;
     case "list":
-      return `/lists/${shelf.id}`;
+      return hitlistBrowsePath({
+        id: shelf.id,
+        slug: shelf.slug,
+        visibility: visibilityOf(shelf),
+        preferAppView: true,
+      });
     case "wishlist":
       return `/wishlists/${shelf.id}`;
   }
@@ -51,7 +58,7 @@ function shelfKindLabel(kind: ShelfKind): string {
     case "collection":
       return "Collection";
     case "list":
-      return "List";
+      return "Hitlist";
     case "wishlist":
       return "Wishlist";
   }
@@ -79,12 +86,18 @@ function shelfItemCountLabel(shelf: DashboardShelf): string {
 
 function ShelfVisibilityBadge({ visibility }: { visibility: Visibility }) {
   if (visibility === "followers") return null;
-  const Icon = visibility === "private" ? Lock : Users;
-  const label = visibility === "private" ? "Private" : "Friends";
+  const Icon =
+    visibility === "private"
+      ? Lock
+      : visibility === "public"
+        ? Globe
+        : visibility === "friends"
+          ? Globe2
+          : Users;
   return (
     <span className="inline-flex items-center gap-0.5 rounded-full bg-kurator-border/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-kurator-muted">
       <Icon className="h-3 w-3" aria-hidden />
-      {label}
+      {visibilityLabel(visibility)}
     </span>
   );
 }
@@ -119,6 +132,11 @@ function ShelfCard({ shelf }: { shelf: DashboardShelf }) {
             <h3 className="kurator-shelf-tile-title line-clamp-2 text-sm font-medium leading-snug text-kurator-fg">
               {shelf.name}
             </h3>
+            {shelf.description?.trim() ? (
+              <p className="line-clamp-2 text-xs leading-snug text-kurator-muted">
+                {shelf.description.trim()}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-kurator-border/60 px-3 py-2 text-xs text-kurator-muted">
@@ -349,11 +367,11 @@ export function HomePageClient({ initialBackground = null }: Props) {
       case "collection":
         return "Your most recently updated collections.";
       case "list":
-        return "Your most recently updated lists.";
+        return "Your most recently updated hitlists.";
       case "wishlist":
         return "Your most recently updated wishlists.";
       default:
-        return "Your most recently updated shelves across collections, lists, and wishlists.";
+        return "Your most recently updated shelves across collections, hitlists, and wishlists.";
     }
   }, [mineKind]);
 
@@ -362,7 +380,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
       case "collection":
         return "Recently updated collections from people you follow.";
       case "list":
-        return "Recently updated lists from people you follow.";
+        return "Recently updated hitlists from people you follow.";
       case "wishlist":
         return "Recently updated wishlists from people you follow.";
       default:
@@ -411,7 +429,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
             </Link>
             ,{" "}
             <Link href="/lists" className="text-kurator-accent hover:underline">
-              start a list
+              start a hitlist
             </Link>
             , or{" "}
             <Link href="/wishlists" className="text-kurator-accent hover:underline">

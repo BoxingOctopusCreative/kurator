@@ -16,7 +16,7 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/validation"
 )
 
-// ExportWishlistEntriesCSV returns UTF-8 CSV bytes with header id,title,category,metadata (wishlist owner only).
+// ExportWishlistEntriesCSV returns UTF-8 CSV bytes with header id,title,category,metadata,purchase_url (wishlist owner only).
 func (s *WishlistService) ExportWishlistEntriesCSV(ctx context.Context, wishlistID string, userID int64) ([]byte, error) {
 	if _, err := s.wishlist.GetByIDForUser(ctx, wishlistID, userID); err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (s *WishlistService) ExportWishlistEntriesCSV(ctx context.Context, wishlist
 	}
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
-	if err := w.Write([]string{"id", "title", "category", "metadata"}); err != nil {
+	if err := w.Write([]string{"id", "title", "category", "metadata", "purchase_url"}); err != nil {
 		return nil, err
 	}
 	for _, e := range entries {
@@ -35,11 +35,16 @@ func (s *WishlistService) ExportWishlistEntriesCSV(ctx context.Context, wishlist
 		if meta == "" {
 			meta = "{}"
 		}
+		purchase := ""
+		if e.PurchaseURL != nil {
+			purchase = strings.TrimSpace(*e.PurchaseURL)
+		}
 		if err := w.Write([]string{
 			e.ID,
 			e.Title,
 			string(e.Category),
 			meta,
+			purchase,
 		}); err != nil {
 			return nil, err
 		}
@@ -85,6 +90,7 @@ func (s *WishlistService) ImportWishlistEntriesFromCSV(ctx context.Context, wish
 	}
 	idIx, hasID := col["id"]
 	metaIx, hasMeta := col["metadata"]
+	purchaseIx, hasPurchase := col["purchase_url"]
 
 	out := &ImportItemsResult{Errors: make([]ImportItemRowErr, 0)}
 	rowNum := 1
@@ -140,6 +146,19 @@ func (s *WishlistService) ImportWishlistEntriesFromCSV(ctx context.Context, wish
 			continue
 		}
 
+		var purchaseRaw *string
+		if hasPurchase && purchaseIx < len(rec) {
+			raw := strings.TrimSpace(rec[purchaseIx])
+			if raw != "" {
+				purchaseRaw = &raw
+			}
+		}
+		purchase2, err := wishlistPurchaseURL(purchaseRaw)
+		if err != nil {
+			out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: err.Error()})
+			continue
+		}
+
 		if hasID && idIx < len(rec) {
 			idStr := strings.TrimSpace(rec[idIx])
 			if idStr != "" {
@@ -157,7 +176,7 @@ func (s *WishlistService) ImportWishlistEntriesFromCSV(ctx context.Context, wish
 					}
 					continue
 				}
-				_, uerr := s.wishlist.UpdateEntry(ctx, wishlistID, entryID, userID, title2, category, meta2)
+				_, uerr := s.wishlist.UpdateEntry(ctx, wishlistID, entryID, userID, title2, category, meta2, purchase2)
 				if uerr != nil {
 					out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: uerr.Error()})
 					continue
@@ -167,7 +186,7 @@ func (s *WishlistService) ImportWishlistEntriesFromCSV(ctx context.Context, wish
 			}
 		}
 
-		_, cerr := s.wishlist.CreateEntry(ctx, wishlistID, userID, title2, category, meta2)
+		_, cerr := s.wishlist.CreateEntry(ctx, wishlistID, userID, title2, category, meta2, purchase2)
 		if cerr != nil {
 			out.Errors = append(out.Errors, ImportItemRowErr{Row: rowNum, Error: cerr.Error()})
 			continue

@@ -11,7 +11,6 @@ describe("collectionsListUrl", () => {
       q: "",
       page: 1,
       sort: "name_asc",
-      has_description: "",
       scope: "all",
     });
   });
@@ -21,7 +20,6 @@ describe("collectionsListUrl", () => {
       q: "  jazz  ",
       page: "2",
       sort: "items_desc",
-      has_description: "yes",
       scope: "following",
     });
     expect(f.q).toBe("  jazz  ");
@@ -31,7 +29,6 @@ describe("collectionsListUrl", () => {
     expect(back.q).toBe("jazz");
     expect(back.page).toBe(2);
     expect(back.sort).toBe("items_desc");
-    expect(back.has_description).toBe("yes");
     expect(back.scope).toBe("following");
   });
 });

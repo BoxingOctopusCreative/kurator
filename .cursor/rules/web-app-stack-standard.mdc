@@ -52,7 +52,7 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 
 ## Browser ↔ API (auth and cookies)
 
-- Browser calls **same-origin** `/api/v1/...` (or equivalent prefix). **Next.js route handlers** proxy to the real API so **session cookies stay on the web origin** (HTTP-only, `Secure` in production).
+- Browser calls **same-origin** `/api/v1/...` and **`/api/v2/...`** (route handler catch-alls). **Next.js route handlers** proxy to the real API so **session cookies stay on the web origin** (HTTP-only, `Secure` in production).
 - **Native and other non-browser clients** may call the API host directly and send **`Authorization: Bearer <session_token>`**; the opaque **`session_token`** is returned in JSON from successful auth endpoints alongside **`Set-Cookie`** (same backing session as the **`kurator_session`** cookie). See **`api/docs/swagger.json`** (`SessionCookie` and **`BearerToken`** security definitions).
 - Do not point the browser client directly at a separate API host for authenticated flows unless CORS, cookie `Domain`/`SameSite`, and CSRF are fully designed for that.
 - Server Components / server actions use an **internal base URL** (e.g. `API_INTERNAL_URL`) distinct from public build-time vars when the proxy is not used on the server path.

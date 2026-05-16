@@ -13,6 +13,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// ErrForbiddenCollectionTarget is returned when the viewer may see a collection but may not add items to it.
+var ErrForbiddenCollectionTarget = errors.New("you cannot add items to this collection")
+
 type WishlistService struct {
 	wishlist *repository.PostgresWishlistRepository
 	coll     *repository.PostgresCollectionRepository
@@ -38,6 +41,11 @@ func (s *WishlistService) ListByOwnerForViewer(ctx context.Context, ownerUserID 
 
 func (s *WishlistService) Get(ctx context.Context, id string, userID int64) (*models.Wishlist, error) {
 	return s.wishlist.GetByIDForViewer(ctx, id, userID)
+}
+
+// GetVisible returns a wishlist visible to viewer (nil = anonymous: public wishlists only).
+func (s *WishlistService) GetVisible(ctx context.Context, id string, viewer *int64) (*models.Wishlist, error) {
+	return s.wishlist.GetByIDVisible(ctx, id, viewer)
 }
 
 func (s *WishlistService) Create(ctx context.Context, userID int64, name, description string, targetCollectionID *string, visibility *models.Visibility, isShared bool) (*models.Wishlist, error) {
@@ -178,6 +186,21 @@ func (s *WishlistService) Delete(ctx context.Context, id string, userID int64, m
 	return tx.Commit(ctx)
 }
 
+func (s *WishlistService) UserMayMutateWishlistContent(ctx context.Context, wishlistID string, userID int64) (bool, error) {
+	return s.wishlist.UserMayMutateWishlistContent(ctx, wishlistID, userID)
+}
+
+func (s *WishlistService) PatchEntryPurchaseURL(ctx context.Context, wishlistID, entryID string, userID int64, purchaseURL *string) (*models.WishlistEntry, error) {
+	purchase, err := wishlistPurchaseURL(purchaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.wishlist.GetByIDForViewer(ctx, wishlistID, userID); err != nil {
+		return nil, err
+	}
+	return s.wishlist.UpdateEntryPurchaseURL(ctx, wishlistID, entryID, userID, purchase)
+}
+
 func (s *WishlistService) ListEntries(ctx context.Context, wishlistID string, userID int64) ([]models.WishlistEntry, error) {
 	if _, err := s.wishlist.GetByIDForViewer(ctx, wishlistID, userID); err != nil {
 		return nil, err
@@ -185,7 +208,15 @@ func (s *WishlistService) ListEntries(ctx context.Context, wishlistID string, us
 	return s.wishlist.ListEntries(ctx, wishlistID, userID)
 }
 
-func (s *WishlistService) AddEntry(ctx context.Context, wishlistID string, userID int64, title string, category models.Category, metadata json.RawMessage) (*models.WishlistEntry, error) {
+// ListEntriesVisible lists entries when the wishlist is visible to viewer (nil = public wishlists only for anonymous).
+func (s *WishlistService) ListEntriesVisible(ctx context.Context, wishlistID string, viewer *int64) ([]models.WishlistEntry, error) {
+	if _, err := s.wishlist.GetByIDVisible(ctx, wishlistID, viewer); err != nil {
+		return nil, err
+	}
+	return s.wishlist.ListEntriesVisible(ctx, wishlistID, viewer)
+}
+
+func (s *WishlistService) AddEntry(ctx context.Context, wishlistID string, userID int64, title string, category models.Category, metadata json.RawMessage, purchaseURL *string) (*models.WishlistEntry, error) {
 	if !category.Valid() {
 		return nil, fmt.Errorf("invalid category")
 	}
@@ -197,7 +228,44 @@ func (s *WishlistService) AddEntry(ctx context.Context, wishlistID string, userI
 	if err != nil {
 		return nil, err
 	}
-	return s.wishlist.CreateEntry(ctx, wishlistID, userID, t, category, meta)
+	purchase, err := wishlistPurchaseURL(purchaseURL)
+	if err != nil {
+		return nil, err
+	}
+	return s.wishlist.CreateEntry(ctx, wishlistID, userID, t, category, meta, purchase)
+}
+
+func (s *WishlistService) UpdateEntry(ctx context.Context, wishlistID, entryID string, userID int64, title string, category models.Category, metadata json.RawMessage, purchaseURL *string) (*models.WishlistEntry, error) {
+	if !category.Valid() {
+		return nil, fmt.Errorf("invalid category")
+	}
+	t, err := validation.ItemTitle(title)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := validation.SanitizeItemMetadata(category, metadata)
+	if err != nil {
+		return nil, err
+	}
+	purchase, err := wishlistPurchaseURL(purchaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.wishlist.GetByIDForViewer(ctx, wishlistID, userID); err != nil {
+		return nil, err
+	}
+	return s.wishlist.UpdateEntry(ctx, wishlistID, entryID, userID, t, category, meta, purchase)
+}
+
+func wishlistPurchaseURL(raw *string) (*string, error) {
+	ptr, err := validation.NormalizeOptionalPurchaseURLPointer(raw, "Purchase link")
+	if err != nil {
+		return nil, err
+	}
+	if ptr != nil && *ptr == "" {
+		return nil, nil
+	}
+	return ptr, nil
 }
 
 func (s *WishlistService) DeleteEntry(ctx context.Context, wishlistID, entryID string, userID int64) error {
@@ -231,6 +299,13 @@ func (s *WishlistService) Obtain(ctx context.Context, userID int64, wishlistID, 
 		}
 		return nil, err
 	}
+	okColl, err := s.coll.UserMayMutateCollectionContent(ctx, cid, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !okColl {
+		return nil, ErrForbiddenCollectionTarget
+	}
 	item, err := s.wishlist.ObtainEntry(ctx, wishlistID, entryID, userID, cid)
 	if err != nil {
 		return nil, err
@@ -246,12 +321,18 @@ func (s *WishlistService) validateTargetCollection(ctx context.Context, userID i
 		return nil
 	}
 	cid := strings.TrimSpace(*targetCollectionID)
-	_, err := s.coll.GetByID(ctx, cid, &userID)
-	if err != nil {
+	if _, err := s.coll.GetByID(ctx, cid, &userID); err != nil {
 		if errors.Is(err, repository.ErrCollectionNotFound) {
 			return fmt.Errorf("collection not found or not accessible")
 		}
 		return err
+	}
+	ok, err := s.coll.UserMayMutateCollectionContent(ctx, cid, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrForbiddenCollectionTarget
 	}
 	return nil
 }

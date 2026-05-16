@@ -1,38 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CircleHelp, Layers, Lock, Trash2, Users } from "lucide-react";
-import type {
-  Category,
-  Collection,
-  CollectionListResponse,
-  PublicUser,
-  Visibility,
-} from "@/lib/api";
-import {
-  createCollection,
-  DEFAULT_VISIBILITY,
-  fetchCollections,
-  fetchMyFriends,
-  visibilityOf,
-} from "@/lib/api";
+import { Layers, Lock, Trash2, Users } from "lucide-react";
+import type { Collection, CollectionListResponse } from "@/lib/api";
+import { fetchCollections, visibilityOf } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { CollectionCreateModal } from "@/components/CollectionCreateModal";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { DeleteCollectionDialog, type DeleteCollectionSubject } from "@/components/DeleteCollectionDialog";
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
-import { VisibilitySelect } from "@/components/VisibilitySelect";
 import type { CollectionsListFilters } from "@/lib/collectionsListUrl";
 import {
   parseCollectionsListSearchString,
   stringifyCollectionsListFilters,
 } from "@/lib/collectionsListUrl";
-import {
-  assertCollectionOrWishlistName,
-  assertLooseMultilineText,
-  LIMITS,
-} from "@/lib/validation";
 
 const sortOptions: { value: string; label: string }[] = [
   { value: "name_asc", label: "Name (A–Z)" },
@@ -42,29 +26,13 @@ const sortOptions: { value: string; label: string }[] = [
   { value: "items_desc", label: "Most Items" },
 ];
 
-const descFilterOptions: { value: string; label: string }[] = [
-  { value: "", label: "Any" },
-  { value: "yes", label: "Has Description" },
-  { value: "no", label: "No Description" },
-];
-
-const shelfCategoryOptions: { value: Category; label: string }[] = [
-  { value: "game", label: "Games" },
-  { value: "music", label: "Music" },
-  { value: "book", label: "Books" },
-  { value: "movies", label: "Movies" },
-  { value: "tv", label: "TV" },
-  { value: "anime", label: "Anime" },
-  { value: "comic_book", label: "Comic books" },
-  { value: "manga", label: "Manga" },
-];
-
 type Props = {
   basePath: string;
   initialFilters: CollectionsListFilters;
 };
 
 export function CollectionsBrowser({ basePath, initialFilters }: Props) {
+  const router = useRouter();
   const { user } = useAuth();
 
   const [filters, setFilters] = useState<CollectionsListFilters>(initialFilters);
@@ -73,18 +41,9 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [listVersion, setListVersion] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
 
-  const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newVisibility, setNewVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
-  const [newShelfCategory, setNewShelfCategory] = useState<Category>("game");
-  const [creating, setCreating] = useState(false);
-  const [formMsg, setFormMsg] = useState<string | null>(null);
   const [deleteSubject, setDeleteSubject] = useState<DeleteCollectionSubject | null>(null);
-  const [newIsShared, setNewIsShared] = useState(false);
-  const [friends, setFriends] = useState<PublicUser[]>([]);
-  const [friendsLoading, setFriendsLoading] = useState(false);
-  const [inviteFriendIds, setInviteFriendIds] = useState<Set<number>>(() => new Set());
 
   const effectiveScope: "all" | "following" =
     filters.scope === "following" && user ? "following" : "all";
@@ -139,7 +98,6 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
       page: filters.page,
       limit: 12,
       sort: filters.sort,
-      has_description: filters.has_description || undefined,
       scope: effectiveScope === "following" ? "following" : "all",
     })
       .then((res) => {
@@ -154,65 +112,16 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [filters.q, filters.page, filters.sort, filters.has_description, effectiveScope, listVersion]);
-
-  useEffect(() => {
-    if (!user || !newIsShared) {
-      setFriends([]);
-      return;
-    }
-    let cancelled = false;
-    setFriendsLoading(true);
-    fetchMyFriends({ limit: 200 })
-      .then((r) => {
-        if (!cancelled) setFriends(r.items);
-      })
-      .catch(() => {
-        if (!cancelled) setFriends([]);
-      })
-      .finally(() => {
-        if (!cancelled) setFriendsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, newIsShared]);
+  }, [filters.q, filters.page, filters.sort, effectiveScope, listVersion]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
-  async function onCreateCollection(e: React.FormEvent) {
-    e.preventDefault();
-    setFormMsg(null);
-    setCreating(true);
-    try {
-      const name = assertCollectionOrWishlistName(newName, "Collection name");
-      const descRaw = newDesc.trim();
-      const description = descRaw
-        ? assertLooseMultilineText(newDesc, LIMITS.description, "Description")
-        : undefined;
-      await createCollection({
-        name,
-        description,
-        visibility: newVisibility,
-        is_public: newVisibility !== "private",
-        category: newShelfCategory,
-        is_shared: newIsShared ? true : undefined,
-        invite_user_ids:
-          newIsShared && inviteFriendIds.size > 0 ? Array.from(inviteFriendIds) : undefined,
-      });
-      setNewName("");
-      setNewDesc("");
-      setNewVisibility(DEFAULT_VISIBILITY);
-      setNewShelfCategory("game");
-      setNewIsShared(false);
-      setInviteFriendIds(new Set());
-      setFormMsg("Collection created.");
-      setListVersion((v) => v + 1);
-    } catch (err) {
-      setFormMsg(err instanceof Error ? err.message : "Could not create collection.");
-    } finally {
-      setCreating(false);
+  function onCreateClick() {
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(basePath)}`);
+      return;
     }
+    setCreateOpen(true);
   }
 
   function isMyCollection(c: Collection): boolean {
@@ -221,6 +130,11 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
 
   return (
     <div className="mx-auto max-w-5xl">
+      <CollectionCreateModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => setListVersion((v) => v + 1)}
+      />
       <DeleteCollectionDialog
         collection={deleteSubject}
         open={deleteSubject != null}
@@ -233,245 +147,82 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
         }}
       />
       <PageHeroUnsplash>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Collections</h1>
-            <p className="mt-1 text-sm text-kurator-muted">
-              Choose who can see each shelf: yourself only, your followers, or just mutuals. Follow people under
-              People to see their shelves in the Following tab.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Collections</h1>
+          <p className="mt-1 text-sm text-kurator-muted">
+            Choose who can see each shelf: yourself only, your followers, or just mutuals. Follow people under
+            People to see their shelves in the Following tab.
+          </p>
         </div>
       </PageHeroUnsplash>
 
-      <form
-        onSubmit={onCreateCollection}
-        className="mb-8 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4"
-      >
-        <div className="group relative inline-flex items-center gap-1.5">
-          <h2 className="kurator-panel-title text-kurator-fg">New Collection</h2>
-          <button
-            type="button"
-            className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
-            aria-label="New collection shelves appear in this list and in Add Item → Collection."
-          >
-            <CircleHelp className="h-3.5 w-3.5" aria-hidden />
-          </button>
-          <span
-            role="tooltip"
-            className="pointer-events-none invisible absolute bottom-full left-0 z-50 mb-1.5 w-max max-w-[min(22rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-          >
-            New collection shelves appear in this list and in Add Item → Collection.
-          </span>
-        </div>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <label className="block min-w-[200px] flex-1 text-sm">
-            <span className="text-kurator-muted">Name</span>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Graphic novels, Switch games"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              autoComplete="off"
-            />
-          </label>
-          <label className="block min-w-[220px] flex-2 text-sm">
-            <span className="text-kurator-muted">Description (Optional)</span>
-            <input
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="Short note about this shelf"
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              autoComplete="off"
-            />
-          </label>
-          <label className="block min-w-[200px] text-sm">
-            <span className="group relative inline-flex items-center gap-1.5 text-kurator-muted">
-              <span>Shelf Type</span>
+      <div className="mb-6 flex flex-col gap-4 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0 flex-1 space-y-4">
+          {user && (
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Collection Source">
               <button
                 type="button"
-                className="-m-0.5 inline-flex shrink-0 rounded-sm p-0.5 text-kurator-muted hover:text-kurator-fg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kurator-accent"
-                aria-label="Items on this shelf use the category you select."
+                role="tab"
+                aria-selected={effectiveScope === "all"}
+                onClick={() => commitFilters((f) => ({ ...f, scope: "all", page: 1 }))}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium ${
+                  effectiveScope === "all"
+                    ? "bg-kurator-accent text-kurator-onAccent"
+                    : "border border-kurator-border text-kurator-muted hover:bg-kurator-border/40"
+                }`}
               >
-                <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+                All
               </button>
-              <span
-                role="tooltip"
-                className="pointer-events-none invisible absolute bottom-full left-0 z-50 mb-1.5 w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-md border border-kurator-border bg-kurator-bg px-2.5 py-1.5 text-xs leading-snug text-kurator-fg opacity-0 shadow-md transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+              <button
+                type="button"
+                role="tab"
+                aria-selected={effectiveScope === "following"}
+                onClick={() => commitFilters((f) => ({ ...f, scope: "following", page: 1 }))}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium ${
+                  effectiveScope === "following"
+                    ? "bg-kurator-accent text-kurator-onAccent"
+                    : "border border-kurator-border text-kurator-muted hover:bg-kurator-border/40"
+                }`}
               >
-                Items on this shelf use the category you select.
-              </span>
-            </span>
-            <select
-              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-              value={newShelfCategory}
-              onChange={(e) => setNewShelfCategory(e.target.value as Category)}
-            >
-              {shelfCategoryOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            disabled={creating}
-            className="rounded-lg bg-kurator-accent px-4 py-2 text-sm font-medium text-kurator-onAccent hover:opacity-90 disabled:opacity-50"
-          >
-            {creating ? "Creating…" : "Create"}
-          </button>
-        </div>
-        <div className="mt-4 max-w-md">
-          <VisibilitySelect
-            name="new-collection-visibility"
-            legend="Visibility"
-            value={newVisibility}
-            onChange={setNewVisibility}
-          />
-        </div>
-        {user ? (
-          <div className="mt-4 max-w-lg space-y-3 rounded-lg border border-kurator-border/70 bg-kurator-bg/30 p-3">
-            <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
+                Following
+              </button>
+            </div>
+          )}
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <label className="block min-w-[200px] flex-1 text-sm">
+              <span className="text-kurator-muted">Search</span>
               <input
-                type="checkbox"
-                className="mt-1"
-                checked={newIsShared}
-                onChange={(e) => {
-                  const v = e.target.checked;
-                  setNewIsShared(v);
-                  if (!v) setInviteFriendIds(new Set());
-                }}
+                type="search"
+                value={qInput}
+                onChange={(e) => setQInput(e.target.value)}
+                placeholder="Name or description…"
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                autoComplete="off"
               />
-              <span>
-                <span className="font-medium">Shared collection</span>
-                <span className="mt-0.5 block text-xs text-kurator-muted">
-                  Collaborators you approve can add and edit items here. Others can request to join from the
-                  collection page.
-                </span>
-              </span>
             </label>
-            {newIsShared ? (
-              <div>
-                <p className="text-xs font-medium text-kurator-muted">Invite mutual friends (optional)</p>
-                {friendsLoading ? (
-                  <p className="mt-2 text-xs text-kurator-muted">Loading friends…</p>
-                ) : friends.length === 0 ? (
-                  <p className="mt-2 text-xs text-kurator-muted">No mutual friends to show. Follow people who follow you back.</p>
-                ) : (
-                  <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
-                    {friends.map((f) => (
-                      <li key={f.id}>
-                        <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
-                          <input
-                            type="checkbox"
-                            checked={inviteFriendIds.has(f.id)}
-                            onChange={() => {
-                              setInviteFriendIds((prev) => {
-                                const n = new Set(prev);
-                                if (n.has(f.id)) n.delete(f.id);
-                                else n.add(f.id);
-                                return n;
-                              });
-                            }}
-                          />
-                          @{f.username}
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
+            <label className="block min-w-[160px] text-sm">
+              <span className="text-kurator-muted">Sort</span>
+              <select
+                value={filters.sort}
+                onChange={(e) => commitFilters((f) => ({ ...f, sort: e.target.value, page: 1 }))}
+                className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+              >
+                {sortOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        ) : null}
-        {formMsg && (
-          <p
-            className={`mt-3 text-sm ${formMsg.startsWith("Collection created") ? "text-emerald-300/90" : "text-amber-200/90"}`}
-            role="status"
-          >
-            {formMsg}
-          </p>
-        )}
-      </form>
-
-      {user && (
-        <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Collection Source">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={effectiveScope === "all"}
-            onClick={() => commitFilters((f) => ({ ...f, scope: "all", page: 1 }))}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              effectiveScope === "all"
-                ? "bg-kurator-accent text-kurator-onAccent"
-                : "border border-kurator-border text-kurator-muted hover:bg-kurator-border/40"
-            }`}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={effectiveScope === "following"}
-            onClick={() => commitFilters((f) => ({ ...f, scope: "following", page: 1 }))}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              effectiveScope === "following"
-                ? "bg-kurator-accent text-kurator-onAccent"
-                : "border border-kurator-border text-kurator-muted hover:bg-kurator-border/40"
-            }`}
-          >
-            Following
-          </button>
         </div>
-      )}
-
-      <div className="mb-6 flex flex-col gap-4 rounded-xl shadow-surface border border-kurator-border bg-kurator-surface/60 p-4 sm:flex-row sm:flex-wrap sm:items-end">
-        <label className="block min-w-[200px] flex-1 text-sm">
-          <span className="text-kurator-muted">Search</span>
-          <input
-            type="search"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            placeholder="Name or description…"
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-            autoComplete="off"
-          />
-        </label>
-        <label className="block min-w-[160px] text-sm">
-          <span className="text-kurator-muted">Sort</span>
-          <select
-            value={filters.sort}
-            onChange={(e) => commitFilters((f) => ({ ...f, sort: e.target.value, page: 1 }))}
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-          >
-            {sortOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block min-w-[180px] text-sm">
-          <span className="text-kurator-muted">Description</span>
-          <select
-            value={filters.has_description}
-            onChange={(e) =>
-              commitFilters((f) => ({
-                ...f,
-                has_description: (e.target.value || "") as "" | "yes" | "no",
-                page: 1,
-              }))
-            }
-            className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
-          >
-            {descFilterOptions.map((o) => (
-              <option key={o.value || "any"} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <button
+          type="button"
+          onClick={onCreateClick}
+          className="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-kurator-accent px-4 py-2 text-sm font-semibold text-kurator-onAccent hover:opacity-90 md:ms-4 md:w-auto md:self-end"
+        >
+          Create Your Own!
+        </button>
       </div>
 
       {error && (
@@ -486,7 +237,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
 
       {!loading && data && data.items.length === 0 && (
         <p className="rounded-xl shadow-surface border border-kurator-border bg-kurator-surface px-4 py-8 text-center text-sm text-kurator-muted">
-          No collections match your filters.
+          No collections match your filters. {!user ? "Sign in to create one." : "Create one with Create Your Own!"}
         </p>
       )}
 

@@ -163,7 +163,8 @@ function notificationHref(n: NotificationFeedItem): string | null {
     }
     case "list_created": {
       const id = payloadStr(p, "list_id");
-      return id ? `/lists/${id}` : null;
+      if (!id) return null;
+      return `/lists/${id}`;
     }
     case "wishlist_created": {
       const id = payloadStr(p, "wishlist_id");

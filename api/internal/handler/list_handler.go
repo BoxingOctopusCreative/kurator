@@ -56,12 +56,12 @@ func (h *ListHandler) List(c *fiber.Ctx) error {
 }
 
 type createListBody struct {
-	Name            string  `json:"name"`
-	Description     string  `json:"description"`
-	Visibility      *string `json:"visibility"`
-	IsPublic        *bool   `json:"is_public"`
-	IsShared        bool    `json:"is_shared"`
-	InviteUserIDs   []int64 `json:"invite_user_ids"`
+	Name          string  `json:"name"`
+	Description   string  `json:"description"`
+	Visibility    *string `json:"visibility"`
+	IsPublic      *bool   `json:"is_public"`
+	IsShared      bool    `json:"is_shared"`
+	InviteUserIDs []int64 `json:"invite_user_ids"`
 }
 
 func (h *ListHandler) Create(c *fiber.Ctx) error {
@@ -80,7 +80,7 @@ func (h *ListHandler) Create(c *fiber.Ctx) error {
 	if len(body.InviteUserIDs) > 0 && !body.IsShared {
 		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
 	}
-	l, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis, body.IsShared)
+	l, err := h.svc.Create(c.Context(), uid, body.Name, body.Description, vis, body.IsShared, nil, nil, nil)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -90,7 +90,7 @@ func (h *ListHandler) Create(c *fiber.Ctx) error {
 		}
 	}
 	if h.fanout != nil {
-		h.fanout.NotifyListCreated(c.Context(), uid, l.Visibility, l.ID, l.Name)
+		h.fanout.NotifyListCreated(c.Context(), uid, l.Visibility, l.ID, l.Name, nil)
 	}
 	return c.Status(fiber.StatusCreated).JSON(l)
 }
@@ -115,13 +115,13 @@ func (h *ListHandler) Get(c *fiber.Ctx) error {
 }
 
 type updateListBody struct {
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	Visibility     *string `json:"visibility"`
-	IsPublic       *bool   `json:"is_public"`
-	CoverArtURL    *string `json:"cover_art_url"`
-	IsShared       *bool   `json:"is_shared"`
-	InviteUserIDs  []int64 `json:"invite_user_ids"`
+	Name          string  `json:"name"`
+	Description   string  `json:"description"`
+	Visibility    *string `json:"visibility"`
+	IsPublic      *bool   `json:"is_public"`
+	CoverArtURL   *string `json:"cover_art_url"`
+	IsShared      *bool   `json:"is_shared"`
+	InviteUserIDs []int64 `json:"invite_user_ids"`
 }
 
 func (h *ListHandler) Update(c *fiber.Ctx) error {
@@ -144,7 +144,7 @@ func (h *ListHandler) Update(c *fiber.Ctx) error {
 	if len(body.InviteUserIDs) > 0 && body.IsShared != nil && !*body.IsShared {
 		return fiber.NewError(fiber.StatusBadRequest, "invite_user_ids requires is_shared")
 	}
-	l, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL, body.IsShared)
+	l, err := h.svc.Update(c.Context(), uid, id, body.Name, body.Description, vis, body.CoverArtURL, body.IsShared, nil)
 	if errors.Is(err, repository.ErrListNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}

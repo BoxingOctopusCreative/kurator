@@ -21,6 +21,24 @@ func TestHTTPOrHTTPSURL_rejectsJavascript(t *testing.T) {
 	}
 }
 
+func TestNormalizeOptionalPurchaseURLPointer(t *testing.T) {
+	empty := ""
+	got, err := NormalizeOptionalPurchaseURLPointer(&empty, "Purchase link")
+	if err != nil || got == nil || *got != "" {
+		t.Fatalf("empty: got %v err %v", got, err)
+	}
+	raw := "https://www.amazon.com/dp/example"
+	got, err = NormalizeOptionalPurchaseURLPointer(&raw, "Purchase link")
+	if err != nil || got == nil || *got != raw {
+		t.Fatalf("url: got %v err %v", got, err)
+	}
+	bad := "not-a-url"
+	_, err = NormalizeOptionalPurchaseURLPointer(&bad, "Purchase link")
+	if err == nil {
+		t.Fatal("expected error for invalid url")
+	}
+}
+
 func TestSanitizeItemMetadata_gameEmpty(t *testing.T) {
 	out, err := SanitizeItemMetadata(models.CategoryGame, []byte(`{}`))
 	if err != nil {
@@ -105,5 +123,30 @@ func TestMetadataJSON_roundTrip(t *testing.T) {
 	}
 	if m["platform"] != "SNES" || m["year"].(float64) != 1995 {
 		t.Fatalf("%v", m)
+	}
+}
+
+func TestHitlistSlug_ok(t *testing.T) {
+	s, err := HitlistSlug("my-80s-horror")
+	if err != nil || s != "my-80s-horror" {
+		t.Fatalf("got %q err %v", s, err)
+	}
+}
+
+func TestHitlistSlug_rejectsInvalid(t *testing.T) {
+	if _, err := HitlistSlug("bad_slug"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestHitlistSlugCollisionSuffix(t *testing.T) {
+	s := HitlistSlugCollisionSuffix("my-80s-horror")
+	if s == "" {
+		t.Fatal("empty suffix")
+	}
+	for _, c := range s {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+			t.Fatalf("non-alnum %q in %q", c, s)
+		}
 	}
 }
