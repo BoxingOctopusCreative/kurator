@@ -87,6 +87,8 @@ export function HitlistSlugClient() {
     router.replace(`/lists/${list.id}`);
   }, [user, list, router]);
 
+  const heroCollageCoverUrls = useMemo(() => collectHitlistEntryCoverUrls(entries), [entries]);
+
   async function toggleVote() {
     if (!list || !user || voteBusy) return;
     const prevList = list;
@@ -152,7 +154,6 @@ export function HitlistSlugClient() {
   const permalinkPath = `/hitlists/${encodeURIComponent(slug)}`;
   const showEntryNumbers = list.entries_numbered !== false;
   const EntryListTag = showEntryNumbers ? "ol" : "ul";
-  const heroCollageCoverUrls = useMemo(() => collectHitlistEntryCoverUrls(entries), [entries]);
 
   return (
     <div className="mx-auto max-w-5xl">
