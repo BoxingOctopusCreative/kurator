@@ -28,6 +28,16 @@ vi.mock("next/navigation", () => ({
     refresh: vi.fn(),
   }),
   usePathname: () => "/settings/app",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock("@/lib/oauth", () => ({
+  oauthLinkErrorMessage: () => null,
+  oauthLinkedSuccessMessage: () => null,
+}));
+
+vi.mock("@/components/settings/AppSettingsOAuthSection", () => ({
+  AppSettingsOAuthSection: () => null,
 }));
 
 vi.mock("@/components/ThemePreferenceSelect", () => ({

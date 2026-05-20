@@ -85,6 +85,7 @@ export function ListDetailClient() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editSlug, setEditSlug] = useState("");
+  const [slugBaseUnavailable, setSlugBaseUnavailable] = useState(false);
   const [editCommentsEnabled, setEditCommentsEnabled] = useState(true);
   const [editEntriesNumbered, setEditEntriesNumbered] = useState(true);
   const [editVisibility, setEditVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
@@ -627,19 +628,17 @@ export function ListDetailClient() {
                 value={editVisibility}
                 onChange={(v) => {
                   setEditVisibility(v);
+                  if (v !== "public") {
+                    setSlugBaseUnavailable(false);
+                  }
                   if (v === "public" && editSlug.trim() === "") {
                     void (async () => {
                       try {
-                        const stem =
-                          editName
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, "-")
-                            .replace(/^-+|-+$/g, "")
-                            .slice(0, 48) || "hitlist";
                         const sug = await suggestHitlistSlug({
-                          stem,
+                          stem: editName.trim() || "hitlist",
                           exclude_list_id: id,
                         });
+                        setSlugBaseUnavailable(!sug.available);
                         setEditSlug(sug.available ? sug.slug : (sug.suggested ?? sug.slug));
                       } catch {
                         /* ignore */
@@ -684,18 +683,14 @@ export function ListDetailClient() {
                   className="text-xs font-medium text-kurator-accent hover:underline"
                   onClick={async () => {
                     try {
-                      const stem =
-                        editSlug.trim() ||
-                        editName
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, "-")
-                          .replace(/^-+|-+$/g, "")
-                          .slice(0, 48) ||
-                        "hitlist";
                       const sug = await suggestHitlistSlug({
-                        stem,
+                        stem: editName.trim() || "hitlist",
                         exclude_list_id: id,
+                        alternate: slugBaseUnavailable,
                       });
+                      if (!sug.available) {
+                        setSlugBaseUnavailable(true);
+                      }
                       setEditSlug(sug.available ? sug.slug : (sug.suggested ?? sug.slug));
                     } catch {
                       /* ignore */

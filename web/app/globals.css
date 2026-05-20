@@ -65,6 +65,12 @@
     border-radius: unset;
     box-shadow: none;
   }
+
+  /* Login / register / forgot-password on marketing backgrounds — field-level controls only. */
+  [data-marketing-shell] form {
+    border-radius: unset;
+    box-shadow: none;
+  }
 }
 
 @utility safe-pb {

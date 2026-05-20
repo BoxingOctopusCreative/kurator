@@ -140,13 +140,31 @@ func TestHitlistSlug_rejectsInvalid(t *testing.T) {
 }
 
 func TestHitlistSlugCollisionSuffix(t *testing.T) {
-	s := HitlistSlugCollisionSuffix("my-80s-horror")
-	if s == "" {
-		t.Fatal("empty suffix")
+	s := HitlistSlugCollisionSuffix("80s Horror")
+	if len(s) != 6 {
+		t.Fatalf("want 6 chars, got %q", s)
 	}
 	for _, c := range s {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
 			t.Fatalf("non-alnum %q in %q", c, s)
 		}
+	}
+	if HitlistSlugCollisionSuffix("80s Horror") != s {
+		t.Fatal("expected deterministic suffix")
+	}
+	if HitlistSlugCollisionSuffix("Other Name") == s {
+		t.Fatal("expected different suffix for different name")
+	}
+}
+
+func TestHitlistSlugFromTitle(t *testing.T) {
+	if got := HitlistSlugFromTitle("80s Horror!!"); got != "80s-horror" {
+		t.Fatalf("got %q", got)
+	}
+	if got := HitlistSlugFromTitle(""); got != "hitlist" {
+		t.Fatalf("got %q", got)
+	}
+	if got := HitlistSlugFromTitle("Go"); got != "go-list" {
+		t.Fatalf("got %q", got)
 	}
 }

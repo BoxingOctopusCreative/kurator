@@ -66,6 +66,7 @@ type AuthService struct {
 	users              repository.UserRepository
 	sessions           repository.SessionRepository
 	betaInvites        repository.BetaAccessInviteRepository
+	collections        *repository.PostgresCollectionRepository
 	publicWebBaseURL   string
 	pool               *pgxpool.Pool
 	betaAccessRequired bool
@@ -79,6 +80,7 @@ func NewAuthService(
 	users repository.UserRepository,
 	sessions repository.SessionRepository,
 	betaInvites repository.BetaAccessInviteRepository,
+	collections *repository.PostgresCollectionRepository,
 	publicWebBaseURL string,
 	jwtSecret string,
 	sessionMaxAgeSeconds int,
@@ -95,6 +97,7 @@ func NewAuthService(
 		users:              users,
 		sessions:           sessions,
 		betaInvites:        betaInvites,
+		collections:        collections,
 		publicWebBaseURL:   strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/"),
 		pool:               pool,
 		betaAccessRequired: betaAccessRequired,
@@ -113,6 +116,17 @@ func (s *AuthService) notifyUserRegistered(_ context.Context, u *models.User) {
 	if err := s.notify.EnqueueUserRegistered(bg, u.ID, u.Email); err != nil {
 		log.Printf("user_registered: enqueue failed: %v", err)
 	}
+}
+
+// OnAccountCreated provisions a starter shelf and enqueues post-registration hooks.
+func (s *AuthService) OnAccountCreated(ctx context.Context, u *models.User) {
+	if u == nil {
+		return
+	}
+	if err := ProvisionNewUser(ctx, s.collections, u.ID); err != nil {
+		log.Printf("provision new user %d: %v", u.ID, err)
+	}
+	s.notifyUserRegistered(ctx, u)
 }
 
 func registerUsernameCandidates(preferred, email string) ([]string, error) {
@@ -228,7 +242,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	if err := s.sessions.Create(ctx, u.ID, h, exp); err != nil {
 		return nil, "", err
 	}
-	s.notifyUserRegistered(ctx, u)
+	s.OnAccountCreated(ctx, u)
 	return u, raw, nil
 }
 
@@ -310,7 +324,7 @@ func (s *AuthService) registerWithBetaInvite(ctx context.Context, email, passwor
 	if err := tx.Commit(ctx); err != nil {
 		return nil, "", err
 	}
-	s.notifyUserRegistered(ctx, u)
+	s.OnAccountCreated(ctx, u)
 	return u, rawTok, nil
 }
 
@@ -461,6 +475,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err
+	}
+	if !models.HasPassword(u) {
+		return nil, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
@@ -697,6 +714,9 @@ func (s *AuthService) VerifyPassword(ctx context.Context, userID int64, password
 	if err != nil {
 		return err
 	}
+	if !models.HasPassword(u) {
+		return ErrInvalidCredentials
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
 		return ErrInvalidCredentials
 	}
@@ -756,17 +776,7 @@ func (s *AuthService) DisableTwoFactor(ctx context.Context, userID int64, passwo
 }
 
 func (s *AuthService) newSessionToken() (raw string, hash string, err error) {
-	var b [32]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", "", err
-	}
-	raw = hex.EncodeToString(b[:])
-	return raw, hashSessionToken(raw), nil
-}
-
-func hashSessionToken(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:])
+	return newSessionTokenPair()
 }
 
 func (s *AuthService) signPending2FA(userID int64) (string, error) {

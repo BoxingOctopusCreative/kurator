@@ -8,6 +8,7 @@ type fileConfig struct {
 	Meilisearch fileMeilisearch `toml:"meilisearch"`
 	CORS        fileCORS        `toml:"cors"`
 	Auth        fileAuth        `toml:"auth"`
+	OAuth       fileOAuth       `toml:"oauth"`
 	S3          fileS3          `toml:"s3"`
 	Metadata    fileMetadata    `toml:"metadata"`
 	Turnstile   fileTurnstile   `toml:"turnstile"`
@@ -50,6 +51,13 @@ type fileAuth struct {
 	JWTSecret            string `toml:"jwt_secret"`
 	SessionMaxAgeSeconds int    `toml:"session_max_age_seconds"`
 	CookieSecure         *bool  `toml:"cookie_secure"`
+}
+
+type fileOAuth struct {
+	GoogleClientID        string `toml:"google_client_id"`
+	GoogleClientSecret    string `toml:"google_client_secret"`
+	DiscordClientID       string `toml:"discord_client_id"`
+	DiscordClientSecret   string `toml:"discord_client_secret"`
 }
 
 type fileS3 struct {

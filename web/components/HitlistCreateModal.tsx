@@ -19,11 +19,19 @@ type Props = {
   onCreated: () => void;
 };
 
+function hitlistNameForSlugSuggest(name: string): string {
+  const trimmed = name.trim();
+  return trimmed || "hitlist";
+}
+
 export function HitlistCreateModal({ open, onOpenChange, onCreated }: Props) {
   const { user } = useAuth();
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newVisibility, setNewVisibility] = useState<Visibility>(DEFAULT_VISIBILITY);
+  const [newSlug, setNewSlug] = useState("");
+  const [slugBaseUnavailable, setSlugBaseUnavailable] = useState(false);
+  const [slugSuggesting, setSlugSuggesting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [formMsg, setFormMsg] = useState<string | null>(null);
   const [newIsShared, setNewIsShared] = useState(false);
@@ -35,7 +43,50 @@ export function HitlistCreateModal({ open, onOpenChange, onCreated }: Props) {
   useEffect(() => {
     if (!open) return;
     setFormMsg(null);
+    setSlugBaseUnavailable(false);
   }, [open]);
+
+  useEffect(() => {
+    if (newVisibility !== "public") {
+      setSlugBaseUnavailable(false);
+    }
+  }, [newVisibility]);
+
+  useEffect(() => {
+    if (!open || newVisibility !== "public" || newSlug.trim() !== "") return;
+    let cancelled = false;
+    void suggestHitlistSlug({ stem: hitlistNameForSlugSuggest(newName) })
+      .then((sug) => {
+        if (!cancelled) {
+          setSlugBaseUnavailable(!sug.available);
+          setNewSlug(sug.available ? sug.slug : (sug.suggested ?? sug.slug));
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, newVisibility, newSlug, newName]);
+
+  async function suggestSlugFromName() {
+    setSlugSuggesting(true);
+    try {
+      const sug = await suggestHitlistSlug({
+        stem: hitlistNameForSlugSuggest(newName),
+        alternate: slugBaseUnavailable,
+      });
+      if (!sug.available) {
+        setSlugBaseUnavailable(true);
+      }
+      setNewSlug(sug.available ? sug.slug : (sug.suggested ?? sug.slug));
+    } catch {
+      /* ignore */
+    } finally {
+      setSlugSuggesting(false);
+    }
+  }
 
   useEffect(() => {
     if (!user || !newIsShared || !open) {
@@ -72,14 +123,12 @@ export function HitlistCreateModal({ open, onOpenChange, onCreated }: Props) {
         : undefined;
       let slug: string | undefined;
       if (newVisibility === "public") {
-        const stem =
-          name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "")
-            .slice(0, 48) || "hitlist";
-        const sug = await suggestHitlistSlug({ stem });
-        slug = sug.available ? sug.slug : (sug.suggested ?? sug.slug);
+        const slugTrim = newSlug.trim();
+        if (slugTrim === "") {
+          setFormMsg("Public hitlists need a link address.");
+          return;
+        }
+        slug = slugTrim;
       }
       await createList({
         name,
@@ -96,6 +145,8 @@ export function HitlistCreateModal({ open, onOpenChange, onCreated }: Props) {
       setNewName("");
       setNewDesc("");
       setNewVisibility(DEFAULT_VISIBILITY);
+      setNewSlug("");
+      setSlugBaseUnavailable(false);
       setNewIsShared(false);
       setNewEntriesNumbered(true);
       setInviteFriendIds(new Set());
@@ -158,6 +209,46 @@ export function HitlistCreateModal({ open, onOpenChange, onCreated }: Props) {
             value={newVisibility}
             onChange={setNewVisibility}
           />
+          <div
+            className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+              newVisibility === "public" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+          >
+            <div
+              className="overflow-hidden"
+              aria-hidden={newVisibility !== "public"}
+              {...(newVisibility !== "public" ? { inert: true } : {})}
+            >
+              <div className="space-y-2 rounded-lg border border-kurator-border/80 bg-kurator-bg/30 p-3">
+                <label className="block text-sm">
+                  <span className="text-kurator-muted">Link address (permalink)</span>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 font-mono text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+                    value={newSlug}
+                    onChange={(e) => setNewSlug(e.target.value)}
+                    placeholder="my-awesome-list"
+                    aria-describedby="hitlist-create-slug-hint"
+                    disabled={creating}
+                  />
+                </label>
+                <p id="hitlist-create-slug-hint" className="text-xs text-kurator-muted">
+                  Your public share link:{" "}
+                  <span className="font-mono text-kurator-fg/90">
+                    /hitlists/{newSlug.trim() || "…"}
+                  </span>
+                  . Must be unique across Kurator.
+                </p>
+                <button
+                  type="button"
+                  disabled={creating || slugSuggesting}
+                  className="text-xs font-medium text-kurator-accent hover:underline disabled:opacity-50"
+                  onClick={() => void suggestSlugFromName()}
+                >
+                  {slugSuggesting ? "Checking…" : "Suggest available link"}
+                </button>
+              </div>
+            </div>
+          </div>
           <label className="flex cursor-pointer items-start gap-2 text-sm text-kurator-fg">
             <input
               type="checkbox"

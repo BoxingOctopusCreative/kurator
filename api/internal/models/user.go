@@ -69,6 +69,11 @@ const (
 	AccountStatusDeactivated = "deactivated"
 )
 
+// HasPassword reports whether the account can sign in with email and password.
+func HasPassword(u *User) bool {
+	return u != nil && strings.TrimSpace(u.PasswordHash) != ""
+}
+
 // User is a persisted account (credentials + profile).
 type User struct {
 	ID                            int64           `json:"id"`

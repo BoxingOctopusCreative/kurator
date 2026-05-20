@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,7 +33,7 @@ type SlugSuggestion struct {
 func (s *HitlistService) normalizeOptionalSlug(ctx context.Context, visibility models.Visibility, slug *string, excludeListID string) (*string, error) {
 	if slug == nil || strings.TrimSpace(*slug) == "" {
 		if visibility == models.VisibilityPublic {
-			return nil, fmt.Errorf("public hitlists require a slug")
+			return nil, ErrPublicHitlistRequiresSlug
 		}
 		return nil, nil
 	}
@@ -113,7 +111,7 @@ func (s *HitlistService) UpdateHitlist(ctx context.Context, userID int64, id, na
 	}
 	if targetVis == models.VisibilityPublic {
 		if effectiveSlug == nil || strings.TrimSpace(*effectiveSlug) == "" {
-			return nil, fmt.Errorf("public hitlists require a slug")
+			return nil, ErrPublicHitlistRequiresSlug
 		}
 	}
 	if setComments && commentsEnabled != nil {
@@ -135,15 +133,29 @@ func (s *HitlistService) UpdateHitlist(ctx context.Context, userID int64, id, na
 	return l, nil
 }
 
-// SuggestSlug checks availability and returns a deterministic alphanumeric suffix suggestion when taken.
-func (s *HitlistService) SuggestSlug(ctx context.Context, stem, excludeListID string) (SlugSuggestion, error) {
+// SuggestSlug checks availability and returns a slug derived from the hitlist name, or name plus a
+// six-character suffix from base64(name) when the base slug is taken. When alternate is true (manual
+// re-suggest after a collision suffix was offered), returns name-word-surname using random vocabulary.
+func (s *HitlistService) SuggestSlug(ctx context.Context, stem, excludeListID string, alternate bool) (SlugSuggestion, error) {
 	var out SlugSuggestion
-	norm, err := validation.HitlistSlug(stem)
-	if err != nil {
-		return out, err
+	name := strings.TrimSpace(stem)
+	if name == "" {
+		name = "hitlist"
 	}
-	out.Stem = stem
+	out.Stem = name
+	slugCandidate := validation.HitlistSlugFromTitle(name)
+	norm, err := validation.HitlistSlug(slugCandidate)
+	if err != nil {
+		slugCandidate = "hitlist"
+		norm, err = validation.HitlistSlug(slugCandidate)
+		if err != nil {
+			return out, err
+		}
+	}
 	out.Slug = norm
+	if alternate {
+		return s.suggestSlugMemorable(ctx, norm, excludeListID, out)
+	}
 	taken, err := s.list.SlugInUse(ctx, norm, excludeListID)
 	if err != nil {
 		return out, err
@@ -153,34 +165,10 @@ func (s *HitlistService) SuggestSlug(ctx context.Context, stem, excludeListID st
 		return out, nil
 	}
 	out.Available = false
-	suf := validation.HitlistSlugCollisionSuffix(norm)
-	candidate := norm + "-" + suf
-	inUse, err := s.list.SlugInUse(ctx, candidate, excludeListID)
-	if err != nil {
-		return out, err
-	}
-	if !inUse {
-		out.Suggested = candidate
-		return out, nil
-	}
-	for i := 0; i < 8; i++ {
-		b := make([]byte, 4)
-		if _, err := rand.Read(b); err != nil {
-			continue
-		}
-		enc := base64.RawStdEncoding.EncodeToString(b)
-		var alnum strings.Builder
-		for _, c := range enc {
-			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-				alnum.WriteRune(c)
-			}
-		}
-		tail := alnum.String()
-		if len(tail) > 6 {
-			tail = tail[:6]
-		}
-		candidate = norm + "-" + tail
-		inUse, err = s.list.SlugInUse(ctx, candidate, excludeListID)
+	for block := 0; block < 8; block++ {
+		suf := validation.HitlistSlugCollisionSuffixAt(name, block)
+		candidate := norm + "-" + suf
+		inUse, err := s.list.SlugInUse(ctx, candidate, excludeListID)
 		if err != nil {
 			return out, err
 		}
@@ -189,8 +177,57 @@ func (s *HitlistService) SuggestSlug(ctx context.Context, stem, excludeListID st
 			return out, nil
 		}
 	}
-	out.Suggested = norm + "-pick-another"
+	out.Suggested = norm + "-" + validation.HitlistSlugCollisionSuffix(name)
 	return out, nil
+}
+
+func (s *HitlistService) suggestSlugMemorable(ctx context.Context, baseNorm, excludeListID string, out SlugSuggestion) (SlugSuggestion, error) {
+	out.Available = false
+	base := trimHitlistSlugBaseForMemorable(baseNorm)
+	var lastCandidate string
+	for i := 0; i < 24; i++ {
+		word, err := randomHitlistSlugWord()
+		if err != nil {
+			return out, err
+		}
+		surname, err := randomHitlistCelebritySurname()
+		if err != nil {
+			return out, err
+		}
+		candidate := hitlistMemorableSlugCandidate(base, word, surname)
+		if _, err := validation.HitlistSlug(candidate); err != nil {
+			continue
+		}
+		lastCandidate = candidate
+		inUse, err := s.list.SlugInUse(ctx, candidate, excludeListID)
+		if err != nil {
+			return out, err
+		}
+		if !inUse {
+			out.Suggested = candidate
+			return out, nil
+		}
+	}
+	if lastCandidate != "" {
+		out.Suggested = lastCandidate
+		return out, nil
+	}
+	out.Suggested = base + "-spark-hepburn"
+	return out, nil
+}
+
+func trimHitlistSlugBaseForMemorable(base string) string {
+	const maxLen = 100
+	// Reserve room for "-word-surname" (shortest ~ -3-3 = 8 chars; longest adverb+surname ~ 6+7 + 2 hyphens)
+	const suffixBudget = 20
+	if len(base) <= maxLen-suffixBudget {
+		return base
+	}
+	trimmed := strings.TrimRight(base[:maxLen-suffixBudget], "-")
+	if trimmed == "" {
+		return "hitlist"
+	}
+	return trimmed
 }
 
 func (s *HitlistService) Vote(ctx context.Context, listID string, userID int64) error {

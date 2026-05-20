@@ -17,6 +17,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@fontsource/opendyslexic": "^5.2.5",
     "@sentry/nextjs": "^10.49.0",
+    "@simplewebauthn/browser": "^13.3.0",
     "@tiptap/core": "^3.23.4",
     "@tiptap/extension-emoji": "^3.23.4",
     "@tiptap/extension-link": "^3.23.4",

@@ -18,6 +18,8 @@ var ErrUsernameTaken = errors.New("username already taken")
 type UserRepository interface {
 	Create(ctx context.Context, email, passwordHash, displayName, username string) (*models.User, error)
 	CreateTx(ctx context.Context, tx pgx.Tx, email, passwordHash, displayName, username string) (*models.User, error)
+	CreateOAuth(ctx context.Context, email, displayName, username string, avatarURL *string) (*models.User, error)
+	CreateOAuthTx(ctx context.Context, tx pgx.Tx, email, displayName, username string, avatarURL *string) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
 	GetByID(ctx context.Context, id int64) (*models.User, error)
 	GetIDByUsernameCI(ctx context.Context, username string) (int64, error)
@@ -46,9 +48,13 @@ func userScanCols() string {
 func scanUser(row pgx.Row) (*models.User, error) {
 	var u models.User
 	var sl []byte
+	var passwordHash *string
 	err := row.Scan(
-		&u.ID, &u.AccountStatus, &u.Email, &u.PasswordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.AccountStatus, &u.Email, &passwordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
 	)
+	if passwordHash != nil {
+		u.PasswordHash = *passwordHash
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +90,48 @@ func (r *PostgresUserRepository) CreateTx(ctx context.Context, tx pgx.Tx, email,
 		VALUES ($1, $2, $3, $4, TRUE)
 		RETURNING `+userScanCols(),
 		email, passwordHash, displayName, username)
+	u, err := scanUser(row)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(strings.ToLower(pgErr.ConstraintName), "username") || strings.Contains(strings.ToLower(pgErr.ConstraintName), "idx_users_username") {
+				return nil, ErrUsernameTaken
+			}
+			return nil, ErrEmailTaken
+		}
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *PostgresUserRepository) CreateOAuth(ctx context.Context, email, displayName, username string, avatarURL *string) (*models.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO users (email, password_hash, display_name, username, username_locked, avatar_url)
+		VALUES ($1, NULL, $2, $3, TRUE, $4)
+		RETURNING `+userScanCols(),
+		email, displayName, username, avatarURL)
+	u, err := scanUser(row)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(strings.ToLower(pgErr.ConstraintName), "username") || strings.Contains(strings.ToLower(pgErr.ConstraintName), "idx_users_username") {
+				return nil, ErrUsernameTaken
+			}
+			return nil, ErrEmailTaken
+		}
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *PostgresUserRepository) CreateOAuthTx(ctx context.Context, tx pgx.Tx, email, displayName, username string, avatarURL *string) (*models.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	row := tx.QueryRow(ctx, `
+		INSERT INTO users (email, password_hash, display_name, username, username_locked, avatar_url)
+		VALUES ($1, NULL, $2, $3, TRUE, $4)
+		RETURNING `+userScanCols(),
+		email, displayName, username, avatarURL)
 	u, err := scanUser(row)
 	if err != nil {
 		var pgErr *pgconn.PgError

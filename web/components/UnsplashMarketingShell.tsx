@@ -89,7 +89,10 @@ export function UnsplashMarketingShell({
   const photographerPageHref = bg?.photographerUrl ? safeHttpUrl(bg.photographerUrl) : null;
 
   return (
-    <div className="relative isolate flex h-dvh w-full max-w-none flex-col overflow-hidden">
+    <div
+      data-marketing-shell
+      className="relative isolate flex h-dvh w-full max-w-none flex-col overflow-hidden"
+    >
       {bg && (
         <>
           {/*

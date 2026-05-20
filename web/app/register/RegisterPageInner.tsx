@@ -8,6 +8,7 @@ import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { AuthBetaGate } from "@/components/AuthBetaGate";
+import { OAuthSignInButtons } from "@/components/OAuthSignInButtons";
 import { register } from "@/lib/auth";
 import { Copyright } from "@/components/Copyright";
 
@@ -73,7 +74,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
           </div>
           <h1 className="text-2xl font-semibold text-kurator-fg">Create Account</h1>
           <p className="mt-1 text-sm text-kurator-muted">
-            Kurator stores credentials in your database — no external identity provider.
+            Sign up with email and password, or continue with Google or Discord when enabled.
           </p>
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
@@ -148,6 +149,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
             >
               {busy ? "Creating…" : "Create Account"}
             </button>
+            <OAuthSignInButtons nextPath="/" disabled={busy} />
           </form>
 
           <p className="mt-8 text-center text-sm text-kurator-muted">

@@ -29,7 +29,7 @@ Kurator is a collection tracker: a **Go (Fiber) REST API**, a **Next.js** web ap
 
 - In the **browser**, the client uses same-origin paths under **`/api/v1/...`** and **`/api/v2/...`**. Next.js proxies those to the real API (`web/app/api/v1/[[...path]]/route.ts`, `web/app/api/v2/[[...path]]/route.ts`) so the **session cookie** stays on the web origin (important for production and for local dev on `http://localhost:3000`).
 - **Server-side** rendering and server actions resolve the upstream API with **`API_INTERNAL_URL`** (or **`API_PROXY_TARGET`**), then **`NEXT_PUBLIC_API_URL`** as fallback (see `web/lib/apiUrl.ts`).
-- **Native apps and other non-browser clients** should call the **Go API host** directly (for example `https://api.example.com/api/v1/...`). Authenticate with **`Authorization: Bearer <session_token>`**; the opaque **`session_token`** is returned in JSON from **`POST /api/v1/auth/register`**, **`POST /api/v1/auth/login`** (when 2FA is not required), and **`POST /api/v1/auth/login/2fa`**, in addition to **`Set-Cookie: kurator_session`** for clients that use cookies. Details and OpenAPI models: **`api/docs/swagger.json`** (`BearerToken`, `RegisterResponse`, `LoginResponse`, `Login2FAResponse`). If both cookie and Bearer are sent, the **cookie takes precedence** (same as the API middleware).
+- **Native apps and other non-browser clients** should call the **Go API host** directly (for example `https://api.example.com/api/v1/...`). Authenticate with **`Authorization: Bearer <session_token>`**; the opaque **`session_token`** is returned in JSON from **`POST /api/v1/auth/register`**, **`POST /api/v1/auth/login`** (when 2FA is not required), **`POST /api/v1/auth/login/2fa`**, and **`POST /api/v1/auth/webauthn/login/finish`**, in addition to **`Set-Cookie: kurator_session`** for clients that use cookies. **Passkeys** require the WebAuthn RP ID to match the site host (`PUBLIC_WEB_BASE_URL`); add passkeys while signed in via **`/me/webauthn/register/*`** (see App Settings on web). Details and OpenAPI models: **`api/docs/swagger.json`** (`BearerToken`, `RegisterResponse`, `LoginResponse`, `Login2FAResponse`). If both cookie and Bearer are sent, the **cookie takes precedence** (same as the API middleware).
 ---
 
 ## Production stack (`docker-compose.yml` at repo root)
@@ -76,6 +76,10 @@ export MEILISEARCH_HOST='http://localhost:7700'
 export MEILISEARCH_API_KEY='dev_master_key'
 export MEILISEARCH_INDEX='kurator_items'
 export AUTH_JWT_SECRET='your-local-secret'
+export PUBLIC_WEB_BASE_URL='http://localhost:3000'
+# Optional OAuth (register redirect URIs: $PUBLIC_WEB_BASE_URL/api/v1/auth/oauth/{google|discord}/callback):
+# export GOOGLE_OAUTH_CLIENT_ID=... GOOGLE_OAUTH_CLIENT_SECRET=...
+# export DISCORD_OAUTH_CLIENT_ID=... DISCORD_OAUTH_CLIENT_SECRET=...
 export REDIS_URL='redis://localhost:6379/0'
 # S3 (production bucket or R2; required for cover/avatar uploads):
 # export S3_BUCKET=... S3_ENDPOINT=... S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... S3_PUBLIC_BASE_URL=...

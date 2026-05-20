@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
+import { AppSettingsOAuthSection } from "@/components/settings/AppSettingsOAuthSection";
+import { AppSettingsPasskeysSection } from "@/components/settings/AppSettingsPasskeysSection";
+import { oauthLinkErrorMessage, oauthLinkedSuccessMessage } from "@/lib/oauth";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { useAuth } from "@/components/AuthProvider";
 import { ColorSchemeSelect } from "@/components/ColorSchemeSelect";
@@ -30,7 +33,10 @@ import {
 
 export function AppSettingsClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refresh: refreshAuth, user: sessionUser } = useAuth();
+  const oauthLinkError = oauthLinkErrorMessage(searchParams.get("oauth_link_error"));
+  const oauthLinkedSuccess = oauthLinkedSuccessMessage(searchParams.get("oauth_linked"));
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -529,6 +535,18 @@ export function AppSettingsClient() {
           </span>
         </label>
       </section>
+
+      {user.email ? (
+        <AppSettingsOAuthSection
+          oauthLinkError={oauthLinkError}
+          oauthLinkedSuccess={oauthLinkedSuccess}
+          onClearOAuthFeedback={() => {
+            router.replace("/settings/app");
+          }}
+        />
+      ) : null}
+
+      <AppSettingsPasskeysSection />
 
       <section className="space-y-4 border-t border-kurator-border pt-8">
         <h2 className="kurator-panel-title text-kurator-fg">Two-Factor Authentication</h2>

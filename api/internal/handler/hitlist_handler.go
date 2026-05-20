@@ -65,6 +65,7 @@ func (h *HitlistHandler) detail(ctx context.Context, l *models.List, viewer *int
 type suggestSlugBody struct {
 	Stem          string `json:"stem"`
 	ExcludeListID string `json:"exclude_list_id"`
+	Alternate     bool   `json:"alternate"`
 }
 
 func (h *HitlistHandler) SuggestSlug(c *fiber.Ctx) error {
@@ -76,9 +77,9 @@ func (h *HitlistHandler) SuggestSlug(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid json")
 	}
-	out, err := h.hit.SuggestSlug(c.Context(), body.Stem, body.ExcludeListID)
+	out, err := h.hit.SuggestSlug(c.Context(), body.Stem, body.ExcludeListID, body.Alternate)
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return httpx.ServiceError(fiber.StatusBadRequest, err)
 	}
 	return c.JSON(out)
 }
@@ -113,10 +114,7 @@ func (h *HitlistHandler) Create(c *fiber.Ctx) error {
 	}
 	l, err := h.hit.CreateHitlist(c.Context(), uid, body.Name, body.Description, vis, body.IsShared, body.Slug, body.CommentsEnabled, body.EntriesNumbered)
 	if err != nil {
-		if errors.Is(err, repository.ErrListSlugTaken) {
-			return fiber.NewError(fiber.StatusConflict, err.Error())
-		}
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return httpx.ServiceError(fiber.StatusBadRequest, err)
 	}
 	if h.share != nil && body.IsShared && len(body.InviteUserIDs) > 0 {
 		if err := h.share.InviteToShelf(c.Context(), uid, repository.ShelfKindList, l.ID, body.InviteUserIDs); err != nil {
@@ -128,7 +126,7 @@ func (h *HitlistHandler) Create(c *fiber.Ctx) error {
 	}
 	d, err := h.detail(c.Context(), l, &uid)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		return httpx.ServiceError(fiber.StatusInternalServerError, err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(d)
 }
@@ -220,11 +218,8 @@ func (h *HitlistHandler) Update(c *fiber.Ctx) error {
 	if errors.Is(err, repository.ErrListNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
 	}
-	if errors.Is(err, repository.ErrListSlugTaken) {
-		return fiber.NewError(fiber.StatusConflict, err.Error())
-	}
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return httpx.ServiceError(fiber.StatusBadRequest, err)
 	}
 	if len(body.InviteUserIDs) > 0 {
 		if !l.IsShared {

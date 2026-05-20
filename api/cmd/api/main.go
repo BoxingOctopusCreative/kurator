@@ -217,6 +217,7 @@ func runAPI(cfg config.Config) error {
 		userRepo,
 		sessionRepo,
 		betaInviteRepo,
+		collRepo,
 		publicWeb,
 		cfg.AuthJWTSecret,
 		cfg.SessionMaxAge,
@@ -248,7 +249,59 @@ func runAPI(cfg config.Config) error {
 	notifH := handler.NewNotificationHandler(notifRepo)
 	searchH := handler.NewSearchHandler(searchSvc)
 	metaH := handler.NewMetadataHandler(metaSvc)
+	oauthIdentityRepo := repository.NewPostgresOAuthIdentityRepository(pool)
+	oauthSvc := service.NewOAuthService(
+		pool,
+		userRepo,
+		oauthIdentityRepo,
+		sessionRepo,
+		betaInviteRepo,
+		cfg.BetaAccessRequired,
+		authSvc,
+		service.OAuthServiceConfig{
+			RedirectBaseURL:      publicWeb,
+			GoogleClientID:       cfg.GoogleOAuthClientID,
+			GoogleClientSecret:   cfg.GoogleOAuthClientSecret,
+			DiscordClientID:      cfg.DiscordOAuthClientID,
+			DiscordClientSecret:      cfg.DiscordOAuthClientSecret,
+			JWTSecret:            cfg.AuthJWTSecret,
+			SessionMaxAgeSeconds: cfg.SessionMaxAge,
+			BetaAccessRequired:   cfg.BetaAccessRequired,
+		},
+	)
+	if providers := oauthSvc.EnabledProviders(); len(providers) > 0 {
+		names := make([]string, 0, len(providers))
+		for _, p := range providers {
+			names = append(names, p.ID)
+		}
+		logStartup("oauth", "enabled: "+strings.Join(names, ", "))
+	} else {
+		logStartup("oauth", "skipped (no provider credentials configured)")
+	}
 	authH := handler.NewAuthHandler(authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.TurnstileEnabled, cfg.TurnstileSecretKey, cfg.BetaAccessRequired, publicWeb)
+	oauthH := handler.NewOAuthHandler(oauthSvc, authSvc, cfg.CookieSecure, cfg.SessionMaxAge, cfg.BetaAccessRequired, publicWeb)
+	webauthnCredRepo := repository.NewPostgresWebAuthnCredentialRepository(pool)
+	webauthnSvc, err := service.NewWebAuthnService(
+		userRepo,
+		webauthnCredRepo,
+		oauthIdentityRepo,
+		sessionRepo,
+		service.WebAuthnServiceConfig{
+			PublicWebBaseURL: publicWeb,
+			CORSOrigins:      cfg.CORSOrigins,
+			JWTSecret:        cfg.AuthJWTSecret,
+			SessionMaxAgeSec: cfg.SessionMaxAge,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("webauthn: %w", err)
+	}
+	if webauthnSvc.Enabled() {
+		logStartup("webauthn", "passkeys enabled")
+	} else {
+		logStartup("webauthn", "skipped (set PUBLIC_WEB_BASE_URL or CORS origin)")
+	}
+	webauthnH := handler.NewWebAuthnHandler(webauthnSvc, cfg.CookieSecure, cfg.SessionMaxAge)
 	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	accountDeletionH := handler.NewAccountDeletionHandler(accountDeletionSvc)
 	requireAuth := middleware.RequireAuth(authSvc)
@@ -285,9 +338,15 @@ func runAPI(cfg config.Config) error {
 	v1.Post("/auth/beta/request-access", authH.BetaRequestAccess)
 	v1.Get("/auth/beta/approve-access", authH.BetaApproveAccess)
 	v1.Get("/auth/beta/open-invite", authH.BetaOpenInvite)
+	v1.Get("/auth/oauth/providers", oauthH.ListProviders)
+	v1.Get("/auth/oauth/:provider/callback", oauthH.Callback)
+	v1.Get("/auth/oauth/:provider", oauthH.Start)
 	v1.Post("/auth/register", authH.Register)
 	v1.Post("/auth/login", authH.Login)
 	v1.Post("/auth/login/2fa", authH.Login2FA)
+	v1.Get("/auth/webauthn/status", webauthnH.Status)
+	v1.Post("/auth/webauthn/login/begin", webauthnH.LoginBegin)
+	v1.Post("/auth/webauthn/login/finish", webauthnH.LoginFinish)
 	v1.Post("/auth/logout", authH.Logout)
 	v1.Post("/auth/forgot-password", recoveryH.ForgotPassword)
 	v1.Post("/auth/forgot-password/verify", recoveryH.VerifyForgotPassword)
@@ -297,6 +356,9 @@ func runAPI(cfg config.Config) error {
 	me := v1.Group("/me", requireAuth)
 	me.Get("/", authH.Me)
 	me.Patch("/", authH.PatchMe)
+	me.Get("/oauth/identities", oauthH.ListMyIdentities)
+	me.Get("/oauth/:provider/link", oauthH.StartLink)
+	me.Delete("/oauth/:provider", oauthH.Unlink)
 	me.Get("/notifications/unread-count", notifH.UnreadCount)
 	me.Get("/notifications", notifH.List)
 	me.Patch("/notifications/:id/read", notifH.MarkRead)
@@ -304,6 +366,11 @@ func runAPI(cfg config.Config) error {
 	me.Post("/2fa/setup", authH.TwoFASetup)
 	me.Post("/2fa/enable", authH.TwoFAEnable)
 	me.Post("/2fa/disable", authH.TwoFADisable)
+	me.Get("/webauthn/credentials", webauthnH.ListMyCredentials)
+	me.Post("/webauthn/register/begin", webauthnH.RegisterBegin)
+	me.Post("/webauthn/register/finish", webauthnH.RegisterFinish)
+	me.Patch("/webauthn/credentials/:id", webauthnH.RenameCredential)
+	me.Delete("/webauthn/credentials/:id", webauthnH.DeleteCredential)
 	me.Post("/password/verification-code", recoveryH.RequestMePasswordVerificationCode)
 	me.Post("/password", recoveryH.ChangeMePassword)
 	me.Get("/friends", socialH.ListMyFriends)

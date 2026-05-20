@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
+import { OAuthSignInButtons } from "@/components/OAuthSignInButtons";
+import { PasskeySignInButton } from "@/components/PasskeySignInButton";
 import { completeLogin2FA, login } from "@/lib/auth";
+import { oauthErrorMessage } from "@/lib/oauth";
 
 type Props = {
   turnstileSiteKey: string;
@@ -16,6 +19,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
   const passwordJustReset = searchParams.get("reset") === "1";
+  const oauthError = oauthErrorMessage(searchParams.get("oauth_error"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -80,6 +84,11 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
           Your password was updated. You can log in with your new password.
         </p>
       )}
+      {oauthError && (
+        <p className="mt-4 rounded-lg border border-red-800/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
+          {oauthError}
+        </p>
+      )}
 
       {!pendingToken ? (
         <form onSubmit={onPasswordLogin} className="mt-8 space-y-4">
@@ -132,6 +141,18 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
           >
             {busy ? "Please wait…" : "Continue"}
           </button>
+          <div className="space-y-3">
+            <PasskeySignInButton
+              email={email}
+              disabled={busy}
+              onSuccess={() => {
+                router.push(next);
+                router.refresh();
+              }}
+              onError={setMessage}
+            />
+            <OAuthSignInButtons nextPath={next} disabled={busy} />
+          </div>
         </form>
       ) : (
         <form onSubmit={on2FA} className="mt-8 space-y-4">

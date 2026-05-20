@@ -42,6 +42,10 @@ services:
       BETA_ACCESS_REQUIRED: $BETA_ACCESS_REQUIRED
       PUBLIC_WEB_BASE_URL: https://kuratorapp.cc
       BETA_DISCORD_WEBHOOK: $BETA_DISCORD_WEBHOOK
+      GOOGLE_OAUTH_CLIENT_ID: $GOOGLE_OAUTH_CLIENT_ID
+      GOOGLE_OAUTH_CLIENT_SECRET: $GOOGLE_OAUTH_CLIENT_SECRET
+      DISCORD_OAUTH_CLIENT_ID: $DISCORD_OAUTH_CLIENT_ID
+      DISCORD_OAUTH_CLIENT_SECRET: $DISCORD_OAUTH_CLIENT_SECRET
       ## Valkey/Redis — optional durable queue for beta + registration outbound notifications (retries, dead-letter).
       REDIS_URL: redis://10.0.0.204:6379/0
       REDIS_NOTIFY_QUEUE_KEY: kurator:notify:jobs

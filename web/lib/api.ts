@@ -1270,8 +1270,11 @@ export type HitlistSlugSuggestion = {
 };
 
 export async function suggestHitlistSlug(body: {
+  /** Hitlist display name; the API derives the slug and collision suffix from this. */
   stem: string;
   exclude_list_id?: string;
+  /** When true, suggest a memorable slug (name-word-surname) after the base slug was taken. */
+  alternate?: boolean;
 }): Promise<HitlistSlugSuggestion> {
   const res = await fetch(apiUrl("/hitlists/slug-suggestions", { version: "v2" }), {
     method: "POST",
@@ -1280,6 +1283,7 @@ export async function suggestHitlistSlug(body: {
     body: JSON.stringify({
       stem: body.stem.trim(),
       exclude_list_id: body.exclude_list_id ?? "",
+      alternate: body.alternate === true,
     }),
   });
   if (res.status === 401) throw new Error("Sign in.");
@@ -1370,9 +1374,10 @@ export async function createList(body: {
     body: JSON.stringify(payload),
   });
   if (res.status === 401) throw new Error("Sign in to create a list.");
+  if (res.status === 409) throw new Error("That link is already in use.");
   if (!res.ok) {
-    const t = await res.text();
-    throw new Error(t || `create list: ${res.status}`);
+    const t = (await res.text()).trim();
+    throw new Error(t || "Could not create list. Please try again.");
   }
   return res.json();
 }
@@ -1414,8 +1419,9 @@ export async function updateList(
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const t = await res.text();
-    throw new Error(t || `update list: ${res.status}`);
+    if (res.status === 409) throw new Error("That link is already in use.");
+    const t = (await res.text()).trim();
+    throw new Error(t || "Could not update list. Please try again.");
   }
   return res.json();
 }

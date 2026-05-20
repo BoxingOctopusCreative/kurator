@@ -53,4 +53,9 @@ type Config struct {
 	RedisURL string
 	// RedisNotifyQueueKey is the Redis list key for outbound notification jobs (env: REDIS_NOTIFY_QUEUE_KEY).
 	RedisNotifyQueueKey string
+	// OAuth (optional): Google and Discord sign-in. Redirect uses PublicWebBaseURL + /api/v1/auth/oauth/{provider}/callback.
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	DiscordOAuthClientID    string
+	DiscordOAuthClientSecret string
 }

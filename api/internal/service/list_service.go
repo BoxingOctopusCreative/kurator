@@ -84,8 +84,8 @@ func (s *ListService) Create(ctx context.Context, userID int64, name, descriptio
 	if visibility != nil && (*visibility).Valid() {
 		vis = *visibility
 	}
-	if vis == models.VisibilityPublic {
-		return nil, fmt.Errorf("create public lists via POST /api/v2/hitlists with a slug")
+	if vis == models.VisibilityPublic && (slug == nil || strings.TrimSpace(*slug) == "") {
+		return nil, ErrPublicHitlistRequiresSlug
 	}
 	return s.list.Create(ctx, userID, n, descPtr, vis, isShared, slug, commentsEnabled, entriesNumbered)
 }

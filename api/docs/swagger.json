@@ -105,6 +105,116 @@
         }
       }
     },
+    "/api/v1/auth/oauth/providers": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List OAuth providers",
+        "description": "Returns configured OAuth providers (google, discord) for the sign-in UI. Empty when credentials are not set.",
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "providers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/{provider}": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Start OAuth sign-in",
+        "description": "Redirects the browser to Google or Discord. On success, **GET /auth/oauth/{provider}/callback** sets **kurator_session** and redirects to the web app **next** path (default /). When private beta is off, unknown accounts are registered and provisioned with a starter collection. When **BETA_ACCESS_REQUIRED** is on, OAuth is login-only for existing linked accounts; new sign-ups use email invite + **POST /auth/register**.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "google",
+              "discord"
+            ]
+          },
+          {
+            "name": "next",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Relative path after success (default /)"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to provider"
+          },
+          "404": {
+            "description": "Provider unknown or not configured"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/{provider}/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "OAuth callback",
+        "description": "Exchanges the authorization code, creates or logs in the user, sets **kurator_session**, and redirects to the web app. Errors redirect to **/login?oauth_error=** with a machine-readable code.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "google",
+              "discord"
+            ]
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to app or login with error"
+          }
+        }
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "tags": [
@@ -237,6 +347,117 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/webauthn/status": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Passkey availability",
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/webauthn/login/begin": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Begin passkey login",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ceremony options (publicKey) and session_token"
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/webauthn/login/finish": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Finish passkey login",
+        "description": "Returns **user**, **session_token**, and sets **kurator_session**. Passkey login skips TOTP even when 2FA is enabled.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "session_token",
+                "credential"
+              ],
+              "properties": {
+                "session_token": {
+                  "type": "string"
+                },
+                "credential": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/LoginResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Account deactivated"
           }
         }
       }
@@ -803,6 +1024,273 @@
           },
           "400": {
             "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/webauthn/credentials": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List passkeys",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/webauthn/register/begin": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Begin passkey registration",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Ceremony options and session_token"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/webauthn/register/finish": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Finish passkey registration",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Credential already registered"
+          }
+        }
+      }
+    },
+    "/api/v1/me/webauthn/credentials/{id}": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Rename passkey",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete passkey",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Last auth method"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/oauth/identities": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List linked OAuth providers",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/oauth/{provider}/link": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Start OAuth account link",
+        "description": "Redirects to Google or Discord to link the provider to the signed-in account. Provider email may differ from the Kurator account email. Completes at the shared OAuth callback; redirects to settings with oauth_linked or oauth_link_error.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "google",
+              "discord"
+            ]
+          },
+          {
+            "name": "next",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to provider"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/oauth/{provider}": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Unlink OAuth provider",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "google",
+              "discord"
+            ]
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unlinked"
+          },
+          "400": {
+            "description": "Bad Request (e.g. last auth method)"
           },
           "401": {
             "description": "Unauthorized"
@@ -4045,6 +4533,33 @@
           },
           {
             "BearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "stem": {
+                  "type": "string",
+                  "description": "Hitlist display name"
+                },
+                "exclude_list_id": {
+                  "type": "string",
+                  "description": "List UUID to exclude from slug collision checks"
+                },
+                "alternate": {
+                  "type": "boolean",
+                  "description": "When true, suggest a memorable slug (name-word-surname) after the base slug was taken"
+                }
+              },
+              "required": [
+                "stem"
+              ]
+            }
           }
         ],
         "responses": {

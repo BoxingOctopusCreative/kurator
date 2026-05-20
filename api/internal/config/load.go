@@ -208,6 +208,30 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 			fc.Redis.NotifyQueueKey,
 			"kurator:notify:jobs",
 		),
+		GoogleOAuthClientID: mergeString(
+			"GOOGLE_OAUTH_CLIENT_ID",
+			"",
+			fc.OAuth.GoogleClientID,
+			"",
+		),
+		GoogleOAuthClientSecret: mergeString(
+			"GOOGLE_OAUTH_CLIENT_SECRET",
+			"",
+			fc.OAuth.GoogleClientSecret,
+			"",
+		),
+		DiscordOAuthClientID: mergeString(
+			"DISCORD_OAUTH_CLIENT_ID",
+			"",
+			fc.OAuth.DiscordClientID,
+			"",
+		),
+		DiscordOAuthClientSecret: mergeString(
+			"DISCORD_OAUTH_CLIENT_SECRET",
+			"",
+			fc.OAuth.DiscordClientSecret,
+			"",
+		),
 	}
 
 	return cfg, nil
