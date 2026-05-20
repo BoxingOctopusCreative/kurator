@@ -144,7 +144,7 @@ export function WishlistsBrowser({ initialFilters }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-kurator-fg md:text-3xl">Wishlists</h1>
           <p className="mt-1 text-sm text-kurator-muted">
-            Track what you want. Choose who can see each wishlist — yourself only, your followers, or just mutuals.
+            Track what you want. Choose who can see each wishlist: yourself only, your followers, or just mutuals.
             Link a wishlist to a collection so items move to the right shelf when you get them.
           </p>
         </div>

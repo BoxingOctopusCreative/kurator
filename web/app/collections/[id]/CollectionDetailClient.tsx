@@ -1481,7 +1481,7 @@ export function CollectionDetailClient() {
                               </span>
                             </td>
                             <td className="align-top px-3 py-3 text-kurator-muted">
-                              {formatLabel || "—"}
+                              {formatLabel || "-"}
                             </td>
                             <td className="align-top px-3 py-3 text-kurator-muted">
                               <span className="inline-flex rounded-full border border-kurator-border/80 bg-kurator-bg px-2 py-0.5 text-[11px] font-medium text-kurator-fg">
@@ -1498,7 +1498,7 @@ export function CollectionDetailClient() {
                               />
                             </td>
                             <td className="align-top px-3 py-3 text-kurator-muted">
-                              {year || "—"}
+                              {year || "-"}
                             </td>
                             {isOwner && (
                               <td

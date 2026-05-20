@@ -34,7 +34,7 @@ const COPY = {
     moveLabel: "Move links to",
     movePlaceholder: "Select a list…",
     discardLabel:
-      "Discard all links on this list (removes this list’s pointers only — does not delete items from collections)",
+      "Discard all links on this list (removes this list’s pointers only; does not delete items from collections)",
     emptyHint: "This list will be removed. Items on your shelves are unchanged.",
   },
   wishlist: {

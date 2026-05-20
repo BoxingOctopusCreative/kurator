@@ -223,7 +223,7 @@ export function PeopleHomeClient() {
         <h2 id="friends-heading" className="kurator-panel-title text-kurator-fg">
           Friends
         </h2>
-        <p className="mt-1 text-xs text-kurator-muted">Mutual followers — you and they follow each other.</p>
+        <p className="mt-1 text-xs text-kurator-muted">Mutual followers: you and they follow each other.</p>
         {friendsError ? (
           <p className="mt-3 text-sm text-amber-200/90" role="alert">
             {friendsError}

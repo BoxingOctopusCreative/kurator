@@ -166,7 +166,7 @@ export function WishlistCreateModal({
               value={targetCol}
               onChange={(e) => setTargetCol(e.target.value)}
             >
-              <option value="">None — choose when you obtain each item</option>
+              <option value="">None (choose when you obtain each item)</option>
               {collectionOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

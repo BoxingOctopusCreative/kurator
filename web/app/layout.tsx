@@ -29,7 +29,7 @@ const atkinsonHyperlegible = Atkinson_Hyperlegible({
 const htmlFontVars = [cabin.variable, lexend.variable, atkinsonHyperlegible.variable].join(" ");
 
 const siteDescription =
-  "Kurator is your personal collection tracker — games, music, books, movies, TV, and anime. Organize, track, and share the stuff you obsess over.";
+  "Kurator is your personal collection tracker for games, music, books, movies, TV, and anime. Organize, track, and share the stuff you obsess over.";
 
 const brandIconUrl = "https://assets.kuratorapp.cc/brand/PNG/kurator_favicon-white.png";
 const ogImageUrl = "https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png";

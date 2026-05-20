@@ -618,7 +618,7 @@ export function ListDetailClient() {
                     onChange={setEditDesc}
                     variant="full"
                     disabled={savingMeta}
-                    placeholder="Optional — supports lists, links, emphasis…"
+                    placeholder="Optional (supports lists, links, emphasis…)"
                   />
                 </div>
               </label>

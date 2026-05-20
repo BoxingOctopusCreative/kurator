@@ -170,7 +170,7 @@ export default function AddItemPage() {
           <span>
             <span className="font-medium text-kurator-fg">Not on a shelf</span>
             <span className="mt-0.5 block text-xs text-kurator-muted">
-              Standalone item—you can move it onto a shelf later from the item page or opt into a shelf
+              Standalone item. You can move it onto a shelf later from the item page or opt into a shelf
               below.
             </span>
           </span>
@@ -189,11 +189,11 @@ export default function AddItemPage() {
             required={!standalone}
           >
             {standalone ? (
-              <option value="">—</option>
+              <option value="">-</option>
             ) : allCollections.length === 0 ? (
               <option value="">Loading collections…</option>
             ) : visibleCollections.length === 0 ? (
-              <option value="">No shelf for this category — create one on Collections</option>
+              <option value="">No shelf for this category. Create one on Collections</option>
             ) : (
               visibleCollections.map((c) => (
                 <option key={c.id} value={c.id}>

@@ -282,7 +282,7 @@ export function AppSettingsClient() {
       <section className="space-y-3">
         <h2 className="kurator-panel-title text-kurator-fg">Change Password</h2>
         <p className="text-sm text-kurator-muted">
-          Your new password takes effect immediately. All sessions are signed out, including this browser — you will log in
+          Your new password takes effect immediately. All sessions are signed out, including this browser. You will log in
           again with the new password.
         </p>
         {user.two_factor_enabled ? (
@@ -464,7 +464,7 @@ export function AppSettingsClient() {
             <span className="font-medium text-kurator-fg">Compact mode</span>
             <span className="mt-0.5 block text-xs text-kurator-muted">
               On desktop widths, starts the left navigation as the narrow/icon strip. Applies on this browser only; use
-              the chevron control on the nav edge anytime to widen or shrink it — this checkbox matches that preference.
+              the chevron control on the nav edge anytime to widen or shrink it. This checkbox matches that preference.
             </span>
           </span>
         </label>

@@ -121,7 +121,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
                 className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                placeholder="your-public-url — lowercase letters, digits, _ -"
+                placeholder="your-public-url (lowercase letters, digits, _ -)"
               />
               <span className="mt-1 block text-xs text-kurator-muted">
                 Your profile will be at /people/your-username. Leave blank to pick one from your email.
