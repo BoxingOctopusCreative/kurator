@@ -62,8 +62,8 @@ github.com/go-webauthn/webauthn v0.12.1 h1:fQNKWc+gd7i1TW8FmlB0jQTHyc2GYYlV/QdLU
 github.com/go-webauthn/webauthn v0.12.1/go.mod h1:Q13xKHZi459wU8IoFjm8jQ6CMRyad+kegblwMFFhQGU=
 github.com/go-webauthn/x v0.1.18 h1:9xxiKRKCHx/1R2RF+4xb1qY5QDIO0RlTmH5L02lmRH4=
 github.com/go-webauthn/x v0.1.18/go.mod h1:Q/uHdGGFrZ7psEcoEStYunurZuG3Z9UDZJetM8qDTtA=
-github.com/gofiber/fiber/v2 v2.52.12 h1:0LdToKclcPOj8PktUdIKo9BUohjjwfnQl42Dhw8/WUw=
-github.com/gofiber/fiber/v2 v2.52.12/go.mod h1:YEcBbO/FB+5M1IZNBP9FO3J9281zgPAreiI1oqg8nDw=
+github.com/gofiber/fiber/v2 v2.52.13 h1:TOKP64iqC9b5P49VrBW5tHhUOvDyrtJ0xePEfzJbCbk=
+github.com/gofiber/fiber/v2 v2.52.13/go.mod h1:YEcBbO/FB+5M1IZNBP9FO3J9281zgPAreiI1oqg8nDw=
 github.com/golang-jwt/jwt/v4 v4.5.1/go.mod h1:m21LjoU+eqJr34lmDMbreY2eSTRJ1cv77w39/MY0Ch0=
 github.com/golang-jwt/jwt/v4 v4.5.2 h1:YtQM7lnr8iZ+j5q71MGKkNw9Mn7AjHM68uc9g5fXeUI=
 github.com/golang-jwt/jwt/v4 v4.5.2/go.mod h1:m21LjoU+eqJr34lmDMbreY2eSTRJ1cv77w39/MY0Ch0=
