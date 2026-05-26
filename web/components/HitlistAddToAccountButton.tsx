@@ -36,7 +36,7 @@ export function HitlistAddToAccountButton({ entry }: Props) {
   }
 
   const { user } = useAuth();
-  const payload = hitlistEntryCopyPayload(entry);
+  const payload = useMemo(() => hitlistEntryCopyPayload(entry), [entry]);
   const [open, setOpen] = useState(false);
   const [dest, setDest] = useState<"collection" | "wishlist">("collection");
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -60,6 +60,8 @@ export function HitlistAddToAccountButton({ entry }: Props) {
     [wishlists, user],
   );
 
+  // Reset selection and load shelves when the modal opens or the row changes — not on every
+  // render (payload is a new object each time hitlistEntryCopyPayload runs).
   useEffect(() => {
     if (!open || !payload) return;
     setMsg(null);
@@ -78,7 +80,7 @@ export function HitlistAddToAccountButton({ entry }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, payload]);
+  }, [open, entry.id]);
 
   if (!payload) return null;
 

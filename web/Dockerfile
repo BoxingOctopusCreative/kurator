@@ -38,6 +38,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+RUN chown -R nextjs:nodejs /app/.next
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
