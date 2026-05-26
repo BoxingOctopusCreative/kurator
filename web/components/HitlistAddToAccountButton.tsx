@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
+import { useAuth } from "@/components/AuthProvider";
 import {
   createItem,
   createWishlistEntry,
   collectionMayReceiveItems,
   fetchCollections,
   fetchWishlists,
+  wishlistMayReceiveItems,
   type Collection,
   type HitlistEntry,
   type Wishlist,
@@ -33,6 +35,7 @@ export function HitlistAddToAccountButton({ entry }: Props) {
     );
   }
 
+  const { user } = useAuth();
   const payload = hitlistEntryCopyPayload(entry);
   const [open, setOpen] = useState(false);
   const [dest, setDest] = useState<"collection" | "wishlist">("collection");
@@ -48,8 +51,13 @@ export function HitlistAddToAccountButton({ entry }: Props) {
   }, [collections, payload]);
 
   const editableWishlists = useMemo(
-    () => wishlists.filter((w) => w.may_edit_entries !== false),
-    [wishlists],
+    () =>
+      wishlists.filter(
+        (w) =>
+          wishlistMayReceiveItems(w) ||
+          (user != null && Number(w.user_id) === Number(user.id)),
+      ),
+    [wishlists, user],
   );
 
   useEffect(() => {

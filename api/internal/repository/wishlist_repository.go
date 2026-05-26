@@ -46,13 +46,21 @@ const wishlistReturningAuthor = `,
   (SELECT display_name FROM users u WHERE u.id = wishlists.user_id),
   (SELECT avatar_url FROM users u WHERE u.id = wishlists.user_id)`
 
+// wishlistMayEditEntriesSQL is true when viewerPlaceholder may add or edit entries (owner or shared collaborator).
+func wishlistMayEditEntriesSQL(viewerPlaceholder string) string {
+	return fmt.Sprintf(`((w.user_id = %s) OR (w.is_shared AND EXISTS (
+		SELECT 1 FROM shelf_members sm
+		WHERE sm.shelf_kind = 'wishlist' AND sm.shelf_id = w.id AND sm.user_id = %s)))`, viewerPlaceholder, viewerPlaceholder)
+}
+
 // ListForViewer returns wishlists the viewer may see: their own (any visibility) and others’
 // wishlists when the visibility rules permit (followers / friends, see OwnedShelfVisibleToViewerSQL).
 func (r *PostgresWishlistRepository) ListForViewer(ctx context.Context, viewerID int64) ([]models.Wishlist, error) {
 	vis := OwnedShelfVisibleToViewerOrSharedMemberSQL("w.user_id", "w.visibility", "w.is_shared", "wishlist", "w.id", "$1")
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+wishlistSelectWithAuthor+`,
-		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count
+		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count,
+		       `+wishlistMayEditEntriesSQL("$1")+` AS may_edit_entries
 		FROM wishlists w
 		LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 		LEFT JOIN wishlist_entries e ON e.wishlist_id = w.id
@@ -82,7 +90,8 @@ func (r *PostgresWishlistRepository) WishlistsByOwnerForViewer(ctx context.Conte
 	if viewer == nil {
 		rows, err := r.pool.Query(ctx, `
 			SELECT `+wishlistSelectWithAuthor+`,
-			       COALESCE(COUNT(e.id), 0)::bigint AS entry_count
+			       COALESCE(COUNT(e.id), 0)::bigint AS entry_count,
+			       false AS may_edit_entries
 			FROM wishlists w
 			LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 			LEFT JOIN wishlist_entries e ON e.wishlist_id = w.id
@@ -107,7 +116,8 @@ func (r *PostgresWishlistRepository) WishlistsByOwnerForViewer(ctx context.Conte
 	vis := OwnedShelfVisibleToViewerOrSharedMemberSQL("w.user_id", "w.visibility", "w.is_shared", "wishlist", "w.id", "$2")
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+wishlistSelectWithAuthor+`,
-		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count
+		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count,
+		       `+wishlistMayEditEntriesSQL("$2")+` AS may_edit_entries
 		FROM wishlists w
 		LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 		LEFT JOIN wishlist_entries e ON e.wishlist_id = w.id
@@ -143,6 +153,7 @@ func scanWishlistRow(row interface {
 		&w.ID, &w.UserID, &w.Name, &desc, &cover, &tgt, &vis, &w.IsShared, &w.CreatedAt, &w.UpdatedAt,
 		&auUser, &auDn, &auAv,
 		&w.EntryCount,
+		&w.MayEditEntries,
 	); err != nil {
 		return w, fmt.Errorf("scan wishlist: %w", err)
 	}
@@ -195,7 +206,8 @@ func purchaseURLArg(purchaseURL *string) any {
 func (r *PostgresWishlistRepository) GetByIDForUser(ctx context.Context, id string, userID int64) (*models.Wishlist, error) {
 	row := r.pool.QueryRow(ctx, `
 		SELECT `+wishlistSelectWithAuthor+`,
-		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count
+		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count,
+		       true AS may_edit_entries
 		FROM wishlists w
 		LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 		LEFT JOIN wishlist_entries e ON e.wishlist_id = w.id
@@ -217,7 +229,8 @@ func (r *PostgresWishlistRepository) GetByIDForViewer(ctx context.Context, id st
 	vis := OwnedShelfVisibleToViewerOrSharedMemberSQL("w.user_id", "w.visibility", "w.is_shared", "wishlist", "w.id", "$2")
 	row := r.pool.QueryRow(ctx, `
 		SELECT `+wishlistSelectWithAuthor+`,
-		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count
+		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count,
+		       `+wishlistMayEditEntriesSQL("$2")+` AS may_edit_entries
 		FROM wishlists w
 		LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 		LEFT JOIN wishlist_entries e ON e.wishlist_id = w.id
@@ -241,7 +254,8 @@ func (r *PostgresWishlistRepository) GetByIDVisible(ctx context.Context, id stri
 	}
 	row := r.pool.QueryRow(ctx, `
 		SELECT `+wishlistSelectWithAuthor+`,
-		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count
+		       COALESCE(COUNT(e.id), 0)::bigint AS entry_count,
+		       false AS may_edit_entries
 		FROM wishlists w
 		LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 		LEFT JOIN wishlist_entries e ON e.wishlist_id = w.id
@@ -305,7 +319,7 @@ func (r *PostgresWishlistRepository) Create(ctx context.Context, userID int64, n
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO wishlists (user_id, name, description, target_collection_id, visibility, is_public, is_shared)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING `+wishlistReturningColumns+wishlistReturningAuthor+`, 0::bigint AS entry_count
+		RETURNING `+wishlistReturningColumns+wishlistReturningAuthor+`, 0::bigint AS entry_count, true AS may_edit_entries
 	`, userID, name, descVal, tgtArg, string(visibility), visibility.IsPublic(), isShared)
 	w, err := scanWishlistRow(row)
 	if err != nil {
@@ -694,7 +708,7 @@ func (r *PostgresWishlistRepository) CountEntriesByWishlistID(ctx context.Contex
 // ListOwnerWishlistsExcept returns wishlists owned by ownerID except excludeID.
 func (r *PostgresWishlistRepository) ListOwnerWishlistsExcept(ctx context.Context, ownerID int64, excludeID string) ([]models.Wishlist, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT `+wishlistSelectWithAuthor+`, 0::bigint AS entry_count
+		SELECT `+wishlistSelectWithAuthor+`, 0::bigint AS entry_count, true AS may_edit_entries
 		FROM wishlists w
 		LEFT JOIN users shelf_owner ON shelf_owner.id = w.user_id
 		WHERE w.user_id = $1 AND w.id <> $2::uuid

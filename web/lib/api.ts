@@ -105,6 +105,11 @@ export function collectionMayReceiveItems(c: Collection): boolean {
   return c.may_edit_entries !== false;
 }
 
+/** Wishlists the viewer may add entries to (owner or shared collaborator). Treat absent as true for older API responses. */
+export function wishlistMayReceiveItems(w: Wishlist): boolean {
+  return w.may_edit_entries !== false;
+}
+
 export type CollectionListResponse = {
   items: Collection[];
   total: number;

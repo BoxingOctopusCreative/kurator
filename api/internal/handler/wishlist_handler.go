@@ -62,9 +62,6 @@ func (h *WishlistHandler) List(c *fiber.Ctx) error {
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 		}
-		if viewer != nil {
-			h.applyMayEditEntriesList(c.Context(), *viewer, items)
-		}
 		return c.JSON(items)
 	}
 	if viewer == nil {
@@ -74,7 +71,6 @@ func (h *WishlistHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
-	h.applyMayEditEntriesList(c.Context(), *viewer, items)
 	return c.JSON(items)
 }
 
