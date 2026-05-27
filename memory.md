@@ -56,7 +56,7 @@ kurator/
 - **Bearer**: Protected routes accept **`Authorization: Bearer <session_token>`** with the same semantics as the cookie. Resolution order: **cookie first**, then Bearer (`SessionRawFromRequest` in `api/internal/middleware/`).
 - **JWT**: Short-lived tokens for **pending 2FA** after password step; **`kurator_beta_unlock`** cookie when `BETA_ACCESS_REQUIRED` is on (set after the user opens an approved **email invite** link, consumed at register). No shared beta keys. Plan separately if mobile must complete gated beta without a WebView.
 - Passwords: bcrypt; optional **TOTP** 2FA.
-- **Turnstile** on sensitive auth routes when enabled.
+- **Turnstile** on sensitive auth routes when enabled (**`CLOUDFLARE_TURNSTILE_*`**). **Docker / production web:** Prefer **`CLOUDFLARE_TURNSTILE_ENABLED`** + **`CLOUDFLARE_TURNSTILE_SITEKEY`** on the Next container (runtime); login/register/forgot-password are **`force-dynamic`** so they are not statically prerendered with empty build-time env. **`NEXT_PUBLIC_CLOUDFLARE_*`** is inlined at **`next build`** unless passed as image build-args.
 - **CORS**: `Authorization` is an allowed header when the browser calls the API origin directly (`api/cmd/api/main.go`); same-origin web traffic still prefers the Next proxy.
 - Parameterized SQL, validation package, rate limits where configured.
 

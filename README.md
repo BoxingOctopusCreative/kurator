@@ -46,6 +46,11 @@ This file targets a host that already has an **external** Docker network (here: 
 
 Images default to **`ghcr.io/boxingoctopuscreative/kurator-api`** and **`kurator-web`** tags (`:latest`). Supply secrets and integration keys via environment (see service `environment` blocks): `DATABASE_URL`, `AUTH_JWT_SECRET`, Meilisearch keys, S3, Mailgun, Sentry, Turnstile, etc.
 
+### Cloudflare Turnstile (production web container)
+
+- On the **`web`** service, set **`CLOUDFLARE_TURNSTILE_ENABLED=true`** and **`CLOUDFLARE_TURNSTILE_SITEKEY`** (read at **request time**). **`NEXT_PUBLIC_CLOUDFLARE_*`** is only effective if it was present at **`next build`** (inlined into the client bundle); setting it only on the running container is not enough unless you also pass it as a **web image build-arg**.
+- The **API** needs **`CLOUDFLARE_TURNSTILE_ENABLED`** and **`CLOUDFLARE_TURNSTILE_SECRETKEY`** to verify tokens. Add your production hostname in the Turnstile widget’s host allowlist in the Cloudflare dashboard.
+
 ---
 
 ## Local development (dependencies in Compose, API + web on the host)

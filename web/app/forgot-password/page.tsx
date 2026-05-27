@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: "Reset Password",
 };
 
+/** Reads Turnstile/Unsplash from container env at request time; avoid static prerender locking them to build-time empties. */
+export const dynamic = "force-dynamic";
+
 export default async function ForgotPasswordPage() {
   const initialBackground = await fetchUnsplashBackground();
   if (initialBackground?.url) {

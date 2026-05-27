@@ -1,7 +1,11 @@
 /**
- * Opt-in for Cloudflare Turnstile on login/register. When false, site keys do not enable the widget.
- * Server: set CLOUDFLARE_TURNSTILE_ENABLED. Client bundles: NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_ENABLED.
- * Truthy: true, 1, yes (case-insensitive).
+ * Opt-in for Cloudflare Turnstile on login/register/forgot-password. When false, site keys do not enable the widget.
+ *
+ * **Docker / production:** Prefer **`CLOUDFLARE_TURNSTILE_ENABLED`** and **`CLOUDFLARE_TURNSTILE_SITEKEY`** on the
+ * Next container — read at runtime. **`NEXT_PUBLIC_*`** equivalents are inlined at **`next build`**; setting them only
+ * at container start has no effect unless you also pass them as build-args.
+ *
+ * Truthy enabled: true, 1, yes (case-insensitive).
  */
 export function isCloudflareTurnstileEnabled(): boolean {
   const raw =

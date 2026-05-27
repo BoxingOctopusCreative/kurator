@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: "Create Account",
 };
 
+/** Reads Turnstile/Unsplash from container env at request time; avoid static prerender locking them to build-time empties. */
+export const dynamic = "force-dynamic";
+
 export default async function RegisterPage() {
   const initialBackground = await fetchUnsplashBackground();
   if (initialBackground?.url) {
