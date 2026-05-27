@@ -1055,7 +1055,7 @@ export function WishlistDetailClient() {
 
                 <p className="mt-2 text-xs text-kurator-muted">
                   Shelf Type:{" "}
-                  <span className="font-medium text-kurator-fg">Playlist</span>
+                  <span className="font-medium text-kurator-fg">Wishlist</span>
                 </p>
                 {wishlist.author ? (
                   <div className="mt-2">
