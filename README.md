@@ -44,7 +44,7 @@ This file targets a host that already has an **external** Docker network (here: 
 | **valkey** | Redis-compatible store for the notify queue (beta / registration emails, retries) |
 | **swagger-ui** | Serves OpenAPI from a mounted `swagger.json` (e.g. `swagger.kuratorapp.cc`) |
 
-Images default to **`ghcr.io/boxingoctopuscreative/kurator-api`** and **`kurator-web`** tags (`:latest`). Supply secrets and integration keys via environment (see service `environment` blocks): `DATABASE_URL`, `AUTH_JWT_SECRET`, Meilisearch keys, S3, Mailgun, Sentry, Turnstile, LaunchDarkly client id, etc.
+Images default to **`ghcr.io/boxingoctopuscreative/kurator-api`** and **`kurator-web`** tags (`:latest`). Supply secrets and integration keys via environment (see service `environment` blocks): `DATABASE_URL`, `AUTH_JWT_SECRET`, Meilisearch keys, S3, Mailgun, Sentry, Turnstile, etc.
 
 ---
 
@@ -174,4 +174,4 @@ Register from the UI or **`POST /api/v1/auth/register`**. Signed-in sessions use
 
 ## Engineering standard (stack + integrations)
 
-Team and agent defaults for architecture, third-party wiring (S3, Turnstile, Sentry, LaunchDarkly), **testing** (Go + Vitest), and **GitHub Actions** live in **`.cursor/rules/web-app-stack-standard.mdc`**. Copy that file into other repos’ `.cursor/rules/` if you want the same standard elsewhere.
+Team and agent defaults for architecture, third-party wiring (S3, Turnstile, Sentry), **testing** (Go + Vitest), and **GitHub Actions** live in **`.cursor/rules/web-app-stack-standard.mdc`**. Copy that file into other repos’ `.cursor/rules/` if you want the same standard elsewhere.

@@ -21,7 +21,6 @@ import {
   Layers,
   Library,
   PlusCircle,
-  ScanBarcode,
   ThumbsUp,
   Users,
 } from "lucide-react";
@@ -29,15 +28,12 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import Image from "next/image";
 import { Copyright } from "@/components/Copyright";
-import { useFeatureGates } from "@/components/LoggedInFeatureFlags";
 import {
   persistSidebarCollapsedPreference,
   readSidebarCollapsedPreference,
   SIDEBAR_COLLAPSED_CHANGED_EVENT,
   SIDEBAR_COLLAPSED_STORAGE_KEY,
 } from "@/lib/sidebarCollapsedPreference";
-
-const scanNavItem = { href: "/scan", label: "Scan", icon: ScanBarcode } as const;
 
 const navDashboard = { href: "/", label: "Dashboard", icon: LayoutGrid } as const;
 const navPeople = { href: "/people", label: "People", icon: Users } as const;
@@ -248,7 +244,6 @@ function SidebarLegalPopover({
 
 export function AppChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { showBarcodeScanNav } = useFeatureGates();
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
   const [closeNotif, setCloseNotif] = useState(0);
   const [closeAccount, setCloseAccount] = useState(0);
@@ -301,11 +296,8 @@ export function AppChrome({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   const mobileNav = useMemo(
-    () =>
-      showBarcodeScanNav
-        ? [navDashboard, navPeople, ...shelfSubItems, navAddItem, scanNavItem]
-        : [navDashboard, navPeople, ...shelfSubItems, navAddItem],
-    [showBarcodeScanNav]
+    () => [navDashboard, navPeople, ...shelfSubItems, navAddItem],
+    []
   );
 
   const privacyActive = pathname === "/privacy" || pathname.startsWith("/privacy/");
@@ -476,7 +468,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
                     </div>
                   )}
                   {renderLink(navAddItem)}
-                  {showBarcodeScanNav ? renderLink(scanNavItem) : null}
                 </>
               );
             })()}

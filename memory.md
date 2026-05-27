@@ -2,11 +2,16 @@
 
 ## Default web stack (org standard)
 
-Reusable conventions for this and future web + API apps live in **`.cursor/rules/web-app-stack-standard.mdc`** (always-on in Cursor): core split (API + Next.js), same-origin session proxy, integration boundaries (**S3**, **Turnstile**, **Sentry**, **LaunchDarkly**), **testing suites** (Go + Vitest), and **GitHub Actions** patterns (`ci-release`, `snyk`, Portainer redeploy).
+Reusable conventions for this and future web + API apps live in **`.cursor/rules/web-app-stack-standard.mdc`** (always-on in Cursor): core split (API + Next.js), same-origin session proxy, integration boundaries (**S3**, **Turnstile**, **Sentry**), **testing suites** (Go + Vitest), and **GitHub Actions** patterns (`ci-release`, `snyk`, Portainer redeploy). **LaunchDarkly / client feature-flag SDKs** are not integrated in this repo; toggles are env-based (e.g. Turnstile).
 
 ## Overview
 
-Kurator is a collection tracker: users catalog games, music, books, movies, TV, anime, comics, and manga with category-specific metadata, consumption status, lists, wishlists, and light social features (follows, activity). Stack: **Go Fiber API**, **Next.js** (App Router), **PostgreSQL**, **Meilisearch**, optional **S3** (covers, avatars, optional privacy policy object), **Valkey** for a durable notification queue, **Mailgun** for email, **Sentry**, **Cloudflare Turnstile**, **LaunchDarkly** (web client SDK).
+Kurator is a collection tracker: users catalog games, music, books, movies, TV, anime, comics, and manga with category-specific metadata, consumption status, lists, wishlists, and light social features (follows, activity). Stack: **Go Fiber API**, **Next.js** (App Router), **PostgreSQL**, **Meilisearch**, optional **S3** (covers, avatars, optional privacy policy object), **Valkey** for a durable notification queue, **Mailgun** for email, **Sentry**, **Cloudflare Turnstile**.
+
+## Downstream mobile: barcode scanning
+
+- **Web** does **not** ship a barcode / camera scan flow (removed: no `/scan` route, no scan entry in `AppChrome`). Agents and the mobile repo should **not** treat web as the source of truth for scanning UI or navigation.
+- **Mobile** may **reimplement** barcode scanning later as a **native-only** capability. When you do, wire it to the then-current **HTTP API** for search, item creation, and metadata (`api/docs/swagger.json`); do **not** expect parity with a web scanner page that no longer exists.
 
 ## Architecture
 

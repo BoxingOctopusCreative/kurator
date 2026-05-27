@@ -191,7 +191,6 @@ jobs:
           build-args: |
             API_INTERNAL_URL=http://kurator-api:8080
             NEXT_PUBLIC_API_URL=http://localhost:8080
-            NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_SIDE_ID=${{ secrets.LAUNCHDARKLY_CLIENT_SIDE_ID }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_BRANDFETCH_CLIENT_ID=${{ secrets.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID }}
             SENTRY_ORG=${{ secrets.SENTRY_ORG }}

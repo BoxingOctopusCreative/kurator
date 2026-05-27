@@ -59,7 +59,7 @@ If licensed webfonts are unavailable on mobile, document a **fallback stack** th
 - **Desktop**: sticky left **sidebar** (`aside`), `bg-kurator-surface`, `border-r`, width **collapsed ~4.75rem** (`md:w-19`) vs **expanded ~14rem** (`md:w-56`), animated width ~200ms.
 - **Logo**: collapsed uses small mark assets; expanded uses wide logo URL with `invert` in light mode only (`Logo-Black-Wide-Transparent.png`).
 - **Main column**: `@container` wrapper so heroes can **break out to full column width** using container-query width tricks (see `PageHeroUnsplash` `mainColumnBreakout` class string).
-- **Mobile**: bottom/top nav patterns as implemented in `AppChrome` (scan nav gated by LaunchDarkly feature flag in web).
+- **Mobile**: bottom/top nav patterns as implemented in `AppChrome`.
 
 Flutter: prefer `NavigationRail` + `NavigationDrawer` or a custom rail that matches widths; use `LayoutBuilder` / `constraints` for hero breakout parity.
 

@@ -62,9 +62,8 @@ Default **two-app monorepo** at repo root; new products can mirror this shape.
 | Integration | Server-only | Public / build-time | Notes |
 |-------------|-------------|---------------------|--------|
 | **S3-compatible storage** | Access key, secret, bucket, endpoint, optional prefix | **Only** if needed: public asset base URL for absolute links | Never expose write keys to the client. Prefer presigned URLs or public-read objects only where appropriate. |
-| **Cloudflare Turnstile** | Secret key; verify token on the API for login/register/sensitive POSTs | Site key (`NEXT_PUBLIC_*`) for widget | Feature-flag or env-gate both sides so local dev can disable. |
+| **Cloudflare Turnstile** | Secret key; verify token on the API for login/register/sensitive POSTs | Site key (`NEXT_PUBLIC_*`) for widget | Env-gate both sides so local dev can disable. |
 | **Sentry** | Server DSN, environment, release | `NEXT_PUBLIC_*` DSN for browser SDK | Initialize once per runtime; avoid PII in breadcrumbs. |
-| **LaunchDarkly** | Optional Node/server SDK for secure flag evaluation | Client-side ID (`NEXT_PUBLIC_*`) for React SDK | Prefer server evaluation for sensitive flags; client for UI toggles only. |
 
 ## Local development
 
@@ -137,7 +136,7 @@ Shared conventions across workflows:
 
 - **Triggers**: `push` to **`main`**, all **`pull_request`**, **`workflow_dispatch`**.
 - **`unit-tests`**: checkout → **`actions/setup-go`** with **`go-version-file: api/go.mod`** → `go test ./... -count=1` in **`api/`** → **`actions/setup-node`** (Node **22**, npm cache on **`web/package-lock.json`**) → `npm ci && npm test` in **`web/`**.
-- **`release`** (only when not skipped, **`github.ref == refs/heads/main`**, event **`push`** or **`workflow_dispatch`**): SemVer tag bump (**`mathieudutour/github-tag-action`** with custom rules mapping **`MAJOR`/`MINOR`/`PATCH`** commit prefixes); cross-compile **API** `linux/darwin` × **`amd64`/`arm64`** with **`CGO_ENABLED=0`**; **GitHub Release** + artifact upload; optional **`aws s3 cp`** of legal/static copy (e.g. privacy markdown) when **`S3_*`** secrets exist; **Docker Buildx** login **GHCR**; **`docker/build-push-action`** for **`api`** and **`web`** images with versioned + **`latest`** tags and **build-args** for internal API URL, **`NEXT_PUBLIC_*`** (Sentry, LaunchDarkly, Brandfetch), **Sentry** org/project/auth for web source maps if used.
+- **`release`** (only when not skipped, **`github.ref == refs/heads/main`**, event **`push`** or **`workflow_dispatch`**): SemVer tag bump (**`mathieudutour/github-tag-action`** with custom rules mapping **`MAJOR`/`MINOR`/`PATCH`** commit prefixes); cross-compile **API** `linux/darwin` × **`amd64`/`arm64`** with **`CGO_ENABLED=0`**; **GitHub Release** + artifact upload; optional **`aws s3 cp`** of legal/static copy (e.g. privacy markdown) when **`S3_*`** secrets exist; **Docker Buildx** login **GHCR**; **`docker/build-push-action`** for **`api`** and **`web`** images with versioned + **`latest`** tags and **build-args** for internal API URL, **`NEXT_PUBLIC_*`** (Sentry, Brandfetch), **Sentry** org/project/auth for web source maps if used.
 
 ### `snyk.yml` (security)
 
@@ -156,5 +155,5 @@ Shared conventions across workflows:
 
 1. Classify **server vs client** secrets and document both in README / example env.
 2. Add **health or startup checks** where the service degrades without the integration (optional S3, optional search).
-3. Add **tests** for parsing, URL building, and feature flags at the unit level; avoid live vendor calls in unit tests.
+3. Add **tests** for parsing, URL building, and env-based configuration at the unit level; avoid live vendor calls in unit tests.
 4. If the integration touches dependencies, ensure **`snyk.yml`** still covers the right directory (`snyk test` from that folder after install).

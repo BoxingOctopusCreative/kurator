@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppChrome } from "@/components/AppChrome";
-import { LoggedInFeatureFlags } from "@/components/LoggedInFeatureFlags";
 import { useAuth } from "@/components/AuthProvider";
 
 /** Routes that require a signed-in session. Everything else (including unknown URLs / 404) stays reachable while logged out. */
@@ -13,7 +12,6 @@ function requiresAuth(pathname: string): boolean {
   if (pathname.startsWith("/collections")) return true;
   if (pathname.startsWith("/wishlists")) return true;
   if (pathname.startsWith("/items")) return true;
-  if (pathname.startsWith("/scan")) return true;
   return false;
 }
 
@@ -61,9 +59,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return (
-    <LoggedInFeatureFlags user={user}>
-      <AppChrome>{children}</AppChrome>
-    </LoggedInFeatureFlags>
-  );
+  return <AppChrome>{children}</AppChrome>;
 }

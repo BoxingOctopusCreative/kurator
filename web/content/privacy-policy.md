@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: May 11, 2026_
+_Last updated: May 27, 2026_
 
 ## Overview
 
@@ -27,8 +27,6 @@ This policy describes what the software can store and transmit when you use an i
 - **Browser storage:** the site may save small preferences on your device, such as how you like a shelf to display or cached imagery, to improve responsiveness. You can clear this data from your browser settings.
 
 - **Error monitoring and diagnostics (when enabled):** the operator may send crash reports, errors, or performance telemetry to help find and fix bugs. Those reports can include contextual details, sometimes including clues that relate to who you are or what you were doing when something went wrong. If replay-style diagnostics are enabled, snippets of how the interface behaved may also be captured for troubleshooting.
-
-- **Experiment and rollout tooling (when enabled):** the operator may route part of traffic through a feature-flag or experimentation service so the app can turn capabilities on or off safely. Signed-in sessions may be identified in a stable way (for example with your account ID and email) so assignments stay consistent across visits. That vendor's policy governs processing on their side.
 
 - **Abuse prevention (when enabled):** sensitive actions such as sign-in, signup, or password recovery may show a verification step provided by an external supplier; they process the signals needed to tell humans and scripted abuse apart under their own terms.
 
