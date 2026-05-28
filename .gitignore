@@ -52,3 +52,23 @@ profile.cov
 dist/
 build/
 *.tsbuildinfo
+
+# Cursor/AI files
+.cursor/
+.cursorrules/
+.cursorrules.md
+.cursorrules.yaml
+.cursorrules.yml
+.cursorrules.json
+.cursorrules.jsonc
+.cursorrules.json5
+.cursorrules.jsonld
+.cursorrules.jsonld.yaml
+.cursorrules.jsonld.yml
+memory.md
+memory-flutter-ui-port.md
+upstream-mobile-downstream-mobile-workspace.mdc
+.playwright-mcp/
+
+# VSCode files
+.vscode/
