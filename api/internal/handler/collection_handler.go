@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/boxingoctopus/kurator/api/internal/httpx"
@@ -13,6 +12,7 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type CollectionHandler struct {
@@ -64,10 +64,11 @@ func (h *CollectionHandler) assertCollectionOwner(c *fiber.Ctx, collectionID str
 // @Failure 404 {object} map[string]string
 // @Router /api/v1/collections/{id}/items.csv [get]
 func (h *CollectionHandler) ExportItemsCSV(c *fiber.Ctx) error {
-	id, err := httpx.PathUUID(c.Params("id"))
+	parsedID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
+	id := parsedID.String()
 	if _, err := h.assertCollectionOwner(c, id); err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func (h *CollectionHandler) ExportItemsCSV(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	c.Set("Content-Type", "text/csv; charset=utf-8")
-	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="collection-%s-items.csv"`, id))
+	c.Set("Content-Disposition", `attachment; filename="collection-items.csv"`)
 	return c.Send(b)
 }
 

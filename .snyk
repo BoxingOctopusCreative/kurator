@@ -1,0 +1,12 @@
+version: v1.25.0
+ignore:
+  go/XSS:
+    - api/internal/handler/collection_handler.go:
+        reason: "False positive: path UUID is strictly parsed/canonicalized before CSV bytes are sent, and filename is static."
+        expires: "2026-11-28T00:00:00.000Z"
+    - api/internal/handler/list_handler.go:
+        reason: "False positive: path UUID is strictly parsed/canonicalized before CSV bytes are sent, and filename is static."
+        expires: "2026-11-28T00:00:00.000Z"
+    - api/internal/handler/wishlist_handler.go:
+        reason: "False positive: path UUID is strictly parsed/canonicalized before CSV bytes are sent, and filename is static."
+        expires: "2026-11-28T00:00:00.000Z"

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/boxingoctopus/kurator/api/internal/httpx"
@@ -12,6 +11,7 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/repository"
 	"github.com/boxingoctopus/kurator/api/internal/service"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type ListHandler struct {
@@ -210,10 +210,11 @@ func (h *ListHandler) ExportItemsCSV(c *fiber.Ctx) error {
 	if !ok || uid < 1 {
 		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
-	id, err := httpx.PathUUID(c.Params("id"))
+	parsedID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid id")
 	}
+	id := parsedID.String()
 	l, err := h.svc.Get(c.Context(), id, uid)
 	if errors.Is(err, repository.ErrListNotFound) {
 		return fiber.NewError(fiber.StatusNotFound, "not found")
@@ -229,7 +230,7 @@ func (h *ListHandler) ExportItemsCSV(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	c.Set("Content-Type", "text/csv; charset=utf-8")
-	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="list-%s-items.csv"`, id))
+	c.Set("Content-Disposition", `attachment; filename="list-items.csv"`)
 	return c.Send(b)
 }
 

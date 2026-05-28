@@ -2,6 +2,8 @@ module github.com/boxingoctopus/kurator/api
 
 go 1.25.0
 
+toolchain go1.25.10
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
@@ -10,7 +12,7 @@ require (
 	github.com/getsentry/sentry-go v0.45.1
 	github.com/getsentry/sentry-go/fiber v0.45.1
 	github.com/go-webauthn/webauthn v0.12.1
-	github.com/gofiber/fiber/v2 v2.52.12
+	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
@@ -21,6 +23,7 @@ require (
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
+	github.com/stripe/stripe-go/v82 v82.5.1
 	golang.org/x/crypto v0.50.0
 	golang.org/x/oauth2 v0.36.0
 )
