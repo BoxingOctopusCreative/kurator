@@ -72,3 +72,27 @@ upstream-mobile-downstream-mobile-workspace.mdc
 
 # VSCode files
 .vscode/
+
+# --- Flutter/Dart (mobile/) ---
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/coverage/
+mobile/*.iml
+mobile/flutter_*.png
+mobile/link_to_app.*
+mobile/ios/Flutter/ephemeral/
+mobile/ios/Flutter/flutter_export_environment.sh
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/App.framework
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/macos/Flutter/ephemeral/
+mobile/macos/Flutter/GeneratedPluginRegistrant.swift
+mobile/android/.gradle/
+mobile/android/local.properties
