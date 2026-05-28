@@ -5,12 +5,14 @@ import Link from "next/link";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { Copyright } from "@/components/Copyright";
+import { LandingRotatingSlogans } from "@/components/LandingRotatingSlogans";
 
 type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
+  landingSlogans: string[];
 };
 
-export function LandingPage({ initialBackground = null }: Props) {
+export function LandingPage({ initialBackground = null, landingSlogans }: Props) {
   return (
     <UnsplashMarketingShell initialBackground={initialBackground}>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-12">
@@ -28,13 +30,9 @@ export function LandingPage({ initialBackground = null }: Props) {
 
         <div className="space-y-4 text-center">
           <p className="text-lg text-kurator-fg">
-            Kurator is your personal collection tracker. Organize games, music, books, movies, TV, anime, comics, and
-            manga in one place.
+          Kurator is your one-stop shop for tracking all the physical media that lovingly gathers dust on your shelves; whether it's video games, music, movies, tv, books, comics, and more...
           </p>
-          <p className="text-sm leading-relaxed text-kurator-muted">
-            Catalog what you own, add details, search your library, and keep shelves tidy. Sign in to manage your
-            collection. It stays yours.
-          </p>
+          <LandingRotatingSlogans slogans={landingSlogans} />
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">

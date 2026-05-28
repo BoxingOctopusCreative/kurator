@@ -21,6 +21,7 @@ import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types"
 
 type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
+  landingSlogans: string[];
 };
 
 /** Tiles per dashboard page: 3 columns × 3 rows. */
@@ -287,7 +288,7 @@ function kindParam(value: KindFilter): ShelfKind | undefined {
   return value === "all" ? undefined : value;
 }
 
-export function HomePageClient({ initialBackground = null }: Props) {
+export function HomePageClient({ initialBackground = null, landingSlogans }: Props) {
   const { user } = useAuth();
   const [mineKind, setMineKind] = useState<KindFilter>("all");
   const [followKind, setFollowKind] = useState<KindFilter>("all");
@@ -389,7 +390,7 @@ export function HomePageClient({ initialBackground = null }: Props) {
   }, [followKind]);
 
   if (!user) {
-    return <LandingPage initialBackground={initialBackground} />;
+    return <LandingPage initialBackground={initialBackground} landingSlogans={landingSlogans} />;
   }
 
   return (

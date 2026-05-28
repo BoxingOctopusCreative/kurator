@@ -137,7 +137,7 @@ make web-test    # npm test (Vitest) in web/
 
 | Workflow | When it runs | Purpose |
 | ---------- | ---------------- | ---------- |
-| **`ci-release.yml`** | PRs, pushes to `main`, manual | Skip if latest commit is `CI:` or `INFO:`; **unit tests** (Go + Node 22 web); on **`main`** after tests: SemVer **tag + release**, API cross-build artifacts, optional **S3** upload of `web/content/privacy-policy.md`, **GHCR** images for `api` and `web` |
+| **`ci-release.yml`** | PRs, pushes to `main`, manual | Skip if latest commit is `CI:` or `INFO:`; **unit tests** (Go + Node 22 web); on **`main`** after tests: SemVer **tag + release**, API cross-build artifacts, optional **S3** upload of `web/content/privacy-policy.md` and `web/content/landing-slogans.md`, **GHCR** images for `api` and `web` |
 | **`snyk.yml`** | PR, `main`, weekly, manual | Same skip rule; **fork PRs** skip Snyk; **`snyk test`** in `api/` and `web/`, **`snyk code test`**, **`snyk monitor`** on `main` pushes |
 | **`portainer-redeploy-on-release.yml`** | GitHub **Release published** | Skip by tag commit prefix; **Portainer** stack redeploy via API; optional **Discord** webhook |
 
