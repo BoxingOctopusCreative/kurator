@@ -36,6 +36,8 @@ type UserRepository interface {
 	UpdateActiveCustomThemeLibrary(ctx context.Context, id int64, libraryID *uuid.UUID) error
 	GetUserIDByStripeCustomerID(ctx context.Context, stripeCustomerID string) (int64, error)
 	GetUserIDBySubscriptionID(ctx context.Context, subscriptionID string) (int64, error)
+	UpdateOnboarding(ctx context.Context, id int64, step int, completed bool) error
+	UserHasAnyShelves(ctx context.Context, userID int64) (bool, error)
 }
 
 type PostgresUserRepository struct {
@@ -47,7 +49,7 @@ func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 }
 
 func userScanCols() string {
-	return `id, account_status, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, stripe_customer_id, subscription_id, subscription_status, subscription_interval, plan, active_custom_theme_library_id, created_at, updated_at`
+	return `id, account_status, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, stripe_customer_id, subscription_id, subscription_status, subscription_interval, plan, active_custom_theme_library_id, onboarding_completed, onboarding_step, created_at, updated_at`
 }
 
 func scanUser(row pgx.Row) (*models.User, error) {
@@ -55,7 +57,7 @@ func scanUser(row pgx.Row) (*models.User, error) {
 	var sl []byte
 	var passwordHash *string
 	err := row.Scan(
-		&u.ID, &u.AccountStatus, &u.Email, &passwordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.StripeCustomerID, &u.SubscriptionID, &u.SubscriptionStatus, &u.SubscriptionInterval, &u.Plan, &u.ActiveCustomThemeLibraryID, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.AccountStatus, &u.Email, &passwordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.StripeCustomerID, &u.SubscriptionID, &u.SubscriptionStatus, &u.SubscriptionInterval, &u.Plan, &u.ActiveCustomThemeLibraryID, &u.OnboardingCompleted, &u.OnboardingStep, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if passwordHash != nil {
 		u.PasswordHash = *passwordHash
@@ -479,4 +481,35 @@ func (r *PostgresUserRepository) GetUserIDBySubscriptionID(ctx context.Context, 
 		return 0, err
 	}
 	return id, nil
+}
+
+func (r *PostgresUserRepository) UpdateOnboarding(ctx context.Context, id int64, step int, completed bool) error {
+	if step < 0 {
+		step = 0
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users SET onboarding_step = $2, onboarding_completed = $3, updated_at = NOW()
+		WHERE id = $1
+	`, id, step, completed)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) UserHasAnyShelves(ctx context.Context, userID int64) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM collections WHERE user_id = $1
+			UNION ALL
+			SELECT 1 FROM wishlists WHERE user_id = $1
+			UNION ALL
+			SELECT 1 FROM lists WHERE user_id = $1
+		)
+	`, userID).Scan(&exists)
+	return exists, err
 }

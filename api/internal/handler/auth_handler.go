@@ -334,7 +334,13 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 		}
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
-	return c.JSON(publicUser(u))
+	out := publicUser(u)
+	hasShelves, err := h.auth.UserHasAnyShelves(c.Context(), uid)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	out["has_shelves"] = hasShelves
+	return c.JSON(out)
 }
 
 // PatchMeBody is the JSON body for PATCH /api/v1/me.
@@ -670,6 +676,8 @@ func publicUser(u *models.User) fiber.Map {
 		"plan":                             billingPlanForResponse(u.Plan),
 		"subscription_status":              strings.TrimSpace(u.SubscriptionStatus),
 		"subscription_interval":            strings.TrimSpace(u.SubscriptionInterval),
+		"onboarding_completed":             u.OnboardingCompleted,
+		"onboarding_step":                  u.OnboardingStep,
 		"created_at":                       u.CreatedAt,
 		"updated_at":                       u.UpdatedAt,
 	}

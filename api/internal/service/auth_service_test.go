@@ -133,6 +133,14 @@ func (s *stubUserRepo) GetUserIDBySubscriptionID(ctx context.Context, subscripti
 	return 0, repository.ErrUserNotFound
 }
 
+func (s *stubUserRepo) UpdateOnboarding(ctx context.Context, id int64, step int, completed bool) error {
+	return nil
+}
+
+func (s *stubUserRepo) UserHasAnyShelves(ctx context.Context, userID int64) (bool, error) {
+	return false, nil
+}
+
 type stubSessionRepo struct {
 	lastUserID int64
 	lastHash   string

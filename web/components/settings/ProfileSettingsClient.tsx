@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { DeleteAccountModal } from "@/components/settings/DeleteAccountModal";
 import { ProfileImageCropModal } from "@/components/ProfileImageCropModal";
@@ -130,6 +131,7 @@ export function ProfileSettingsClient() {
   const [bannerBusy, setBannerBusy] = useState(false);
   const [cropSession, setCropSession] = useState<{ kind: "avatar" | "banner"; url: string } | null>(null);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const { ref: profileSetupRef } = useOnboardingTarget("profile-setup");
 
   const socialDnDSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -418,6 +420,7 @@ export function ProfileSettingsClient() {
         className="space-y-4 rounded-xl border border-kurator-border bg-kurator-surface p-6 sm:p-8"
       >
         <h2 className="kurator-panel-title text-kurator-fg">Public Profile</h2>
+        <div ref={profileSetupRef} className="space-y-4">
         <label className="block text-sm">
           <span className="text-kurator-muted">Display name</span>
           <input
@@ -676,6 +679,7 @@ export function ProfileSettingsClient() {
             placeholder="https://…"
           />
         </label>
+        </div>
         <button
           type="submit"
           disabled={busy}

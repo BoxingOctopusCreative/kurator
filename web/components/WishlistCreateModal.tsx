@@ -6,6 +6,7 @@ import type { PublicUser, Visibility } from "@/lib/api";
 import { createWishlist, DEFAULT_VISIBILITY, fetchMyFriends } from "@/lib/api";
 import { KuratorModal } from "@/components/KuratorModal";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import {
   assertCollectionOrWishlistName,
@@ -17,6 +18,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  onCreatedShelf?: (wishlistId: string) => void;
+  dismissible?: boolean;
   collectionOptions: { id: string; name: string }[];
 };
 
@@ -24,6 +27,8 @@ export function WishlistCreateModal({
   open,
   onOpenChange,
   onCreated,
+  onCreatedShelf,
+  dismissible = true,
   collectionOptions,
 }: Props) {
   const { user } = useAuth();
@@ -37,6 +42,7 @@ export function WishlistCreateModal({
   const [friends, setFriends] = useState<PublicUser[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [inviteFriendIds, setInviteFriendIds] = useState<Set<number>>(() => new Set());
+  const { ref: modalPanelRef } = useOnboardingTarget("wishlist-create-modal", open);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +82,7 @@ export function WishlistCreateModal({
       const description = descRaw
         ? assertLooseMultilineText(newDesc, LIMITS.description, "Description")
         : undefined;
-      await createWishlist({
+      const created = await createWishlist({
         name,
         description,
         target_collection_id: targetCol.trim() === "" ? undefined : targetCol.trim(),
@@ -86,6 +92,7 @@ export function WishlistCreateModal({
         invite_user_ids:
           newIsShared && inviteFriendIds.size > 0 ? Array.from(inviteFriendIds) : undefined,
       });
+      onCreatedShelf?.(created.id);
       setNewName("");
       setNewDesc("");
       setTargetCol("");
@@ -107,11 +114,12 @@ export function WishlistCreateModal({
     <KuratorModal
       open={open}
       onOpenChange={onOpenChange}
-      dismissible={!creating}
+      dismissible={dismissible && !creating}
       overlayClassName="bg-black/50"
       showHeader={false}
       labelledBy={dialogTitleId}
     >
+      <div ref={modalPanelRef}>
         <h2 id={dialogTitleId} className="kurator-panel-title text-kurator-fg">
           New wishlist
         </h2>
@@ -251,6 +259,7 @@ export function WishlistCreateModal({
             </button>
           </div>
         </form>
+      </div>
     </KuratorModal>
   );
 }

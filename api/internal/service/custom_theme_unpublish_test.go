@@ -168,6 +168,8 @@ func (proUserRepoStub) UpdateActiveCustomThemeLibrary(context.Context, int64, *u
 func (proUserRepoStub) GetUserIDByStripeCustomerID(context.Context, string) (int64, error) {
 	return 0, nil
 }
+func (proUserRepoStub) UpdateOnboarding(context.Context, int64, int, bool) error { return nil }
+func (proUserRepoStub) UserHasAnyShelves(context.Context, int64) (bool, error)   { return false, nil }
 func (proUserRepoStub) GetUserIDBySubscriptionID(context.Context, string) (int64, error) {
 	return 0, nil
 }

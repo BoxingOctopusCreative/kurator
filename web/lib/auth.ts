@@ -59,6 +59,10 @@ export type AuthUser = {
   banner_url: string | null;
   social_links: SocialLinkInput[];
   two_factor_enabled: boolean;
+  onboarding_completed?: boolean;
+  onboarding_step?: number;
+  /** Present when the API reports whether the account already owns shelves (skips onboarding). */
+  has_shelves?: boolean;
   /** `free` or `pro` when the API has Stripe billing enabled. */
   plan?: string;
   /** Stripe subscription status (e.g. active, past_due); empty when not subscribed. */

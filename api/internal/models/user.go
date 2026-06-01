@@ -118,6 +118,8 @@ type User struct {
 	SubscriptionInterval          string          `json:"subscription_interval"`
 	Plan                          string          `json:"plan"`
 	ActiveCustomThemeLibraryID    *uuid.UUID      `json:"active_custom_theme_library_id,omitempty"`
+	OnboardingCompleted           bool            `json:"onboarding_completed"`
+	OnboardingStep                int             `json:"onboarding_step"`
 	CreatedAt                     time.Time       `json:"created_at"`
 	UpdatedAt                     time.Time       `json:"updated_at"`
 }

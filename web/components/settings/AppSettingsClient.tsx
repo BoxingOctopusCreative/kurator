@@ -9,6 +9,8 @@ import { oauthLinkErrorMessage, oauthLinkedSuccessMessage } from "@/lib/oauth";
 import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingOptional } from "@/components/onboarding/OnboardingProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { ColorSchemeSelect } from "@/components/ColorSchemeSelect";
 import { CustomThemeSelect } from "@/components/CustomThemeSelect";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
@@ -62,6 +64,8 @@ export function AppSettingsClient() {
   const compactNavFieldId = useId();
   const [compactNav, setCompactNav] = useState(false);
   const [compactNavHydrated, setCompactNavHydrated] = useState(false);
+  const onboarding = useOnboardingOptional();
+  const { ref: mfaSetupRef } = useOnboardingTarget("mfa-setup", Boolean(onboarding?.active && onboarding.step === 2));
 
   const load = useCallback(async () => {
     try {
@@ -221,6 +225,15 @@ export function AppSettingsClient() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!onboarding?.begin2FA || !user || user.two_factor_enabled || twoFASetup) {
+      return;
+    }
+    void onBegin2FA();
+    onboarding.setBegin2FA(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when onboarding opens MFA step
+  }, [onboarding?.begin2FA, user?.id, user?.two_factor_enabled, twoFASetup]);
 
   async function onConfirm2FA(e: React.FormEvent) {
     e.preventDefault();
@@ -574,7 +587,7 @@ export function AppSettingsClient() {
 
       <AppSettingsPasskeysSection />
 
-      <section className="space-y-4 border-t border-kurator-border pt-8">
+      <section ref={mfaSetupRef} className="space-y-4 border-t border-kurator-border pt-8">
         <h2 className="kurator-panel-title text-kurator-fg">Two-Factor Authentication</h2>
         <p className="text-sm text-kurator-muted">
           Add a TOTP app (1Password, Google Authenticator, etc.). You will be asked for a code when

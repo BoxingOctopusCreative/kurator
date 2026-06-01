@@ -73,6 +73,8 @@ import {
 } from "@/lib/validation";
 import { useListFlyIn } from "@/lib/useListFlyIn";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingOptional } from "@/components/onboarding/OnboardingProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { CoverArtField } from "@/components/CoverArtField";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
@@ -478,6 +480,12 @@ export function WishlistDetailClient() {
     user != null &&
     Number(wishlist.user_id) === Number(user.id);
   const canEditEntries = wishlist?.may_edit_entries === true;
+
+  const onboarding = useOnboardingOptional();
+  const { ref: addWishlistItemRef } = useOnboardingTarget(
+    "wishlist-add-item",
+    Boolean(onboarding?.active && onboarding.step === 4 && canEditEntries),
+  );
 
   function cancelTitleEdit() {
     if (!wishlist) return;
@@ -1146,7 +1154,7 @@ export function WishlistDetailClient() {
                 )}
               </div>
               {(canEditEntries || isOwner) && (
-                <div className="flex shrink-0 items-center gap-2">
+                <div ref={addWishlistItemRef} className="flex shrink-0 items-center gap-2">
                   {canEditEntries && (
                     <button
                       type="button"

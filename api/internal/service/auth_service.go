@@ -570,6 +570,10 @@ func (s *AuthService) GetProfile(ctx context.Context, userID int64) (*models.Use
 	return s.users.GetByID(ctx, userID)
 }
 
+func (s *AuthService) UserHasAnyShelves(ctx context.Context, userID int64) (bool, error) {
+	return s.users.UserHasAnyShelves(ctx, userID)
+}
+
 func (s *AuthService) UpdateProfile(ctx context.Context, userID int64, displayName, bio string, avatarURL, bannerURL *string, firstName, lastName, location string, firstNamePublic, lastNamePublic bool, socialLinks []byte, username string, profileIsPublic bool) error {
 	cur, err := s.users.GetByID(ctx, userID)
 	if err != nil {

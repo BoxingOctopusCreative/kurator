@@ -6,6 +6,7 @@ import type { Category, PublicUser, Visibility } from "@/lib/api";
 import { createCollection, DEFAULT_VISIBILITY, fetchMyFriends } from "@/lib/api";
 import { KuratorModal } from "@/components/KuratorModal";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import {
   assertCollectionOrWishlistName,
@@ -28,9 +29,18 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  onCreatedShelf?: (collectionId: string) => void;
+  /** When false, the modal cannot be dismissed (onboarding). */
+  dismissible?: boolean;
 };
 
-export function CollectionCreateModal({ open, onOpenChange, onCreated }: Props) {
+export function CollectionCreateModal({
+  open,
+  onOpenChange,
+  onCreated,
+  onCreatedShelf,
+  dismissible = true,
+}: Props) {
   const { user } = useAuth();
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -42,6 +52,7 @@ export function CollectionCreateModal({ open, onOpenChange, onCreated }: Props) 
   const [friends, setFriends] = useState<PublicUser[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [inviteFriendIds, setInviteFriendIds] = useState<Set<number>>(() => new Set());
+  const { ref: modalPanelRef } = useOnboardingTarget("collection-create-modal", open);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +92,7 @@ export function CollectionCreateModal({ open, onOpenChange, onCreated }: Props) 
       const description = descRaw
         ? assertLooseMultilineText(newDesc, LIMITS.description, "Description")
         : undefined;
-      await createCollection({
+      const created = await createCollection({
         name,
         description,
         visibility: newVisibility,
@@ -91,6 +102,7 @@ export function CollectionCreateModal({ open, onOpenChange, onCreated }: Props) 
         invite_user_ids:
           newIsShared && inviteFriendIds.size > 0 ? Array.from(inviteFriendIds) : undefined,
       });
+      onCreatedShelf?.(created.id);
       setNewName("");
       setNewDesc("");
       setNewVisibility(DEFAULT_VISIBILITY);
@@ -112,11 +124,12 @@ export function CollectionCreateModal({ open, onOpenChange, onCreated }: Props) 
     <KuratorModal
       open={open}
       onOpenChange={onOpenChange}
-      dismissible={!creating}
+      dismissible={dismissible && !creating}
       overlayClassName="bg-black/50"
       showHeader={false}
       labelledBy={dialogTitleId}
     >
+      <div ref={modalPanelRef}>
         <div className="group relative inline-flex items-center gap-1.5">
           <h2 id={dialogTitleId} className="kurator-panel-title text-kurator-fg">
             New collection
@@ -275,6 +288,7 @@ export function CollectionCreateModal({ open, onOpenChange, onCreated }: Props) 
             </button>
           </div>
         </form>
+      </div>
     </KuratorModal>
   );
 }

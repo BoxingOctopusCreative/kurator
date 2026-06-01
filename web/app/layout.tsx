@@ -5,6 +5,7 @@ import { Atkinson_Hyperlegible, Cabin, Lexend } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { AppShell } from "@/components/AppShell";
+import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ThemedShell } from "@/components/ThemedShell";
 
 const cabin = Cabin({
@@ -99,9 +100,11 @@ export default function RootLayout({
       </head>
       <body className="font-sans">
         <AuthProvider>
-          <ThemedShell>
-            <AppShell>{children}</AppShell>
-          </ThemedShell>
+          <OnboardingProvider>
+            <ThemedShell>
+              <AppShell>{children}</AppShell>
+            </ThemedShell>
+          </OnboardingProvider>
         </AuthProvider>
       </body>
     </html>

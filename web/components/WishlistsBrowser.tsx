@@ -23,6 +23,8 @@ import { DeleteEntryBucketDialog, type EntryDeleteSubject } from "@/components/D
 import { ItemCoverImage } from "@/components/ItemCoverImage";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { WishlistCreateModal } from "@/components/WishlistCreateModal";
+import { useOnboardingOptional } from "@/components/onboarding/OnboardingProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 
 const WISHLISTS_BASE_PATH = "/wishlists";
 
@@ -39,7 +41,11 @@ export function WishlistsBrowser({ initialFilters }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpenLocal, setCreateOpenLocal] = useState(false);
+  const onboarding = useOnboardingOptional();
+  const createOpen = onboarding?.active ? onboarding.wishlistCreateOpen : createOpenLocal;
+  const setCreateOpen = onboarding?.active ? onboarding.setWishlistCreateOpen : setCreateOpenLocal;
+  const { ref: createButtonRef } = useOnboardingTarget("wishlist-create", Boolean(onboarding?.active && onboarding.step === 4));
   const [deleteSubject, setDeleteSubject] = useState<EntryDeleteSubject | null>(null);
 
   const commitFilters = useCallback((next: WishlistsListFilters | ((prev: WishlistsListFilters) => WishlistsListFilters)) => {
@@ -125,8 +131,10 @@ export function WishlistsBrowser({ initialFilters }: Props) {
       <WishlistCreateModal
         open={createOpen}
         onOpenChange={setCreateOpen}
+        dismissible={!onboarding?.active}
         collectionOptions={collections}
         onCreated={() => reload()}
+        onCreatedShelf={(wishlistId) => onboarding?.onShelfCreated("wishlist", wishlistId)}
       />
       <DeleteEntryBucketDialog
         variant="wishlist"
@@ -172,6 +180,7 @@ export function WishlistsBrowser({ initialFilters }: Props) {
           </div>
         </div>
         <button
+          ref={createButtonRef}
           type="button"
           onClick={onCreateClick}
           className="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-kurator-accent px-4 py-2 text-sm font-semibold text-kurator-onAccent hover:opacity-90 md:ms-4 md:w-auto md:self-end"

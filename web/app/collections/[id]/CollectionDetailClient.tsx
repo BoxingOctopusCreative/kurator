@@ -52,6 +52,8 @@ import {
   LIMITS,
 } from "@/lib/validation";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingOptional } from "@/components/onboarding/OnboardingProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { CollectionAddItemModal } from "@/components/CollectionAddItemModal";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { EditItemModal } from "@/components/EditItemModal";
@@ -225,6 +227,12 @@ export function CollectionDetailClient() {
     user &&
     collection?.user_id != null &&
     Number(collection.user_id) === Number(user.id);
+
+  const onboarding = useOnboardingOptional();
+  const { ref: addItemRef } = useOnboardingTarget(
+    "collection-add-item",
+    Boolean(onboarding?.active && onboarding.step === 3 && isOwner),
+  );
 
   useEffect(() => {
     if (!collection) return;
@@ -1104,7 +1112,7 @@ export function CollectionDetailClient() {
                 )}
               </div>
               {isOwner && (
-                <div className="flex shrink-0 items-center gap-2">
+                <div ref={addItemRef} className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setAddItemModalOpen(true)}

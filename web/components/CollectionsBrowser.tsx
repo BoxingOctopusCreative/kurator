@@ -7,6 +7,8 @@ import { Layers, Lock, Trash2, Users } from "lucide-react";
 import type { Collection, CollectionListResponse } from "@/lib/api";
 import { fetchCollections, visibilityOf } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
+import { useOnboardingOptional } from "@/components/onboarding/OnboardingProvider";
+import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { CollectionCreateModal } from "@/components/CollectionCreateModal";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { DeleteCollectionDialog, type DeleteCollectionSubject } from "@/components/DeleteCollectionDialog";
@@ -41,7 +43,11 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [listVersion, setListVersion] = useState(0);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpenLocal, setCreateOpenLocal] = useState(false);
+  const onboarding = useOnboardingOptional();
+  const createOpen = onboarding?.active ? onboarding.collectionCreateOpen : createOpenLocal;
+  const setCreateOpen = onboarding?.active ? onboarding.setCollectionCreateOpen : setCreateOpenLocal;
+  const { ref: createButtonRef } = useOnboardingTarget("collection-create", Boolean(onboarding?.active && onboarding.step === 3));
 
   const [deleteSubject, setDeleteSubject] = useState<DeleteCollectionSubject | null>(null);
 
@@ -133,7 +139,9 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
       <CollectionCreateModal
         open={createOpen}
         onOpenChange={setCreateOpen}
+        dismissible={!onboarding?.active}
         onCreated={() => setListVersion((v) => v + 1)}
+        onCreatedShelf={(collectionId) => onboarding?.onShelfCreated("collection", collectionId)}
       />
       <DeleteCollectionDialog
         collection={deleteSubject}
@@ -217,6 +225,7 @@ export function CollectionsBrowser({ basePath, initialFilters }: Props) {
           </div>
         </div>
         <button
+          ref={createButtonRef}
           type="button"
           onClick={onCreateClick}
           className="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-kurator-accent px-4 py-2 text-sm font-semibold text-kurator-onAccent hover:opacity-90 md:ms-4 md:w-auto md:self-end"

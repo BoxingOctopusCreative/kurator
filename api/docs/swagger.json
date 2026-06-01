@@ -1254,6 +1254,80 @@
         }
       }
     },
+    "/api/v1/me/onboarding": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get onboarding status",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/OnboardingStatus"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update onboarding progress",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/OnboardingAdvanceBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/OnboardingStatus"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/v1/me/notifications/unread-count": {
       "get": {
         "tags": [
@@ -4985,6 +5059,17 @@
         "two_factor_enabled": {
           "type": "boolean"
         },
+        "onboarding_completed": {
+          "type": "boolean"
+        },
+        "onboarding_step": {
+          "type": "integer",
+          "description": "Current onboarding step (1–5); 0 treated as 1 for new accounts."
+        },
+        "has_shelves": {
+          "type": "boolean",
+          "description": "True when the account owns any collection, wishlist, or list (skips onboarding overlay)."
+        },
         "plan": {
           "type": "string",
           "enum": [
@@ -5338,6 +5423,45 @@
         },
         "code": {
           "type": "string"
+        }
+      }
+    },
+    "OnboardingStatus": {
+      "type": "object",
+      "properties": {
+        "onboarding_completed": {
+          "type": "boolean"
+        },
+        "onboarding_step": {
+          "type": "integer"
+        },
+        "has_shelves": {
+          "type": "boolean"
+        },
+        "collection_shelf_id": {
+          "type": "string"
+        },
+        "collection_item_count": {
+          "type": "integer"
+        },
+        "wishlist_shelf_id": {
+          "type": "string"
+        },
+        "wishlist_entry_count": {
+          "type": "integer"
+        }
+      }
+    },
+    "OnboardingAdvanceBody": {
+      "type": "object",
+      "properties": {
+        "onboarding_step": {
+          "type": "integer",
+          "description": "Target step after validating the current step (must be current+1)."
+        },
+        "onboarding_completed": {
+          "type": "boolean",
+          "description": "Set true on step 5 to finish onboarding."
         }
       }
     },
