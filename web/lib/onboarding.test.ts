@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AuthUser } from "@/lib/auth";
 import {
   effectiveOnboardingStep,
+  mfaStepReady,
   profileStepReady,
   shouldRunOnboarding,
 } from "@/lib/onboarding";
@@ -49,6 +50,17 @@ describe("shouldRunOnboarding", () => {
 describe("effectiveOnboardingStep", () => {
   it("maps 0 to step 1", () => {
     expect(effectiveOnboardingStep({ ...baseUser, onboarding_step: 0 })).toBe(1);
+  });
+
+  it("caps steps above 5", () => {
+    expect(effectiveOnboardingStep({ ...baseUser, onboarding_step: 9 })).toBe(5);
+  });
+});
+
+describe("mfaStepReady", () => {
+  it("requires two_factor_enabled", () => {
+    expect(mfaStepReady(baseUser)).toBe(false);
+    expect(mfaStepReady({ ...baseUser, two_factor_enabled: true })).toBe(true);
   });
 });
 

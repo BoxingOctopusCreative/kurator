@@ -28,12 +28,19 @@ type OnboardingStatus struct {
 	WishlistEntryCount  int64  `json:"wishlist_entry_count"`
 }
 
-type OnboardingService struct {
-	users      repository.UserRepository
-	onboarding *repository.OnboardingRepository
+type onboardingProgressStore interface {
+	LatestCollectionProgress(ctx context.Context, userID int64) (*repository.OnboardingShelfProgress, error)
+	LatestWishlistProgress(ctx context.Context, userID int64) (*repository.OnboardingShelfProgress, error)
+	HasCollectionWithMinItems(ctx context.Context, userID int64, min int64) (bool, error)
+	HasWishlistWithMinEntries(ctx context.Context, userID int64, min int64) (bool, error)
 }
 
-func NewOnboardingService(users repository.UserRepository, onboarding *repository.OnboardingRepository) *OnboardingService {
+type OnboardingService struct {
+	users      repository.UserRepository
+	onboarding onboardingProgressStore
+}
+
+func NewOnboardingService(users repository.UserRepository, onboarding onboardingProgressStore) *OnboardingService {
 	return &OnboardingService{users: users, onboarding: onboarding}
 }
 
