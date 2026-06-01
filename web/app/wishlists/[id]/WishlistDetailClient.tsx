@@ -71,6 +71,7 @@ import {
   assertOptionalHttpUrl,
   LIMITS,
 } from "@/lib/validation";
+import { useListFlyIn } from "@/lib/useListFlyIn";
 import { useAuth } from "@/components/AuthProvider";
 import { CoverArtField } from "@/components/CoverArtField";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
@@ -348,6 +349,9 @@ export function WishlistDetailClient() {
 
   const [viewMode, setViewMode] = useState<"list" | "tiles">("tiles");
 
+  const { notifyNewItems, entryMotionClass, runWithFlyOut } =
+    useListFlyIn(entries);
+
   const loadAll = useCallback(() => {
     if (!id) return;
     setLoading(true);
@@ -393,15 +397,19 @@ export function WishlistDetailClient() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const reloadWishlistEntries = useCallback(async () => {
-    if (!id) return;
-    const [wl, ent] = await Promise.all([
-      fetchWishlist(id),
-      fetchWishlistEntries(id),
-    ]);
-    setWishlist(wl);
-    setEntries(ent);
-  }, [id]);
+  const reloadWishlistEntries = useCallback(
+    async (opts?: { flyInNew?: boolean }) => {
+      if (!id) return;
+      const [wl, ent] = await Promise.all([
+        fetchWishlist(id),
+        fetchWishlistEntries(id),
+      ]);
+      setWishlist(wl);
+      setEntries(ent);
+      notifyNewItems(ent, opts?.flyInNew);
+    },
+    [id, notifyNewItems],
+  );
 
   useEffect(() => {
     loadAll();
@@ -692,7 +700,7 @@ export function WishlistDetailClient() {
         }
       }
       setImportMsg(parts.join(" · "));
-      await reloadWishlistEntries();
+      await reloadWishlistEntries({ flyInNew: true });
     } catch (err) {
       setImportMsg(err instanceof Error ? err.message : "Import failed.");
     } finally {
@@ -723,6 +731,7 @@ export function WishlistDetailClient() {
       setAddPurchaseUrl("");
       const ent = await fetchWishlistEntries(id);
       setEntries(ent);
+      notifyNewItems(ent, true);
       const wl = await fetchWishlist(id);
       setWishlist(wl);
       setAddWishlistModalOpen(false);
@@ -765,10 +774,12 @@ export function WishlistDetailClient() {
     setObtainBusy(entry.id);
     setError(null);
     try {
-      await obtainWishlistEntry(id, entry.id, cid);
-      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-      const wl = await fetchWishlist(id);
-      setWishlist(wl);
+      await runWithFlyOut([entry.id], async () => {
+        await obtainWishlistEntry(id, entry.id, cid);
+        setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+        const wl = await fetchWishlist(id);
+        setWishlist(wl);
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not add to collection.",
@@ -821,10 +832,12 @@ export function WishlistDetailClient() {
     if (!id) return;
     if (!window.confirm(`Remove “${entry.title}” from this wishlist?`)) return;
     try {
-      await deleteWishlistEntry(id, entry.id);
-      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-      const wl = await fetchWishlist(id);
-      setWishlist(wl);
+      await runWithFlyOut([entry.id], async () => {
+        await deleteWishlistEntry(id, entry.id);
+        setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+        const wl = await fetchWishlist(id);
+        setWishlist(wl);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Remove failed.");
     }
@@ -1501,7 +1514,9 @@ export function WishlistDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface">
+                        <div
+                          className={`flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface ${entryMotionClass(item.id)}`}
+                        >
                           <div className="shrink-0 space-y-2 p-4 pb-2">
                             <h2 className="kurator-item-title line-clamp-2 text-base font-medium leading-snug text-kurator-fg">
                               {item.title}
@@ -1568,7 +1583,9 @@ export function WishlistDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <div className="rounded-xl border border-kurator-border bg-kurator-surface shadow-surface">
+                        <div
+                          className={`rounded-xl border border-kurator-border bg-kurator-surface shadow-surface ${entryMotionClass(item.id)}`}
+                        >
                           <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start">
                             <div className="flex min-w-0 flex-1 gap-4">
                               <div className="relative aspect-2/3 w-20 shrink-0 overflow-hidden rounded-lg border border-kurator-border/60 bg-kurator-bg shadow-surface">

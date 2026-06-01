@@ -1,6 +1,6 @@
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { unsplashHeaders } from "@/lib/unsplash-background.server";
-import { PAGE_BANNER_SEARCH_TERMS } from "@/lib/unsplash-page-banner-terms";
+import { PAGE_BANNER_SEARCH_TERMS, pageBannerSearchTerms } from "@/lib/unsplash-page-banner-terms";
 
 type UnsplashPhoto = {
   urls?: { regular?: string; full?: string };
@@ -26,18 +26,19 @@ function isUnsplashAuthError(status: number): boolean {
 }
 
 /**
- * Random landscape photo from Unsplash using one random term from
- * {@link PAGE_BANNER_SEARCH_TERMS}, with fallbacks across other terms.
+ * Random landscape photo from Unsplash using one random term from the path-specific
+ * list when configured, otherwise {@link PAGE_BANNER_SEARCH_TERMS}.
  */
-export async function fetchUnsplashPageBanner(): Promise<UnsplashBackgroundPayload | null> {
+export async function fetchUnsplashPageBanner(path = "/"): Promise<UnsplashBackgroundPayload | null> {
   const key = process.env.UNSPLASH_ACCESS_KEY?.trim();
   if (!key) {
     return null;
   }
 
+  const terms = pageBannerSearchTerms(path);
   const headers = unsplashHeaders(key);
-  const primary = pickRandom(PAGE_BANNER_SEARCH_TERMS);
-  const orderedQueries = [primary, ...shuffleCopy(PAGE_BANNER_SEARCH_TERMS.filter((q) => q !== primary))];
+  const primary = pickRandom(terms);
+  const orderedQueries = [primary, ...shuffleCopy(terms.filter((q) => q !== primary))];
 
   for (const query of orderedQueries) {
     const url = new URL("https://api.unsplash.com/search/photos");
@@ -80,7 +81,7 @@ export async function fetchUnsplashPageBanner(): Promise<UnsplashBackgroundPaylo
     };
   }
 
-  const query = pickRandom(PAGE_BANNER_SEARCH_TERMS);
+  const query = pickRandom(terms);
   const randomUrl = new URL("https://api.unsplash.com/photos/random");
   randomUrl.searchParams.set("query", query);
   randomUrl.searchParams.set("orientation", "landscape");

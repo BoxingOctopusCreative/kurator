@@ -150,6 +150,87 @@ html[data-font="accessible_atkinson"] {
       0 10px 32px rgb(0 0 0 / 0.52),
       0 26px 56px -16px rgb(0 0 0 / 0.58);
   }
+
+  /** New rows/cards on shelf, wishlist, and hitlist detail after add/import. */
+  @keyframes kurator-shelf-fly-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0.625rem, 0) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  .animate-shelf-fly-in {
+    animation: kurator-shelf-fly-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /** Removed / moved-off rows and cards (mirror of fly-in). */
+  @keyframes kurator-shelf-fly-out {
+    from {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translate3d(0, 0.625rem, 0) scale(0.985);
+    }
+  }
+
+  .animate-shelf-fly-out {
+    animation: kurator-shelf-fly-out 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    pointer-events: none;
+  }
+
+  /** Modals / dialogs (same motion as shelf list items). */
+  .animate-modal-fly-in {
+    animation: kurator-shelf-fly-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-modal-fly-out {
+    animation: kurator-shelf-fly-out 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    pointer-events: none;
+  }
+
+  @keyframes kurator-modal-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes kurator-modal-backdrop-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  .animate-modal-backdrop-in {
+    animation: kurator-modal-backdrop-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-modal-backdrop-out {
+    animation: kurator-modal-backdrop-out 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shelf-fly-in,
+  .animate-shelf-fly-out,
+  .animate-modal-fly-in,
+  .animate-modal-fly-out,
+  .animate-modal-backdrop-in,
+  .animate-modal-backdrop-out {
+    animation: none !important;
+  }
 }
 
 /*
@@ -215,4 +296,17 @@ html[data-font="default"] .kurator-item-title,
 html:not([data-font]) .kurator-item-title {
   text-transform: none;
   letter-spacing: normal;
+}
+
+/*
+ * Custom themes: override Kurator-default Futura rules so the theme font applies
+ * everywhere, including PageHeroUnsplash titles (they use --font-kurator-heading).
+ */
+html[data-custom-theme="active"] :is(h1, h2, h3, h4, h5, h6),
+html[data-custom-theme="active"] .kurator-panel-title,
+html[data-custom-theme="active"] .kurator-shelf-tile-title,
+html[data-custom-theme="active"] .kurator-item-title,
+html[data-custom-theme="active"] .kurator-profile-section-title {
+  font-family: var(--font-sans);
+  font-style: normal;
 }

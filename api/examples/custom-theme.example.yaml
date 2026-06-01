@@ -1,0 +1,41 @@
+---
+customTheme:
+  schemaVersion: "v1"
+
+  meta:
+    name: "my-custom-theme"
+    description: "My custom theme"
+    published: false
+    # required if published: true
+    author:
+      kuratorUserId: null
+      displayName: null
+      profileUrl: null
+
+  branding:
+    logo:
+      url: "https://assets.kuratorapp.cc/brand/PNG/kurator_favicon-white.png"
+
+  appearance:
+    colors:
+      primary: "#000000"
+      secondary: "#FFFFFF"
+      background: "#121212"
+      surface: "#1E1E1E"
+      accent: "#6200EE"
+      text: "#FFFFFF"
+      border: "#333333"
+      interactive: "#BB86FC"
+
+    font:
+      source: "google"  # google | typekit
+      name: "Inter"
+      kitId: null       # required if source: typekit
+      size: 16
+      lineHeight: 1.5
+      display: "swap"   # swap | block | fallback | optional | auto
+      fallback: "system-ui"
+
+    icons:
+      source: "iconify"
+      set: "lucide"     # e.g. lucide, fa, heroicons, mdi

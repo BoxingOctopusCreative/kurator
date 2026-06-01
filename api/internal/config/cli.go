@@ -24,10 +24,12 @@ type LoadOptions struct {
 	S3SecretKey          string
 	S3PublicBaseURL      string
 	S3KeyPrefix          string
+	S3UserAssetsBucket   string
 	MetadataUserAgent    string
 	DiscogsPersonalToken string
 	TheGamesDBAPIKey     string
 	GoogleBooksAPIKey    string
+	GoogleFontsAPIKey    string
 	TMDBAPIKey           string
 	ComicVineAPIKey      string
 	TurnstileEnabled     string
@@ -71,10 +73,12 @@ func RegisterFlags(fs *pflag.FlagSet, o *LoadOptions) {
 	fs.StringVar(&o.S3SecretKey, "s3-secret-access-key", "", "env: S3_SECRET_ACCESS_KEY")
 	fs.StringVar(&o.S3PublicBaseURL, "s3-public-base-url", "", "env: S3_PUBLIC_BASE_URL")
 	fs.StringVar(&o.S3KeyPrefix, "s3-key-prefix", "", "env: S3_KEY_PREFIX")
+	fs.StringVar(&o.S3UserAssetsBucket, "s3-user-assets-bucket", "", "env: S3_USER_ASSETS_BUCKET")
 	fs.StringVar(&o.MetadataUserAgent, "metadata-user-agent", "", "env: METADATA_USER_AGENT")
 	fs.StringVar(&o.DiscogsPersonalToken, "discogs-token", "", "env: DISCOGS_PERSONAL_TOKEN")
 	fs.StringVar(&o.TheGamesDBAPIKey, "thegamesdb-api-key", "", "env: THEGAMESDB_API_KEY")
 	fs.StringVar(&o.GoogleBooksAPIKey, "google-books-api-key", "", "env: GOOGLE_BOOKS_API_KEY")
+	fs.StringVar(&o.GoogleFontsAPIKey, "google-fonts-api-key", "", "env: GOOGLE_FONTS_API_KEY")
 	fs.StringVar(&o.TMDBAPIKey, "tmdb-api-key", "", "env: TMDB_API_KEY")
 	fs.StringVar(&o.ComicVineAPIKey, "comicvine-api-key", "", "env: COMICVINE_API_KEY")
 	fs.StringVar(

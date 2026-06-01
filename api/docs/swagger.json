@@ -793,6 +793,388 @@
         }
       }
     },
+    "/api/v1/me/custom-theme": {
+      "get": {
+        "tags": ["custom-themes"],
+        "summary": "Get my custom theme",
+        "description": "Requires Kurator Pro (**SessionCookie** or **BearerToken**). Returns saved YAML or defaults.",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "OK"},
+          "403": {"description": "Pro required"},
+          "401": {"description": "Unauthorized"}
+        }
+      },
+      "put": {
+        "tags": ["custom-themes"],
+        "summary": "Save custom theme YAML",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [{"name": "body", "in": "body", "required": true, "schema": {"$ref": "#/definitions/CustomThemeYAMLBody"}}],
+        "responses": {
+          "200": {"description": "OK"},
+          "400": {"description": "Validation errors"},
+          "403": {"description": "Pro required"},
+          "429": {"description": "Rate limited (10 uploads/day)"}
+        }
+      },
+      "delete": {
+        "tags": ["custom-themes"],
+        "summary": "Reset custom theme",
+        "description": "Removes saved draft YAML. Fails with 409 if the theme is still published (unpublish first).",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "OK"},
+          "403": {"description": "Pro required"},
+          "409": {"description": "Theme still published"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/unpublish": {
+      "post": {
+        "tags": ["custom-themes"],
+        "summary": "Unpublish custom theme",
+        "description": "Removes all published marketplace versions. Clears active theme for the owner and affected Pro users; notifies users who were actively using the theme.",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "Unpublished"},
+          "400": {"description": "Theme not published"},
+          "403": {"description": "Pro required"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/created": {
+      "delete": {
+        "tags": ["custom-themes"],
+        "summary": "Delete created custom theme",
+        "description": "Deletes the user's theme draft and own library entry. Requires the theme to be unpublished first.",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "Deleted"},
+          "403": {"description": "Pro required"},
+          "409": {"description": "Theme still published"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/validate": {
+      "post": {
+        "tags": ["custom-themes"],
+        "summary": "Validate custom theme YAML",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [{"name": "body", "in": "body", "required": true, "schema": {"$ref": "#/definitions/CustomThemeYAMLBody"}}],
+        "responses": {
+          "200": {"description": "Validation result"},
+          "403": {"description": "Pro required"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/publish": {
+      "post": {
+        "tags": ["custom-themes"],
+        "summary": "Publish custom theme",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "Published theme"},
+          "403": {"description": "Pro required"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/google-fonts": {
+      "get": {
+        "tags": ["custom-themes"],
+        "summary": "List Google Font families for theme editor autocomplete",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "Font family names"},
+          "403": {"description": "Pro required"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/library": {
+      "get": {
+        "tags": ["custom-themes"],
+        "summary": "List custom theme library",
+        "description": "Requires Kurator Pro. Returns own saved theme and marketplace installs.",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "Library entries"},
+          "403": {"description": "Pro required"}
+        }
+      },
+      "post": {
+        "tags": ["custom-themes"],
+        "summary": "Install marketplace theme",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [{"name": "body", "in": "body", "required": true, "schema": {"type": "object", "properties": {"published_theme_id": {"type": "string"}}}}],
+        "responses": {
+          "200": {"description": "Installed library entry"},
+          "403": {"description": "Pro required"},
+          "409": {"description": "Already installed"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/library/{id}": {
+      "delete": {
+        "tags": ["custom-themes"],
+        "summary": "Remove marketplace theme from library",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "type": "string"}],
+        "responses": {
+          "200": {"description": "Removed"},
+          "400": {"description": "Cannot remove own theme entry"},
+          "403": {"description": "Pro required"},
+          "404": {"description": "Library entry not found"}
+        }
+      }
+    },
+    "/api/v1/me/custom-theme/active": {
+      "get": {
+        "tags": ["custom-themes"],
+        "summary": "Get active custom theme YAML",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "produces": ["application/json"],
+        "responses": {
+          "200": {"description": "Active theme or inactive"},
+          "403": {"description": "Pro required"}
+        }
+      },
+      "patch": {
+        "tags": ["custom-themes"],
+        "summary": "Set active custom theme",
+        "description": "Pass library_id as UUID string or null to clear.",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [{"name": "body", "in": "body", "required": true, "schema": {"type": "object", "properties": {"library_id": {"type": "string", "x-nullable": true}}}}],
+        "responses": {
+          "200": {"description": "Active theme updated"},
+          "403": {"description": "Pro required"},
+          "404": {"description": "Library entry not found"}
+        }
+      }
+    },
+    "/api/v1/custom-themes": {
+      "get": {
+        "tags": ["custom-themes"],
+        "summary": "Browse published custom themes",
+        "produces": ["application/json"],
+        "parameters": [
+          {"name": "q", "in": "query", "type": "string"},
+          {"name": "limit", "in": "query", "type": "integer"},
+          {"name": "offset", "in": "query", "type": "integer"}
+        ],
+        "responses": {"200": {"description": "Theme list"}}
+      }
+    },
+    "/api/v1/custom-themes/{id}": {
+      "get": {
+        "tags": ["custom-themes"],
+        "summary": "Get published custom theme",
+        "produces": ["application/json"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "type": "string"}],
+        "responses": {"200": {"description": "OK"}, "404": {"description": "Not found"}}
+      }
+    },
+    "/api/v1/custom-themes/{id}/report": {
+      "post": {
+        "tags": ["custom-themes"],
+        "summary": "Report published custom theme",
+        "security": [{"SessionCookie": []}, {"BearerToken": []}],
+        "consumes": ["application/json"],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "type": "string"},
+          {"name": "body", "in": "body", "required": true, "schema": {"$ref": "#/definitions/CustomThemeReportBody"}}
+        ],
+        "responses": {"200": {"description": "Report queued"}}
+      }
+    },
+    "/api/v1/billing/create-checkout-session": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Create Stripe Checkout session",
+        "description": "Requires **SessionCookie** or **BearerToken**. Returns a Stripe Checkout URL for Kurator Pro (monthly or annual).",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateCheckoutSessionBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/BillingSessionURLResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Already subscribed"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/switch-interval": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Switch Pro billing interval",
+        "description": "Requires **SessionCookie** or **BearerToken**. Updates an active Pro subscription between monthly and annual Stripe prices (proration handled by Stripe).",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SwitchBillingIntervalBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No subscription or invalid interval"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Already on that interval or cannot switch"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/portal": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Create Stripe Customer Portal session",
+        "description": "Requires **SessionCookie** or **BearerToken**. Returns a Stripe Customer Portal URL to manage an existing subscription.",
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/BillingSessionURLResponse"
+            }
+          },
+          "400": {
+            "description": "No Stripe customer"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        }
+      }
+    },
+    "/webhooks/stripe": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Stripe webhook",
+        "description": "Verifies Stripe-Signature using STRIPE_WEBHOOK_SECRET. Handles checkout.session.completed, customer.subscription.created/updated/deleted, invoice.paid, and invoice.payment_failed.",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Invalid payload or signature"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        }
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -4603,6 +4985,26 @@
         "two_factor_enabled": {
           "type": "boolean"
         },
+        "plan": {
+          "type": "string",
+          "enum": [
+            "free",
+            "pro"
+          ]
+        },
+        "subscription_status": {
+          "type": "string",
+          "description": "Stripe subscription status when subscribed; empty otherwise."
+        },
+        "subscription_interval": {
+          "type": "string",
+          "enum": [
+            "",
+            "monthly",
+            "annual"
+          ],
+          "description": "Pro billing cadence when subscribed; empty otherwise."
+        },
         "created_at": {
           "type": "string",
           "format": "date-time"
@@ -4610,6 +5012,64 @@
         "updated_at": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "CreateCheckoutSessionBody": {
+      "type": "object",
+      "required": [
+        "interval"
+      ],
+      "properties": {
+        "interval": {
+          "type": "string",
+          "enum": [
+            "monthly",
+            "annual"
+          ]
+        }
+      }
+    },
+    "CustomThemeYAMLBody": {
+      "type": "object",
+      "required": ["yaml"],
+      "properties": {
+        "yaml": {
+          "type": "string",
+          "description": "customTheme v1 YAML document"
+        }
+      }
+    },
+    "CustomThemeReportBody": {
+      "type": "object",
+      "required": ["reason"],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "SwitchBillingIntervalBody": {
+      "type": "object",
+      "required": [
+        "interval"
+      ],
+      "properties": {
+        "interval": {
+          "type": "string",
+          "enum": [
+            "monthly",
+            "annual"
+          ]
+        }
+      }
+    },
+    "BillingSessionURLResponse": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
         }
       }
     },

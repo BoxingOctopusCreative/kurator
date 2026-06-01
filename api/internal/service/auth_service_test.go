@@ -8,6 +8,7 @@ import (
 	"github.com/boxingoctopus/kurator/api/internal/models"
 	"github.com/boxingoctopus/kurator/api/internal/notifyqueue"
 	"github.com/boxingoctopus/kurator/api/internal/repository"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -114,6 +115,22 @@ func (s *stubUserRepo) DisableTwoFactor(ctx context.Context, id int64) error {
 
 func (s *stubUserRepo) UpdatePasswordHash(ctx context.Context, id int64, passwordHash string) error {
 	return nil
+}
+
+func (s *stubUserRepo) UpdateStripeBilling(ctx context.Context, id int64, stripeCustomerID, subscriptionID *string, subscriptionStatus, subscriptionInterval, plan string) error {
+	return nil
+}
+
+func (s *stubUserRepo) UpdateActiveCustomThemeLibrary(ctx context.Context, id int64, libraryID *uuid.UUID) error {
+	return nil
+}
+
+func (s *stubUserRepo) GetUserIDByStripeCustomerID(ctx context.Context, stripeCustomerID string) (int64, error) {
+	return 0, repository.ErrUserNotFound
+}
+
+func (s *stubUserRepo) GetUserIDBySubscriptionID(ctx context.Context, subscriptionID string) (int64, error) {
+	return 0, repository.ErrUserNotFound
 }
 
 type stubSessionRepo struct {

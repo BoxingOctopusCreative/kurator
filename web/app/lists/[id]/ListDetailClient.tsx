@@ -63,6 +63,7 @@ import {
   LIMITS,
 } from "@/lib/validation";
 import { collectHitlistEntryCoverUrls } from "@/lib/hitlistHeroCollage";
+import { useListFlyIn } from "@/lib/useListFlyIn";
 
 export function ListDetailClient() {
   const params = useParams();
@@ -110,6 +111,9 @@ export function ListDetailClient() {
   const [itemPickQuery, setItemPickQuery] = useState("");
   const [pickComboOpen, setPickComboOpen] = useState(false);
 
+  const { notifyNewItems, entryMotionClass, runWithFlyOut } =
+    useListFlyIn(entries);
+
   const pickSearchRef = useRef<HTMLInputElement>(null);
   const pickComboWrapRef = useRef<HTMLDivElement>(null);
   const listNameInputRef = useRef<HTMLInputElement>(null);
@@ -142,13 +146,14 @@ export function ListDetailClient() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function refreshEntriesAndList() {
+  async function refreshEntriesAndList(opts?: { flyInNew?: boolean }) {
     if (!id) return;
     const [ent, mine] = await Promise.all([
       fetchListItems(id),
       fetchItems({ scope: "mine", limit: 200 }).catch(() => [] as Item[]),
     ]);
     setEntries(ent);
+    notifyNewItems(ent, opts?.flyInNew);
     setMineItems(mine);
     const lst = await fetchList(id);
     setList(lst);
@@ -264,7 +269,7 @@ export function ListDetailClient() {
     try {
       await addListItem(id, pickId.trim());
       setPickId("");
-      await refreshEntriesAndList();
+      await refreshEntriesAndList({ flyInNew: true });
       setAddListModalOpen(false);
     } catch (err) {
       setAddMsg(err instanceof Error ? err.message : "Could not add item.");
@@ -278,10 +283,12 @@ export function ListDetailClient() {
     setRemoveBusy(entry.id);
     setError(null);
     try {
-      await removeListEntry(id, entry.id);
-      setEntries((prev) => prev.filter((x) => x.id !== entry.id));
-      const lst = await fetchList(id);
-      setList(lst);
+      await runWithFlyOut([entry.id], async () => {
+        await removeListEntry(id, entry.id);
+        setEntries((prev) => prev.filter((x) => x.id !== entry.id));
+        const lst = await fetchList(id);
+        setList(lst);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Remove failed.");
     } finally {
@@ -580,7 +587,7 @@ export function ListDetailClient() {
             hitlistId={id}
             open={newItemModalOpen}
             onOpenChange={setNewItemModalOpen}
-            onComplete={() => refreshEntriesAndList()}
+            onComplete={() => void refreshEntriesAndList({ flyInNew: true })}
           />
         </>
       )}
@@ -1000,6 +1007,7 @@ export function ListDetailClient() {
           canReorder={Boolean(mayEdit || isOwner)}
           listTag={EntryListTag}
           listClassName="mb-8 list-none space-y-2 p-0"
+          entryFlyInClass={entryMotionClass}
           getExtras={(entry) => ({
             belowTitle: (
               <>

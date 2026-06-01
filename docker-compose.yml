@@ -46,6 +46,11 @@ services:
       GOOGLE_OAUTH_CLIENT_SECRET: $GOOGLE_OAUTH_CLIENT_SECRET
       DISCORD_OAUTH_CLIENT_ID: $DISCORD_OAUTH_CLIENT_ID
       DISCORD_OAUTH_CLIENT_SECRET: $DISCORD_OAUTH_CLIENT_SECRET
+      ## Stripe (Kurator Pro subscriptions; webhook POST /webhooks/stripe)
+      STRIPE_SECRET_KEY: $STRIPE_SECRET_KEY
+      STRIPE_WEBHOOK_SECRET: $STRIPE_WEBHOOK_SECRET
+      STRIPE_PRO_MONTHLY_PRICE_ID: $STRIPE_PRO_MONTHLY_PRICE_ID
+      STRIPE_PRO_ANNUAL_PRICE_ID: $STRIPE_PRO_ANNUAL_PRICE_ID
       ## Valkey/Redis — optional durable queue for beta + registration outbound notifications (retries, dead-letter).
       REDIS_URL: redis://10.0.0.204:6379/0
       REDIS_NOTIFY_QUEUE_KEY: kurator:notify:jobs
@@ -132,7 +137,7 @@ services:
       NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY: $NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITEKEY
       # Landing page background (https://unsplash.com/oauth/applications)
       UNSPLASH_ACCESS_KEY: $UNSPLASH_ACCESS_KEY
-      ## S3 compatible store (same bucket as API user uploads — also used for `/privacy`; object key fixed in web/lib/privacyPolicyMarkdown.ts)
+      ## S3 compatible store (same bucket as API user uploads — also used for marketing/legal markdown; keys in web/lib/*Markdown.ts)
       S3_BUCKET: $S3_BUCKET
       S3_REGION: $S3_REGION
       S3_ENDPOINT: $S3_ENDPOINT

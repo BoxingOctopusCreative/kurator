@@ -98,6 +98,7 @@ type Props = {
   /** Rendered under the title row (e.g. “Add this to my account”). */
   belowTitle?: ReactNode;
   actions?: ReactNode;
+  cardClassName?: string;
 };
 
 export function HitlistEntryRow({
@@ -112,9 +113,12 @@ export function HitlistEntryRow({
   itemId,
   belowTitle,
   actions,
+  cardClassName,
 }: Props) {
   const card = (
-    <div className="flex gap-3 rounded-lg border border-kurator-border bg-kurator-surface px-3 py-3 shadow-surface sm:gap-4">
+    <div
+      className={`flex gap-3 rounded-lg border border-kurator-border bg-kurator-surface px-3 py-3 shadow-surface sm:gap-4 ${cardClassName ?? ""}`}
+    >
         {dragHandleProps ? (
           <button
             type="button"

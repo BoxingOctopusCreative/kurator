@@ -14,6 +14,7 @@ import {
   publicLegalNameLine,
   type NotificationFeedItem,
 } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 import {
   acceptShelfOwnershipTakeover,
   voteShelfOwnershipElection,
@@ -184,6 +185,8 @@ function notificationHref(n: NotificationFeedItem): string | null {
     case "shelf_ownership_takeover":
     case "shelf_ownership_election":
       return shelfHrefFromPayload(p);
+    case "custom_theme_unpublished":
+      return "/settings/app";
     default:
       return null;
   }
@@ -237,6 +240,11 @@ function notificationSummary(n: NotificationFeedItem): string {
       const shelf = payloadStr(p, "shelf_name");
       const label = shelf ? `“${shelf}”` : "a shared shelf";
       return `The owner deleted their account. Collaborators must agree on a new owner for ${label}.`;
+    }
+    case "custom_theme_unpublished": {
+      const theme = payloadStr(p, "theme_name");
+      const label = theme ? `“${theme}”` : "A custom theme you were using";
+      return `${who} unpublished ${label}. Your app theme was reset to Kurator defaults.`;
     }
     default:
       return `${who} did something in Kurator.`;
@@ -383,6 +391,7 @@ function measurePanelPlacement(buttonEl: HTMLElement): PanelPlacement {
 }
 
 export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDropdownProps) {
+  const { refresh } = useAuth();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationFeedItem[]>([]);
   const [unread, setUnread] = useState(0);
@@ -403,6 +412,9 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
       const data = await fetchNotifications({ limit: 25 });
       setItems(data.notifications);
       setSharedUnread(data.unread_count);
+      if (data.notifications.some((n) => n.kind === "custom_theme_unpublished")) {
+        void refresh();
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load notifications.");
     } finally {
@@ -410,7 +422,7 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
         setLoading(false);
       }
     }
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     return subscribeSharedUnread(setUnread);
@@ -556,7 +568,7 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
     open && placement ? (
       <div
         ref={panelRef}
-        className="fixed z-[200] flex flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface py-2 shadow-dropdown"
+        className="fixed z-200 flex flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface py-2 shadow-dropdown"
         style={{
           top: placement.top,
           left: placement.left,

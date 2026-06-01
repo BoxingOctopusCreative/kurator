@@ -150,6 +150,9 @@ func (s *ImageService) UploadBytes(ctx context.Context, data []byte, kind string
 	if k == "banner" || k == "banners" {
 		folder = "banners"
 	}
+	if k == "theme-logo" || k == "theme-logos" {
+		folder = "theme-logos"
+	}
 	id := uuid.NewString()
 	key := fmt.Sprintf("%s/%s%s", folder, id, ext)
 

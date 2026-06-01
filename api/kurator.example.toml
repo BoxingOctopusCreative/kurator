@@ -60,12 +60,15 @@ access_key_id = ""
 secret_access_key = ""
 public_base_url = ""
 key_prefix = "covers"
+user_assets_bucket = "kurator-user-assets"
 
 [metadata]
 user_agent = ""
 discogs_personal_token = ""
 thegamesdb_api_key = ""
 google_books_api_key = ""
+# Web Fonts Developer API key for custom theme font validation (env: GOOGLE_FONTS_API_KEY).
+google_fonts_api_key = ""
 tmdb_api_key = ""
 comicvine_api_key = ""
 
@@ -89,3 +92,12 @@ notify_queue_key = "kurator:notify:jobs"
 [sentry]
 dsn = ""
 environment = ""
+
+# Stripe Kurator Pro (optional). Checkout + Customer Portal; webhook at POST /webhooks/stripe.
+# Env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRO_MONTHLY_PRICE_ID, STRIPE_PRO_ANNUAL_PRICE_ID
+# Local testing: stripe listen --forward-to localhost:8080/webhooks/stripe
+[stripe]
+secret_key = ""
+webhook_secret = ""
+pro_monthly_price_id = ""
+pro_annual_price_id = ""

@@ -435,6 +435,21 @@ func (r *PostgresAccountDeletionRepository) PurgeUserContent(ctx context.Context
 	if err != nil {
 		return err
 	}
+	_, err = tx.Exec(ctx, `DELETE FROM user_custom_themes WHERE user_id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE published_custom_themes
+		SET author_user_id = NULL,
+		    author_display_name = '[deleted]',
+		    author_profile_url = NULL,
+		    author_deleted = TRUE
+		WHERE author_user_id = $1
+	`, userID)
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
 	if err != nil {
 		return err

@@ -15,6 +15,14 @@ type fileConfig struct {
 	Mailgun     fileMailgun     `toml:"mailgun"`
 	Sentry      fileSentry      `toml:"sentry"`
 	Redis       fileRedis       `toml:"redis"`
+	Stripe      fileStripe      `toml:"stripe"`
+}
+
+type fileStripe struct {
+	SecretKey         string `toml:"secret_key"`
+	WebhookSecret     string `toml:"webhook_secret"`
+	ProMonthlyPriceID string `toml:"pro_monthly_price_id"`
+	ProAnnualPriceID  string `toml:"pro_annual_price_id"`
 }
 
 type fileSentry struct {
@@ -68,6 +76,7 @@ type fileS3 struct {
 	SecretAccessKey string `toml:"secret_access_key"`
 	PublicBaseURL   string `toml:"public_base_url"`
 	KeyPrefix       string `toml:"key_prefix"`
+	UserAssetsBucket string `toml:"user_assets_bucket"`
 }
 
 type fileMetadata struct {
@@ -75,6 +84,7 @@ type fileMetadata struct {
 	DiscogsPersonalToken string `toml:"discogs_personal_token"`
 	TheGamesDBAPIKey     string `toml:"thegamesdb_api_key"`
 	GoogleBooksAPIKey    string `toml:"google_books_api_key"`
+	GoogleFontsAPIKey    string `toml:"google_fonts_api_key"`
 	TMDBAPIKey           string `toml:"tmdb_api_key"`
 	ComicVineAPIKey      string `toml:"comicvine_api_key"`
 }

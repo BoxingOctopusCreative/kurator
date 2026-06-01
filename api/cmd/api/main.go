@@ -304,6 +304,62 @@ func runAPI(cfg config.Config) error {
 	webauthnH := handler.NewWebAuthnHandler(webauthnSvc, cfg.CookieSecure, cfg.SessionMaxAge)
 	recoveryH := handler.NewPasswordRecoveryHandler(recoverySvc, cfg.TurnstileEnabled, cfg.TurnstileSecretKey)
 	accountDeletionH := handler.NewAccountDeletionHandler(accountDeletionSvc)
+	billingSvc := service.NewBillingService(
+		userRepo,
+		publicWeb,
+		cfg.StripeSecretKey,
+		cfg.StripeWebhookSecret,
+		cfg.StripeProMonthlyPriceID,
+		cfg.StripeProAnnualPriceID,
+	)
+	billingH := handler.NewBillingHandler(billingSvc)
+	if billingSvc.Enabled() {
+		logStartup("stripe", "checkout and portal enabled")
+	} else {
+		logStartup("stripe", "skipped (set STRIPE_SECRET_KEY and price IDs)")
+	}
+	if billingSvc.WebhookEnabled() {
+		logStartup("stripe", "webhook signature verification enabled")
+	}
+
+	customThemeRepo := repository.NewPostgresCustomThemeRepository(pool)
+	googleFontsCache := service.NewGoogleFontsCache(cfg.GoogleFontsAPIKey)
+	if strings.TrimSpace(cfg.GoogleFontsAPIKey) != "" {
+		logStartup("google-fonts", "catalog validation enabled (API key set)")
+	} else {
+		logStartup("google-fonts", "catalog validation using fallback list (set GOOGLE_FONTS_API_KEY for full catalog)")
+	}
+	iconifyCache := service.NewIconifyCollectionsCache()
+	var themeStorage *service.ThemeStorageService
+	if cfg.S3Bucket != "" && cfg.S3AccessKey != "" && cfg.S3SecretKey != "" {
+		ts, err := service.NewThemeStorageService(
+			cfg.S3UserAssetsBucket,
+			cfg.S3Region,
+			cfg.S3Endpoint,
+			cfg.S3AccessKey,
+			cfg.S3SecretKey,
+		)
+		if err != nil {
+			log.Fatalf("theme storage: %v", err)
+		}
+		themeStorage = ts
+		if themeStorage.Configured() {
+			logStartup("theme-storage", "ok (bucket="+cfg.S3UserAssetsBucket+")")
+		}
+	} else {
+		logStartup("theme-storage", "skipped (S3 not configured)")
+	}
+	customThemeSvc := service.NewCustomThemeService(
+		customThemeRepo,
+		userRepo,
+		notifRepo,
+		themeStorage,
+		imgSvc,
+		googleFontsCache,
+		iconifyCache,
+		publicWeb,
+	)
+	customThemeH := handler.NewCustomThemeHandler(customThemeSvc)
 	requireAuth := middleware.RequireAuth(authSvc)
 	optionalAuth := middleware.OptionalAuth(authSvc)
 
@@ -332,6 +388,7 @@ func runAPI(cfg config.Config) error {
 	}))
 
 	app.Get("/health", health)
+	app.Post("/webhooks/stripe", billingH.StripeWebhook)
 
 	v1 := app.Group("/api/v1")
 	v1.Get("/auth/beta/status", authH.BetaAccessStatus)
@@ -384,6 +441,23 @@ func runAPI(cfg config.Config) error {
 	me.Delete("/account", accountDeletionH.DeactivateAccount)
 	me.Post("/shelf-ownership-successions/:id/accept", accountDeletionH.AcceptShelfOwnershipTakeover)
 	me.Post("/shelf-ownership-successions/:id/vote", accountDeletionH.VoteShelfOwnershipElection)
+	me.Get("/custom-theme", customThemeH.GetMine)
+	me.Post("/custom-theme/validate", customThemeH.Validate)
+	me.Get("/custom-theme/google-fonts", customThemeH.ListGoogleFonts)
+	me.Put("/custom-theme", customThemeH.Save)
+	me.Delete("/custom-theme", customThemeH.Reset)
+	me.Post("/custom-theme/unpublish", customThemeH.Unpublish)
+	me.Delete("/custom-theme/created", customThemeH.DeleteCreated)
+	me.Post("/custom-theme/publish", customThemeH.Publish)
+	me.Get("/custom-theme/library", customThemeH.ListLibrary)
+	me.Post("/custom-theme/library", customThemeH.InstallLibrary)
+	me.Delete("/custom-theme/library/:id", customThemeH.RemoveLibrary)
+	me.Get("/custom-theme/active", customThemeH.GetActive)
+	me.Patch("/custom-theme/active", customThemeH.SetActive)
+
+	v1.Post("/billing/create-checkout-session", requireAuth, billingH.CreateCheckoutSession)
+	v1.Post("/billing/portal", requireAuth, billingH.CreatePortalSession)
+	v1.Post("/billing/switch-interval", requireAuth, billingH.SwitchInterval)
 
 	v1.Post("/images", requireAuth, imgH.Upload)
 
@@ -432,6 +506,9 @@ func runAPI(cfg config.Config) error {
 	v1.Delete("/items/:id", requireAuth, itemH.Delete)
 	v1.Get("/search", searchH.Search)
 	v1.Get("/metadata/lookup", metaH.Lookup)
+	v1.Get("/custom-themes", customThemeH.ListPublished)
+	v1.Get("/custom-themes/:id", customThemeH.GetPublished)
+	v1.Post("/custom-themes/:id/report", requireAuth, customThemeH.Report)
 
 	v2 := app.Group("/api/v2")
 	v2.Get("/hitlists", optionalAuth, hitlistH.ListMine)

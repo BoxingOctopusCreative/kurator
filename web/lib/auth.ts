@@ -59,6 +59,14 @@ export type AuthUser = {
   banner_url: string | null;
   social_links: SocialLinkInput[];
   two_factor_enabled: boolean;
+  /** `free` or `pro` when the API has Stripe billing enabled. */
+  plan?: string;
+  /** Stripe subscription status (e.g. active, past_due); empty when not subscribed. */
+  subscription_status?: string;
+  /** Pro billing cadence: `monthly` or `annual`; empty when not on Pro. */
+  subscription_interval?: string;
+  /** Active custom theme library entry when Pro custom themes are enabled. */
+  active_custom_theme_library_id?: string | null;
   created_at: string;
   updated_at: string;
 };

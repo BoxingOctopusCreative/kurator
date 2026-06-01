@@ -4,6 +4,8 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { useEffect, useLayoutEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { applyDocumentFont } from "@/lib/documentFont";
+import { CUSTOM_THEME_CHANGED_EVENT } from "@/lib/customTheme";
+import { CustomThemeSync } from "@/components/CustomThemeSync";
 
 function UserThemeSync() {
   const { user } = useAuth();
@@ -35,7 +37,15 @@ function FontSync() {
 
   useLayoutEffect(() => {
     if (user === undefined) return;
-    applyDocumentFont(user?.font_family);
+
+    function applyProfileFont() {
+      if (document.documentElement.dataset.customTheme === "active") return;
+      applyDocumentFont(user?.font_family);
+    }
+
+    applyProfileFont();
+    window.addEventListener(CUSTOM_THEME_CHANGED_EVENT, applyProfileFont);
+    return () => window.removeEventListener(CUSTOM_THEME_CHANGED_EVENT, applyProfileFont);
   }, [user?.font_family, user]);
 
   return null;
@@ -57,6 +67,7 @@ export function ThemedShell({ children }: { children: React.ReactNode }) {
       <UserThemeSync />
       <PaletteSync />
       <FontSync />
+      <CustomThemeSync />
       {children}
     </ThemeProvider>
   );

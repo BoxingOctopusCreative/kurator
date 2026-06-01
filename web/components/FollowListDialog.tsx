@@ -8,6 +8,7 @@ import {
   type PublicUser,
   type UserListResponse,
 } from "@/lib/api";
+import { KuratorModal } from "@/components/KuratorModal";
 import { safeImageSrcUrl } from "@/lib/safeUrl";
 
 type Variant = "followers" | "following";
@@ -135,27 +136,20 @@ export function FollowListDialog({
     }
   }
 
-  if (!open) return null;
-
   const subtitle = profileDisplayName?.trim() || userRef;
   const canLoadMore = total != null && items.length < total;
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
-        role="presentation"
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget && !loading) onOpenChange(false);
-        }}
-      >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="follow-list-title"
-          className="relative max-h-[min(560px,calc(100vh-4rem))] w-full max-w-md overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface shadow-dropdown"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
+    <KuratorModal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onOpenChange(false);
+      }}
+      dismissible={!loading}
+      showHeader={false}
+      labelledBy="follow-list-title"
+      panelClassName="relative max-h-[min(560px,calc(100vh-4rem))] max-w-md overflow-hidden p-0"
+    >
           <div className="border-b border-kurator-border px-5 py-4">
           <h2 id="follow-list-title" className="kurator-panel-title text-kurator-fg">
             {title}
@@ -202,8 +196,6 @@ export function FollowListDialog({
             Close
           </button>
         </div>
-        </div>
-      </div>
-    </>
+    </KuratorModal>
   );
 }

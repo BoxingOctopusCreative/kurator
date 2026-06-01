@@ -20,11 +20,14 @@ type Config struct {
 	S3SecretKey     string
 	S3PublicBaseURL string
 	S3KeyPrefix     string
+	// S3UserAssetsBucket stores custom theme YAML (default kurator-user-assets when S3 is configured).
+	S3UserAssetsBucket string
 	// External metadata APIs (optional)
 	MetadataUserAgent    string
 	DiscogsPersonalToken string
 	TheGamesDBAPIKey     string
 	GoogleBooksAPIKey    string
+	GoogleFontsAPIKey    string
 	TMDBAPIKey           string
 	ComicVineAPIKey      string
 	// BetaAccessRequired enforces email-invite beta flow before register (env: BETA_ACCESS_REQUIRED, default false).
@@ -58,4 +61,9 @@ type Config struct {
 	GoogleOAuthClientSecret string
 	DiscordOAuthClientID    string
 	DiscordOAuthClientSecret string
+	// Stripe (optional): Kurator Pro subscriptions via Checkout + Customer Portal.
+	StripeSecretKey         string
+	StripeWebhookSecret     string
+	StripeProMonthlyPriceID string
+	StripeProAnnualPriceID  string
 }

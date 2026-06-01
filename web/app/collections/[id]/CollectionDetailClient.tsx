@@ -76,6 +76,7 @@ import {
   getItemYear,
   itemMatchesSearch,
 } from "@/lib/itemDisplay";
+import { useListFlyIn } from "@/lib/useListFlyIn";
 
 const VIEW_STORAGE_KEY = "kurator_collection_items_view";
 
@@ -217,6 +218,9 @@ export function CollectionDetailClient() {
   const [shareInviteBusy, setShareInviteBusy] = useState(false);
   const [shareShelfMsg, setShareShelfMsg] = useState<string | null>(null);
 
+  const { notifyNewItems, entryMotionClass, runWithFlyOut } =
+    useListFlyIn(items);
+
   const isOwner =
     user &&
     collection?.user_id != null &&
@@ -333,7 +337,7 @@ export function CollectionDetailClient() {
     };
   }, [id, consumptionFilter]);
 
-  async function reloadCollectionData() {
+  async function reloadCollectionData(opts?: { flyInNew?: boolean }) {
     const [col, its] = await Promise.all([
       fetchCollection(id),
       fetchItems({
@@ -345,6 +349,7 @@ export function CollectionDetailClient() {
     ]);
     setCollection(col);
     setItems(its);
+    notifyNewItems(its, opts?.flyInNew);
   }
 
   async function onExportCsv() {
@@ -387,7 +392,7 @@ export function CollectionDetailClient() {
         }
       }
       setImportMsg(parts.join(" · "));
-      await reloadCollectionData();
+      await reloadCollectionData({ flyInNew: true });
     } catch (err) {
       setImportMsg(err instanceof Error ? err.message : "Import failed.");
     } finally {
@@ -504,14 +509,16 @@ export function CollectionDetailClient() {
     setItemMsg(null);
     setItemBusy({ id: item.id, op: "move" });
     try {
-      await updateItem(item.id, {
-        title: item.title,
-        category: item.category,
-        metadata: item.metadata,
-        collection_id: tid,
-        consumption_status: normalizeConsumptionStatus(item),
+      await runWithFlyOut([item.id], async () => {
+        await updateItem(item.id, {
+          title: item.title,
+          category: item.category,
+          metadata: item.metadata,
+          collection_id: tid,
+          consumption_status: normalizeConsumptionStatus(item),
+        });
+        setItems((prev) => prev.filter((i) => i.id !== item.id));
       });
-      await reloadCollectionData();
     } catch (err) {
       setItemMsg(err instanceof Error ? err.message : "Could not move item.");
     } finally {
@@ -529,8 +536,10 @@ export function CollectionDetailClient() {
     setItemMsg(null);
     setItemBusy({ id: item.id, op: "remove" });
     try {
-      await deleteItem(item.id);
-      await reloadCollectionData();
+      await runWithFlyOut([item.id], async () => {
+        await deleteItem(item.id);
+        setItems((prev) => prev.filter((i) => i.id !== item.id));
+      });
     } catch (err) {
       setItemMsg(err instanceof Error ? err.message : "Could not remove item.");
     } finally {
@@ -617,7 +626,7 @@ export function CollectionDetailClient() {
               onOpenChange={setAddItemModalOpen}
               collectionId={collection.id}
               collectionCategory={collection.category ?? null}
-              onCreated={() => void reloadCollectionData()}
+              onCreated={() => void reloadCollectionData({ flyInNew: true })}
             />
           )}
           {isOwner && (
@@ -1454,7 +1463,7 @@ export function CollectionDetailClient() {
                             tabIndex={0}
                             role="link"
                             aria-label={`View ${item.title}`}
-                            className="cursor-pointer border-b border-kurator-border/80 last:border-0 hover:bg-kurator-surface/40 focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-kurator-accent"
+                            className={`cursor-pointer border-b border-kurator-border/80 last:border-0 hover:bg-kurator-surface/40 focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-kurator-accent ${entryMotionClass(item.id)}`}
                             onClick={() => router.push(`/items/${item.id}`)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
@@ -1609,7 +1618,9 @@ export function CollectionDetailClient() {
                     const cover = getCoverArtUrl(item.metadata);
                     return (
                       <li key={item.id}>
-                        <div className="flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2">
+                        <div
+                          className={`flex h-full min-h-70 flex-col rounded-xl border border-kurator-border bg-kurator-surface shadow-surface outline-hidden ring-kurator-accent transition hover:border-kurator-accent/40 focus-within:ring-2 ${entryMotionClass(item.id)}`}
+                        >
                           <div className="flex shrink-0 items-start justify-between gap-2 p-4 pb-2">
                             <Link
                               href={`/items/${item.id}`}

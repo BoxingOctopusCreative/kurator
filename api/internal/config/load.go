@@ -94,6 +94,7 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 		S3SecretKey:     mergeString("S3_SECRET_ACCESS_KEY", opts.S3SecretKey, fc.S3.SecretAccessKey, ""),
 		S3PublicBaseURL: mergeString("S3_PUBLIC_BASE_URL", opts.S3PublicBaseURL, fc.S3.PublicBaseURL, ""),
 		S3KeyPrefix:     mergeString("S3_KEY_PREFIX", opts.S3KeyPrefix, fc.S3.KeyPrefix, "covers"),
+		S3UserAssetsBucket: mergeString("S3_USER_ASSETS_BUCKET", opts.S3UserAssetsBucket, fc.S3.UserAssetsBucket, "kurator-user-assets"),
 		MetadataUserAgent: mergeString(
 			"METADATA_USER_AGENT",
 			opts.MetadataUserAgent,
@@ -116,6 +117,12 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 			"GOOGLE_BOOKS_API_KEY",
 			opts.GoogleBooksAPIKey,
 			fc.Metadata.GoogleBooksAPIKey,
+			"",
+		),
+		GoogleFontsAPIKey: mergeString(
+			"GOOGLE_FONTS_API_KEY",
+			opts.GoogleFontsAPIKey,
+			fc.Metadata.GoogleFontsAPIKey,
 			"",
 		),
 		TMDBAPIKey: mergeString("TMDB_API_KEY", opts.TMDBAPIKey, fc.Metadata.TMDBAPIKey, ""),
@@ -230,6 +237,30 @@ func Load(filesystem afero.Fs, opts *LoadOptions) (Config, error) {
 			"DISCORD_OAUTH_CLIENT_SECRET",
 			"",
 			fc.OAuth.DiscordClientSecret,
+			"",
+		),
+		StripeSecretKey: mergeString(
+			"STRIPE_SECRET_KEY",
+			"",
+			fc.Stripe.SecretKey,
+			"",
+		),
+		StripeWebhookSecret: mergeString(
+			"STRIPE_WEBHOOK_SECRET",
+			"",
+			fc.Stripe.WebhookSecret,
+			"",
+		),
+		StripeProMonthlyPriceID: mergeString(
+			"STRIPE_PRO_MONTHLY_PRICE_ID",
+			"",
+			fc.Stripe.ProMonthlyPriceID,
+			"",
+		),
+		StripeProAnnualPriceID: mergeString(
+			"STRIPE_PRO_ANNUAL_PRICE_ID",
+			"",
+			fc.Stripe.ProAnnualPriceID,
 			"",
 		),
 	}

@@ -272,7 +272,6 @@ export function ProfileSettingsClient() {
   }
 
   async function uploadCroppedAvatar(file: File) {
-    closeCropSession();
     setAvatarBusy(true);
     try {
       const url = await uploadAvatarImage(file);
@@ -337,7 +336,6 @@ export function ProfileSettingsClient() {
   }
 
   async function uploadCroppedBanner(file: File) {
-    closeCropSession();
     setBannerBusy(true);
     try {
       const url = await uploadBannerImage(file);

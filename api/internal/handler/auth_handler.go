@@ -638,6 +638,14 @@ func localUserID(c *fiber.Ctx) (int64, error) {
 	return id, nil
 }
 
+func billingPlanForResponse(plan string) string {
+	p := strings.TrimSpace(strings.ToLower(plan))
+	if p == models.PlanPro {
+		return models.PlanPro
+	}
+	return models.PlanFree
+}
+
 func publicUser(u *models.User) fiber.Map {
 	m := fiber.Map{
 		"id":                               u.ID,
@@ -659,8 +667,14 @@ func publicUser(u *models.User) fiber.Map {
 		"font_family":                      u.FontFamily,
 		"accessible_fonts_enabled":         u.AccessibleFontsEnabled,
 		"two_factor_enabled":               u.TwoFactorEnabled,
+		"plan":                             billingPlanForResponse(u.Plan),
+		"subscription_status":              strings.TrimSpace(u.SubscriptionStatus),
+		"subscription_interval":            strings.TrimSpace(u.SubscriptionInterval),
 		"created_at":                       u.CreatedAt,
 		"updated_at":                       u.UpdatedAt,
+	}
+	if u.ActiveCustomThemeLibraryID != nil {
+		m["active_custom_theme_library_id"] = u.ActiveCustomThemeLibraryID
 	}
 	if u.AvatarURL != nil {
 		m["avatar_url"] = *u.AvatarURL

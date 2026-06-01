@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // RedactPublicNames sets pub.FirstName and pub.LastName for API responses.
@@ -69,6 +71,16 @@ const (
 	AccountStatusDeactivated = "deactivated"
 )
 
+const (
+	PlanFree = "free"
+	PlanPro  = "pro"
+)
+
+const (
+	BillingIntervalMonthly = "monthly"
+	BillingIntervalAnnual  = "annual"
+)
+
 // HasPassword reports whether the account can sign in with email and password.
 func HasPassword(u *User) bool {
 	return u != nil && strings.TrimSpace(u.PasswordHash) != ""
@@ -100,6 +112,20 @@ type User struct {
 	SocialLinks                   json.RawMessage `json:"social_links"`
 	TwoFactorEnabled              bool            `json:"two_factor_enabled"`
 	TwoFactorSecret               *string         `json:"-"`
+	StripeCustomerID              *string         `json:"-"`
+	SubscriptionID                *string         `json:"-"`
+	SubscriptionStatus            string          `json:"subscription_status"`
+	SubscriptionInterval          string          `json:"subscription_interval"`
+	Plan                          string          `json:"plan"`
+	ActiveCustomThemeLibraryID    *uuid.UUID      `json:"active_custom_theme_library_id,omitempty"`
 	CreatedAt                     time.Time       `json:"created_at"`
 	UpdatedAt                     time.Time       `json:"updated_at"`
+}
+
+// HasProPlan reports whether the user should receive Pro entitlements.
+func HasProPlan(u *User) bool {
+	if u == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(u.Plan), PlanPro)
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Category } from "@/lib/api";
 import { deleteCollection, type CollectionDeleteConflictPayload } from "@/lib/api";
+import { KuratorModal } from "@/components/KuratorModal";
 import { categoryLabel } from "@/lib/categoryLabels";
 
 export type DeleteCollectionSubject = {
@@ -111,22 +112,14 @@ export function DeleteCollectionDialog({ collection, open, onOpenChange, onDelet
   const submitDisabled = busy || (hasItems && !deleteItemsPermanently && !moveToId.trim());
 
   return (
-    <>
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
-          role="presentation"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) onOpenChange(false);
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-collection-title"
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
+    <KuratorModal
+      open={open}
+      onOpenChange={onOpenChange}
+      dismissible={!busy}
+      showHeader={false}
+      labelledBy="delete-collection-title"
+      panelClassName="max-w-md"
+    >
             <h2 id="delete-collection-title" className="kurator-panel-title text-kurator-fg">
               Delete Collection
             </h2>
@@ -226,9 +219,6 @@ export function DeleteCollectionDialog({ collection, open, onOpenChange, onDelet
                 {busy ? "Working…" : "Delete Collection"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+    </KuratorModal>
   );
 }

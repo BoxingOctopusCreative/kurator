@@ -8,6 +8,7 @@ import {
   type SharedShelfForDeletion,
   type ShelfOwnershipTransfer,
 } from "@/lib/accountDeletion";
+import { KuratorModal } from "@/components/KuratorModal";
 import { logout } from "@/lib/auth";
 
 type Props = {
@@ -106,8 +107,6 @@ export function DeleteAccountModal({ open, userId, onOpenChange, onDeactivated }
     }
   }
 
-  if (!open) return null;
-
   const shelfKindLabel = (kind: string) => {
     if (kind === "collection") return "Collection";
     if (kind === "wishlist") return "Wishlist";
@@ -116,20 +115,15 @@ export function DeleteAccountModal({ open, userId, onOpenChange, onDeactivated }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !busy) onOpenChange(false);
-      }}
+    <KuratorModal
+      open={open}
+      onOpenChange={onOpenChange}
+      dismissible={!busy}
+      overlayClassName="bg-black/50"
+      showHeader={false}
+      labelledBy="delete-account-title"
+      panelClassName="border-red-500/40"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-account-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-red-500/40 bg-kurator-surface p-5 shadow-dropdown"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
         <h2 id="delete-account-title" className="text-lg font-semibold text-red-400">
           Delete your account
         </h2>
@@ -234,7 +228,6 @@ export function DeleteAccountModal({ open, userId, onOpenChange, onDeactivated }
             {busy ? "Deleting account…" : "Delete my account"}
           </button>
         </div>
-      </div>
-    </div>
+    </KuratorModal>
   );
 }

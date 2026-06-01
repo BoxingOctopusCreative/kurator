@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const path = sanitizePath(new URL(req.url).searchParams.get("path"));
 
   const getCachedBanner = unstable_cache(
-    async () => fetchUnsplashPageBanner(),
+    async () => fetchUnsplashPageBanner(path),
     ["unsplash-page-banner", path],
     { revalidate: 3600 },
   );

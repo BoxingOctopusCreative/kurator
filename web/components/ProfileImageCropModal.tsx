@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
+import { KuratorModal } from "@/components/KuratorModal";
 import {
   drawCroppedToCanvas,
   getCroppedImageBlob,
@@ -27,6 +28,7 @@ const AVATAR_ASPECT = 1;
 const BANNER_ASPECT = 3;
 
 export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplete }: Props) {
+  const [open, setOpen] = useState(true);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -69,16 +71,6 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
     }
   }, [croppedAreaPixels, kind, sourceImage, crop, zoom]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
-
   async function handleApply() {
     if (!croppedAreaPixels) {
       setError("Adjust the crop area, then try again.");
@@ -92,11 +84,17 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
       const name = kind === "avatar" ? "avatar.jpg" : "banner.jpg";
       const file = new File([blob], name, { type: "image/jpeg" });
       await onComplete(file);
+      setOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not prepare image.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function requestClose() {
+    if (busy) return;
+    setOpen(false);
   }
 
   const title = kind === "avatar" ? "Adjust profile photo" : "Adjust banner";
@@ -109,22 +107,17 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
   const previewH = kind === "avatar" ? PROFILE_AVATAR_PREVIEW.height : PROFILE_BANNER_PREVIEW.height;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) {
-          onClose();
-        }
+    <KuratorModal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) requestClose();
       }}
+      onExited={onClose}
+      dismissible={!busy}
+      showHeader={false}
+      labelledBy="crop-modal-title"
+      panelClassName="flex max-h-[min(92vh,800px)] max-w-3xl flex-col overflow-hidden bg-kurator-bg p-0"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="crop-modal-title"
-        className="flex max-h-[min(92vh,800px)] w-full max-w-3xl flex-col rounded-xl border border-kurator-border bg-kurator-bg shadow-dropdown"
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="border-b border-kurator-border px-4 py-3">
           <h2 id="crop-modal-title" className="kurator-panel-title text-kurator-fg">
             {title}
@@ -204,7 +197,7 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => !busy && onClose()}
+              onClick={requestClose}
               className="rounded-lg border border-kurator-border px-3 py-2 text-sm text-kurator-fg hover:bg-kurator-surface disabled:opacity-50"
               disabled={busy}
             >
@@ -220,7 +213,6 @@ export function ProfileImageCropModal({ kind, imageObjectUrl, onClose, onComplet
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </KuratorModal>
   );
 }

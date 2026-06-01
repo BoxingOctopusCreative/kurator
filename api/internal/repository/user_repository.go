@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/boxingoctopus/kurator/api/internal/models"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,6 +32,10 @@ type UserRepository interface {
 	EnableTwoFactor(ctx context.Context, id int64) error
 	DisableTwoFactor(ctx context.Context, id int64) error
 	UpdatePasswordHash(ctx context.Context, id int64, passwordHash string) error
+	UpdateStripeBilling(ctx context.Context, id int64, stripeCustomerID, subscriptionID *string, subscriptionStatus, subscriptionInterval, plan string) error
+	UpdateActiveCustomThemeLibrary(ctx context.Context, id int64, libraryID *uuid.UUID) error
+	GetUserIDByStripeCustomerID(ctx context.Context, stripeCustomerID string) (int64, error)
+	GetUserIDBySubscriptionID(ctx context.Context, subscriptionID string) (int64, error)
 }
 
 type PostgresUserRepository struct {
@@ -42,7 +47,7 @@ func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 }
 
 func userScanCols() string {
-	return `id, account_status, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, created_at, updated_at`
+	return `id, account_status, email, password_hash, username, username_locked, profile_is_public, display_name, first_name, last_name, first_name_public, last_name_public, location, bio, theme_preference, color_scheme, accessible_color_schemes_enabled, font_family, accessible_fonts_enabled, avatar_url, banner_url, social_links, two_factor_enabled, two_factor_secret, stripe_customer_id, subscription_id, subscription_status, subscription_interval, plan, active_custom_theme_library_id, created_at, updated_at`
 }
 
 func scanUser(row pgx.Row) (*models.User, error) {
@@ -50,7 +55,7 @@ func scanUser(row pgx.Row) (*models.User, error) {
 	var sl []byte
 	var passwordHash *string
 	err := row.Scan(
-		&u.ID, &u.AccountStatus, &u.Email, &passwordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.AccountStatus, &u.Email, &passwordHash, &u.Username, &u.UsernameLocked, &u.ProfileIsPublic, &u.DisplayName, &u.FirstName, &u.LastName, &u.FirstNamePublic, &u.LastNamePublic, &u.Location, &u.Bio, &u.ThemePreference, &u.ColorScheme, &u.AccessibleColorSchemesEnabled, &u.FontFamily, &u.AccessibleFontsEnabled, &u.AvatarURL, &u.BannerURL, &sl, &u.TwoFactorEnabled, &u.TwoFactorSecret, &u.StripeCustomerID, &u.SubscriptionID, &u.SubscriptionStatus, &u.SubscriptionInterval, &u.Plan, &u.ActiveCustomThemeLibraryID, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if passwordHash != nil {
 		u.PasswordHash = *passwordHash
@@ -399,4 +404,79 @@ func (r *PostgresUserRepository) SearchPublic(ctx context.Context, q string, lim
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+func (r *PostgresUserRepository) UpdateStripeBilling(
+	ctx context.Context,
+	id int64,
+	stripeCustomerID, subscriptionID *string,
+	subscriptionStatus, subscriptionInterval, plan string,
+) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users
+		SET
+			stripe_customer_id = $2,
+			subscription_id = $3,
+			subscription_status = $4,
+			subscription_interval = $5,
+			plan = $6,
+			updated_at = NOW()
+		WHERE id = $1
+	`, id, stripeCustomerID, subscriptionID, subscriptionStatus, subscriptionInterval, plan)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) UpdateActiveCustomThemeLibrary(ctx context.Context, id int64, libraryID *uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users SET active_custom_theme_library_id = $2, updated_at = NOW() WHERE id = $1
+	`, id, libraryID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) GetUserIDByStripeCustomerID(ctx context.Context, stripeCustomerID string) (int64, error) {
+	stripeCustomerID = strings.TrimSpace(stripeCustomerID)
+	if stripeCustomerID == "" {
+		return 0, ErrUserNotFound
+	}
+	var id int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT id FROM users WHERE stripe_customer_id = $1
+	`, stripeCustomerID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrUserNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (r *PostgresUserRepository) GetUserIDBySubscriptionID(ctx context.Context, subscriptionID string) (int64, error) {
+	subscriptionID = strings.TrimSpace(subscriptionID)
+	if subscriptionID == "" {
+		return 0, ErrUserNotFound
+	}
+	var id int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT id FROM users WHERE subscription_id = $1
+	`, subscriptionID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrUserNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }

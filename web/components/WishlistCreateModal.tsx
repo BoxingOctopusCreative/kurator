@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CircleHelp } from "lucide-react";
 import type { PublicUser, Visibility } from "@/lib/api";
 import { createWishlist, DEFAULT_VISIBILITY, fetchMyFriends } from "@/lib/api";
+import { KuratorModal } from "@/components/KuratorModal";
 import { useAuth } from "@/components/AuthProvider";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import {
@@ -100,25 +101,17 @@ export function WishlistCreateModal({
     }
   }
 
-  if (!open) return null;
-
   const dialogTitleId = "wishlist-create-modal-title";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !creating) onOpenChange(false);
-      }}
+    <KuratorModal
+      open={open}
+      onOpenChange={onOpenChange}
+      dismissible={!creating}
+      overlayClassName="bg-black/50"
+      showHeader={false}
+      labelledBy={dialogTitleId}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={dialogTitleId}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
         <h2 id={dialogTitleId} className="kurator-panel-title text-kurator-fg">
           New wishlist
         </h2>
@@ -258,7 +251,6 @@ export function WishlistCreateModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </KuratorModal>
   );
 }

@@ -35,9 +35,18 @@ type SortableRowProps = {
   canReorder: boolean;
   showItemOpenLink: boolean;
   extras: HitlistEntryRowExtras;
+  entryFlyInClass?: (entryId: string) => string;
 };
 
-function SortableRow({ entry, rank, showNumbers, canReorder, showItemOpenLink, extras }: SortableRowProps) {
+function SortableRow({
+  entry,
+  rank,
+  showNumbers,
+  canReorder,
+  showItemOpenLink,
+  extras,
+  entryFlyInClass,
+}: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
     disabled: !canReorder,
@@ -62,6 +71,7 @@ function SortableRow({ entry, rank, showNumbers, canReorder, showItemOpenLink, e
         itemId={showItemOpenLink ? (entry.item?.id ?? null) : null}
         belowTitle={extras.belowTitle}
         actions={extras.actions}
+        cardClassName={entryFlyInClass?.(entry.id)}
       />
     </li>
   );
@@ -78,6 +88,7 @@ type Props = {
   listTag: "ol" | "ul";
   listClassName: string;
   getExtras: (entry: HitlistEntry) => HitlistEntryRowExtras;
+  entryFlyInClass?: (entryId: string) => string;
 };
 
 export function HitlistEntriesSortableList({
@@ -90,6 +101,7 @@ export function HitlistEntriesSortableList({
   listTag: ListTag,
   listClassName,
   getExtras,
+  entryFlyInClass,
 }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -131,6 +143,7 @@ export function HitlistEntriesSortableList({
               itemId={showItemOpenLink ? (entry.item?.id ?? null) : null}
               belowTitle={extras.belowTitle}
               actions={extras.actions}
+              cardClassName={entryFlyInClass?.(entry.id)}
             />
           );
         })}
@@ -151,6 +164,7 @@ export function HitlistEntriesSortableList({
               canReorder
               showItemOpenLink={showItemOpenLink}
               extras={getExtras(entry)}
+              entryFlyInClass={entryFlyInClass}
             />
           ))}
         </ListTag>

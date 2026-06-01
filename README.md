@@ -1,12 +1,10 @@
 # KÜRAT[OR]
 
 ![Kurator](https://assets.kuratorapp.cc/brand/PNG/kurator_wide-white.png)
-
 ![Uptime Robot status](https://img.shields.io/uptimerobot/status/m803121806-9c180235ac20e6e517aeec67?logo=uptimerobot&label=UptimeRobot)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/boxingoctopuscreative/kurator?filename=%2Fapi%2Fgo.mod&logo=go)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/boxingoctopuscreative/kurator/ci-release.yml?logo=github)
 ![Discord](https://img.shields.io/discord/1496176586859217067?logo=discord&label=Discord&link=https%3A%2F%2Fdiscord.gg%2FrjHYuGHFNG)
-
 
 ## Introduction
 
@@ -68,7 +66,7 @@ Kurator uses the following tech stack:
 
 ## Buuuuut, It's Still a Work in Progress...
 
-Kurator is still in active beta. You're welcome to sign up, but by invite-only. Want to ~~sign up for unpaid labour~~ Help make Kurator as badass as we all know it can be? 
+Kurator is still in active beta. You're welcome to sign up, but by invite-only. Want to ~~sign up for unpaid labour~~ Help make Kurator as badass as we all know it can be?
 
 * [**Join the Discord!**](https://discord.gg/rjHYuGHFNG)
 * [**Contribute!**](DEVELOPERS.md)

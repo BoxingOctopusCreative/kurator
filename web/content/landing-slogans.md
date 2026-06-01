@@ -16,3 +16,8 @@ Each bullet below is one rotating tagline on the home page hero.
 - Smaug? The Collector?? Comic Book Guy??? HAH! Rank Amateurs next to you...
 - My Name is Ozycrapius! Collector of Collectors! Look upon my hoard, ye mighty, and despair!
 - Obligatory The Sims "Reticulating Splines" joke... y'know, because this is a rotating slogan component?
+- Collect. Flex. Repeat.
+- Your collection, their envy.
+- Yes, it counts as a hobby.
+- Because spreadsheets don't have followers.
+

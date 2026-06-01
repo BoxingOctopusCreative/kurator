@@ -16,6 +16,7 @@ const (
 	NotificationKindShelfAccessRequest      = "shelf_access_request"
 	NotificationKindShelfOwnershipTakeover    = "shelf_ownership_takeover"
 	NotificationKindShelfOwnershipElection  = "shelf_ownership_election"
+	NotificationKindCustomThemeUnpublished    = "custom_theme_unpublished"
 )
 
 // NotificationFeedItem is one row for GET /me/notifications.

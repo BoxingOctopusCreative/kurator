@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { KuratorModal } from "@/components/KuratorModal";
 import {
   deleteList,
   deleteWishlist,
@@ -152,22 +153,14 @@ export function DeleteEntryBucketDialog({ variant, subject, open, onOpenChange, 
   const dialogTitleId = `delete-${variant}-title`;
 
   return (
-    <>
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
-          role="presentation"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) onOpenChange(false);
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={dialogTitleId}
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-kurator-border bg-kurator-surface p-5 shadow-dropdown"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
+    <KuratorModal
+      open={open}
+      onOpenChange={onOpenChange}
+      dismissible={!busy}
+      showHeader={false}
+      labelledBy={dialogTitleId}
+      panelClassName="max-w-md"
+    >
             <h2 id={dialogTitleId} className="kurator-panel-title text-kurator-fg">
               {c.title}
             </h2>
@@ -260,9 +253,6 @@ export function DeleteEntryBucketDialog({ variant, subject, open, onOpenChange, 
                 {busy ? "Working…" : c.title}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+    </KuratorModal>
   );
 }
