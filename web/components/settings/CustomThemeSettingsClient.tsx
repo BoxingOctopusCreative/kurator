@@ -56,6 +56,10 @@ export function CustomThemeSettingsClient() {
   const load = useCallback(async () => {
     try {
       const me = await fetchMe();
+      if (!me) {
+        setUser(null);
+        return;
+      }
       setUser(me);
       if (!isProPlan(me.plan)) {
         setProBlocked(true);
