@@ -182,7 +182,7 @@ export async function saveCustomThemeYaml(yaml: string): Promise<CustomThemeVali
   const data = (await res.json()) as CustomThemeValidationResult & { yaml?: string };
   if (!res.ok) {
     if (!data.valid && data.errors) {
-      return data;
+      return { ...data, yaml: data.yaml ?? yaml };
     }
     throw new Error(await readApiError(res));
   }

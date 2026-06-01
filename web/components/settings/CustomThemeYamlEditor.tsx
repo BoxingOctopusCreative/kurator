@@ -150,7 +150,7 @@ function yamlSyntaxLinter() {
       const text = view.state.doc.toString();
       return getYamlSyntaxIssues(text).map((issue) => issueToDiagnostic(view.state.doc, issue));
     },
-    { delay: 200, tooltipFilter: () => true },
+    { delay: 200 },
   );
 }
 
@@ -171,11 +171,10 @@ function buildExtensions(
     foldGutter(),
     yaml(),
     syntaxHighlighting(yamlHighlightStyle),
-    lintGutter(),
+    lintGutter({ hoverTime: 200 }),
     yamlSyntaxLinter(),
     tooltips({
       parent: tooltipParent ?? (typeof document !== "undefined" ? document.body : undefined),
-      hoverTime: 200,
     }),
     EditorView.lineWrapping,
     EditorView.editable.of(true),
