@@ -2,19 +2,19 @@ import type { Metadata } from "next";
 import { preload } from "react-dom";
 import { LegalMarkdownDocument } from "@/components/LegalMarkdownDocument";
 import { fetchUnsplashPageBanner } from "@/lib/unsplash-page-banner.server";
-import { loadPrivacyPolicyMarkdown } from "@/lib/privacyPolicyMarkdown";
+import { loadTermsOfUseMarkdown } from "@/lib/termsOfUseMarkdown";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "How Kurator handles your data.",
+  title: "Terms of Use",
+  description: "Terms governing your use of Kurator.",
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function PrivacyPolicyPage() {
+export default async function TermsOfUsePage() {
   const [{ markdown }, initialBackground] = await Promise.all([
-    loadPrivacyPolicyMarkdown(),
-    fetchUnsplashPageBanner("/privacy"),
+    loadTermsOfUseMarkdown(),
+    fetchUnsplashPageBanner("/terms"),
   ]);
 
   if (initialBackground?.url) {
@@ -23,7 +23,7 @@ export default async function PrivacyPolicyPage() {
 
   return (
     <LegalMarkdownDocument
-      bannerPath="/privacy"
+      bannerPath="/terms"
       markdown={markdown}
       initialBackground={initialBackground}
     />

@@ -156,6 +156,64 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
           aws s3 cp "${ENDPOINT_ARGS[@]}" --region "$REGION" web/content/privacy-policy.md "s3://${S3_BUCKET}/${DEST_KEY}"
 
+      # Publishes `web/content/terms-of-use.md` into the shared asset bucket (key: legal/terms-of-use.md).
+      - name: Publish terms of use markdown to S3
+        if: steps.tag_version.outputs.new_tag != ''
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ vars.S3_REGION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${S3_BUCKET:-}" ]]; then
+            echo "S3_BUCKET secret not set; skipping terms of use upload."
+            exit 0
+          fi
+          if [[ -z "${S3_ACCESS_KEY_ID:-}" || -z "${S3_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY not set; skipping terms of use upload."
+            exit 0
+          fi
+          REGION="${S3_REGION:-us-east-1}"
+          DEST_KEY="legal/terms-of-use.md"
+          ENDPOINT_ARGS=()
+          if [[ -n "${S3_ENDPOINT:-}" ]]; then
+            ENDPOINT_ARGS=(--endpoint-url "${S3_ENDPOINT}")
+          fi
+          export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+          aws s3 cp "${ENDPOINT_ARGS[@]}" --region "$REGION" web/content/terms-of-use.md "s3://${S3_BUCKET}/${DEST_KEY}"
+
+      # Publishes `web/content/sitemap.md` into the shared asset bucket (key: legal/sitemap.md).
+      - name: Publish sitemap markdown to S3
+        if: steps.tag_version.outputs.new_tag != ''
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ vars.S3_REGION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${S3_BUCKET:-}" ]]; then
+            echo "S3_BUCKET secret not set; skipping sitemap upload."
+            exit 0
+          fi
+          if [[ -z "${S3_ACCESS_KEY_ID:-}" || -z "${S3_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY not set; skipping sitemap upload."
+            exit 0
+          fi
+          REGION="${S3_REGION:-us-east-1}"
+          DEST_KEY="legal/sitemap.md"
+          ENDPOINT_ARGS=()
+          if [[ -n "${S3_ENDPOINT:-}" ]]; then
+            ENDPOINT_ARGS=(--endpoint-url "${S3_ENDPOINT}")
+          fi
+          export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+          aws s3 cp "${ENDPOINT_ARGS[@]}" --region "$REGION" web/content/sitemap.md "s3://${S3_BUCKET}/${DEST_KEY}"
+
       # Publishes `web/content/landing-slogans.md` into the shared asset bucket (key: marketing/landing-slogans.md).
       - name: Publish landing slogans markdown to S3
         if: steps.tag_version.outputs.new_tag != ''
@@ -184,6 +242,35 @@ jobs:
           export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
           aws s3 cp "${ENDPOINT_ARGS[@]}" --region "$REGION" web/content/landing-slogans.md "s3://${S3_BUCKET}/${DEST_KEY}"
+
+      # Publishes `web/content/billing-plans.md` into the shared asset bucket (key: marketing/billing-plans.md).
+      - name: Publish billing plans markdown to S3
+        if: steps.tag_version.outputs.new_tag != ''
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ vars.S3_REGION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${S3_BUCKET:-}" ]]; then
+            echo "S3_BUCKET secret not set; skipping billing plans upload."
+            exit 0
+          fi
+          if [[ -z "${S3_ACCESS_KEY_ID:-}" || -z "${S3_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY not set; skipping billing plans upload."
+            exit 0
+          fi
+          REGION="${S3_REGION:-us-east-1}"
+          DEST_KEY="marketing/billing-plans.md"
+          ENDPOINT_ARGS=()
+          if [[ -n "${S3_ENDPOINT:-}" ]]; then
+            ENDPOINT_ARGS=(--endpoint-url "${S3_ENDPOINT}")
+          fi
+          export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+          aws s3 cp "${ENDPOINT_ARGS[@]}" --region "$REGION" web/content/billing-plans.md "s3://${S3_BUCKET}/${DEST_KEY}"
 
       - name: Set up Docker Buildx
         if: steps.tag_version.outputs.new_tag != ''

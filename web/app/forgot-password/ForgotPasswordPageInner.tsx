@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { Copyright } from "@/components/Copyright";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { ForgotPasswordClient } from "./ForgotPasswordClient";
 
 type Props = {
@@ -46,6 +47,7 @@ export function ForgotPasswordPageInner({
           />
         </Suspense>
       </div>
+      <LegalPolicyLinks className="mb-3 text-center text-xs text-kurator-muted" />
       <Copyright />
     </UnsplashMarketingShell>
   );

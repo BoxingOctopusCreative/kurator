@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { OAuthSignInButtons } from "@/components/OAuthSignInButtons";
 import { PasskeySignInButton } from "@/components/PasskeySignInButton";
@@ -204,11 +205,7 @@ export function LoginClient({ turnstileSiteKey, turnstileEnabled }: Props) {
           Register
         </Link>
       </p>
-      <p className="mt-4 text-center text-xs text-kurator-muted">
-        <Link href="/privacy" className="text-kurator-accent/90 hover:underline">
-          Privacy Policy
-        </Link>
-      </p>
+      <LegalPolicyLinks className="mt-4 text-center text-xs text-kurator-muted" />
     </div>
   );
 }

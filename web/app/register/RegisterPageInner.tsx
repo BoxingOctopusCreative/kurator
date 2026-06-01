@@ -11,6 +11,7 @@ import { AuthBetaGate } from "@/components/AuthBetaGate";
 import { OAuthSignInButtons } from "@/components/OAuthSignInButtons";
 import { register } from "@/lib/auth";
 import { Copyright } from "@/components/Copyright";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 
 type Props = {
   initialBackground: UnsplashBackgroundPayload | null;
@@ -158,11 +159,7 @@ export function RegisterPageInner({ initialBackground, turnstileSiteKey, turnsti
               Log In
             </Link>
           </p>
-          <p className="mt-4 text-center text-xs text-kurator-muted">
-            <Link href="/privacy" className="text-kurator-accent/90 hover:underline">
-              Privacy Policy
-            </Link>
-          </p>
+          <LegalPolicyLinks className="mt-4 text-center text-xs text-kurator-muted" />
         </div>
       </AuthBetaGate>
       <Copyright />

@@ -23,6 +23,18 @@ export function readSidebarCollapsedPreference(): boolean {
   }
 }
 
+/** Privacy, terms, and sitemap routes (markdown legal pages). */
+export function isLegalDocumentPath(pathname: string): boolean {
+  return (
+    pathname === "/privacy" ||
+    pathname.startsWith("/privacy/") ||
+    pathname === "/terms" ||
+    pathname.startsWith("/terms/") ||
+    pathname === "/sitemap" ||
+    pathname.startsWith("/sitemap/")
+  );
+}
+
 export function persistSidebarCollapsedPreference(collapsed: boolean): void {
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, serializeSidebarCollapsed(collapsed));

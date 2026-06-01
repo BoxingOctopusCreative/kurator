@@ -26,9 +26,11 @@ import {
 } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
-import Image from "next/image";
+import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { Copyright } from "@/components/Copyright";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import {
+  isLegalDocumentPath,
   persistSidebarCollapsedPreference,
   readSidebarCollapsedPreference,
   SIDEBAR_COLLAPSED_CHANGED_EVENT,
@@ -54,12 +56,6 @@ function isNavActive(href: string, pathname: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
-
-/** Collapsed sidebar mark — theme-specific assets (no CSS filter). */
-const SIDEBAR_MARK_LIGHT =
-  "https://assets.kuratorapp.cc/brand/SVG/kurator_favicon-black.svg";
-const SIDEBAR_MARK_DARK =
-  "https://assets.kuratorapp.cc/brand/SVG/kurator_favicon-white.svg";
 
 function topRightSafeInsetStyle(): CSSProperties {
   return {
@@ -105,7 +101,12 @@ function useSidebarCollapsed() {
     });
   }, []);
 
-  return { collapsed, toggle };
+  /** Collapse for legal-link clicks only; does not change compact-mode preference. */
+  const collapseTransient = useCallback(() => {
+    setCollapsed(true);
+  }, []);
+
+  return { collapsed, toggle, collapseTransient, setCollapsed };
 }
 
 function CompactNavSidebarTooltipPortal({
@@ -138,8 +139,14 @@ function CompactNavSidebarTooltipPortal({
 
 function SidebarLegalPopover({
   privacyActive,
+  termsActive,
+  sitemapActive,
+  onLegalLinkClick,
 }: {
   privacyActive: boolean;
+  termsActive: boolean;
+  sitemapActive: boolean;
+  onLegalLinkClick: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -224,16 +231,20 @@ function SidebarLegalPopover({
             <div className="[&>div]:items-start [&_p]:text-left">
               <Copyright />
             </div>
-            <div className="mt-2 border-t border-kurator-border pt-2">
-              <Link
-                href="/privacy"
-                className={`inline-block px-0 py-1 text-xs transition-colors ${
-                  privacyActive ? "text-kurator-fg" : "text-kurator-muted hover:text-kurator-fg"
-                }`}
-                onClick={() => setOpen(false)}
-              >
-                Privacy Policy
-              </Link>
+            <div
+              className="mt-2 border-t border-kurator-border pt-2"
+              onClick={() => setOpen(false)}
+            >
+              <LegalPolicyLinks
+                className="flex flex-nowrap items-center gap-x-0.5 text-left text-[11px] leading-tight"
+                linkClassName="inline-block shrink-0 px-0 py-1 text-kurator-muted transition-colors hover:text-kurator-fg"
+                activeLinkClassName="inline-block shrink-0 px-0 py-1 text-kurator-fg transition-colors"
+                termsActive={termsActive}
+                privacyActive={privacyActive}
+                sitemapActive={sitemapActive}
+                onLinkClick={onLegalLinkClick}
+                openInNewTab={false}
+              />
             </div>
           </div>,
           document.body
@@ -244,7 +255,11 @@ function SidebarLegalPopover({
 
 export function AppChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapsed();
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar, collapseTransient, setCollapsed } =
+    useSidebarCollapsed();
+  const onSidebarLegalLinkClick = useCallback(() => {
+    collapseTransient();
+  }, [collapseTransient]);
   const [closeNotif, setCloseNotif] = useState(0);
   const [closeAccount, setCloseAccount] = useState(0);
   const [shelvesOpen, setShelvesOpen] = useState(() => isShelfPath(pathname));
@@ -295,12 +310,21 @@ export function AppChrome({ children }: { children: ReactNode }) {
     if (isShelfPath(pathname)) setShelvesOpen(true);
   }, [pathname]);
 
+  useEffect(() => {
+    if (isLegalDocumentPath(pathname)) return;
+    if (!readSidebarCollapsedPreference()) {
+      setCollapsed(false);
+    }
+  }, [pathname, setCollapsed]);
+
   const mobileNav = useMemo(
     () => [navDashboard, navPeople, ...shelfSubItems, navAddItem],
     []
   );
 
   const privacyActive = pathname === "/privacy" || pathname.startsWith("/privacy/");
+  const termsActive = pathname === "/terms" || pathname.startsWith("/terms/");
+  const sitemapActive = pathname === "/sitemap" || pathname.startsWith("/sitemap/");
 
   const [sidebarRailHover, setSidebarRailHover] = useState(false);
   const [sidebarRailFocus, setSidebarRailFocus] = useState(false);
@@ -326,35 +350,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
               href="/"
               className={`flex ${sidebarCollapsed ? "justify-center px-0.5" : "justify-center px-2"}`}
             >
-              {sidebarCollapsed ? (
-                <>
-                  <Image
-                    src={SIDEBAR_MARK_LIGHT}
-                    alt="Kurator"
-                    width={32}
-                    height={32}
-                    className="h-8 w-8 dark:hidden"
-                    loading="eager"
-                  />
-                  <Image
-                    src={SIDEBAR_MARK_DARK}
-                    alt="Kurator"
-                    width={32}
-                    height={32}
-                    className="hidden h-8 w-8 dark:block"
-                    loading="eager"
-                  />
-                </>
-              ) : (
-                <Image
-                  src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
-                  alt="Kurator"
-                  width={256}
-                  height={128}
-                  className="h-auto w-48 invert dark:invert-0"
-                  loading="eager"
-                />
-              )}
+              <SidebarBrandLogo variant={sidebarCollapsed ? "mark" : "wide"} />
             </Link>
           </div>
         </div>
@@ -479,21 +475,26 @@ export function AppChrome({ children }: { children: ReactNode }) {
                 onMouseEnter={(e) => showCompactTip(e.currentTarget, "Legal & privacy")}
                 onMouseLeave={hideCompactTip}
               >
-                <SidebarLegalPopover privacyActive={privacyActive} />
+                <SidebarLegalPopover
+                  privacyActive={privacyActive}
+                  termsActive={termsActive}
+                  sitemapActive={sitemapActive}
+                  onLegalLinkClick={onSidebarLegalLinkClick}
+                />
               </div>
             ) : (
               <>
                 <Copyright />
-                <div className="flex justify-center">
-                  <Link
-                    href="/privacy"
-                    className={`px-3 py-1.5 text-xs transition-colors ${
-                      privacyActive ? "text-kurator-fg" : "text-kurator-muted hover:text-kurator-fg"
-                    }`}
-                  >
-                    Privacy Policy
-                  </Link>
-                </div>
+                <LegalPolicyLinks
+                  className="flex flex-nowrap items-center justify-center gap-x-0.5 text-[11px] leading-tight"
+                  linkClassName="shrink-0 px-0.5 py-1.5 text-kurator-muted transition-colors hover:text-kurator-fg"
+                  activeLinkClassName="shrink-0 px-0.5 py-1.5 text-kurator-fg transition-colors"
+                  termsActive={termsActive}
+                  privacyActive={privacyActive}
+                  sitemapActive={sitemapActive}
+                  onLinkClick={onSidebarLegalLinkClick}
+                  openInNewTab={false}
+                />
               </>
             )}
           </div>
@@ -537,14 +538,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
       <div className="@container flex min-w-0 flex-1 flex-col bg-kurator-main pb-20 md:pb-0">
         <header className="sticky top-0 z-50 flex md:hidden items-center justify-between gap-3 border-b border-kurator-border bg-kurator-surface/95 pb-3 pl-4 pr-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-md">
           <Link href="/" className="min-w-0 shrink text-base font-semibold text-kurator-fg">
-            <Image
-              src="https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png"
-              alt="Kurator"
-              width={256}
-              height={128}
-              className="h-auto w-32 invert dark:invert-0"
-              loading="eager"
-            />
+            <SidebarBrandLogo variant="wide-mobile" />
           </Link>
           <div className="flex shrink-0 items-center gap-2">
             <NotificationDropdown

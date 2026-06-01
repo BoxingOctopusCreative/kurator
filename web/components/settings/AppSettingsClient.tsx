@@ -6,9 +6,11 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { AppSettingsOAuthSection } from "@/components/settings/AppSettingsOAuthSection";
 import { AppSettingsPasskeysSection } from "@/components/settings/AppSettingsPasskeysSection";
 import { oauthLinkErrorMessage, oauthLinkedSuccessMessage } from "@/lib/oauth";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { PageHeroUnsplash } from "@/components/PageHeroUnsplash";
 import { useAuth } from "@/components/AuthProvider";
 import { ColorSchemeSelect } from "@/components/ColorSchemeSelect";
+import { CustomThemeSelect } from "@/components/CustomThemeSelect";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
 import { FontFamilySelect } from "@/components/FontFamilySelect";
 import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
@@ -30,6 +32,7 @@ import {
   SIDEBAR_COLLAPSED_CHANGED_EVENT,
   SIDEBAR_COLLAPSED_STORAGE_KEY,
 } from "@/lib/sidebarCollapsedPreference";
+import { isProPlan } from "@/lib/billing";
 
 export function AppSettingsClient() {
   const router = useRouter();
@@ -534,6 +537,29 @@ export function AppSettingsClient() {
             </span>
           </span>
         </label>
+        {isProPlan(sessionUser?.plan ?? user.plan) ? (
+          <label className="block text-sm">
+            <span className="text-kurator-muted">Custom theme</span>
+            <CustomThemeSelect
+              id="app-settings-custom-theme"
+              className="mt-1 w-full rounded-lg border border-kurator-border bg-kurator-bg px-3 py-2 text-sm text-kurator-fg outline-hidden ring-kurator-accent focus:ring-2"
+            />
+            <span className="mt-1 block text-xs text-kurator-muted">
+              Applies a saved or marketplace theme across the app. Choose Kurator palette to use your colour scheme above.
+            </span>
+          </label>
+        ) : null}
+        <p className="text-sm text-kurator-muted">
+          Want full control over colours, fonts, and icons?{" "}
+          <Link href="/settings/theme" className="text-kurator-accent hover:underline">
+            Custom Theme YAML
+          </Link>{" "}
+          is available on Kurator Pro. Browse community themes in the{" "}
+          <Link href="/settings/theme/marketplace" className="text-kurator-accent hover:underline">
+            Theme Marketplace
+          </Link>
+          .
+        </p>
       </section>
 
       {user.email ? (
@@ -637,7 +663,13 @@ export function AppSettingsClient() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-3 border-t border-kurator-border pt-6">
+      <div className="space-y-4 border-t border-kurator-border pt-6">
+        <LegalPolicyLinks
+          className="text-xs text-kurator-muted"
+          linkClassName="text-kurator-accent hover:underline"
+          openInNewTab={false}
+        />
+        <div className="flex flex-wrap gap-3">
         <button
           type="button"
           onClick={() => void onLogout()}
@@ -648,6 +680,7 @@ export function AppSettingsClient() {
         <Link href="/" className="rounded-lg px-4 py-2 text-sm text-kurator-accent hover:underline">
           Back to Dashboard
         </Link>
+        </div>
       </div>
     </div>
   );

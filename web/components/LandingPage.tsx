@@ -5,6 +5,7 @@ import Link from "next/link";
 import { UnsplashMarketingShell } from "@/components/UnsplashMarketingShell";
 import type { UnsplashBackgroundPayload } from "@/lib/unsplash-background.types";
 import { Copyright } from "@/components/Copyright";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { LandingRotatingSlogans } from "@/components/LandingRotatingSlogans";
 
 type Props = {
@@ -50,11 +51,7 @@ export function LandingPage({ initialBackground = null, landingSlogans }: Props)
           </Link>
         </div>
 
-        <p className="mt-10 text-center text-xs text-kurator-muted">
-          <Link href="/privacy" className="text-kurator-accent/90 hover:underline">
-            Privacy Policy
-          </Link>
-        </p>
+        <LegalPolicyLinks className="mt-10 text-center text-xs text-kurator-muted" />
 
       </div>
       <Copyright />

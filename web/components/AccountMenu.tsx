@@ -7,7 +7,9 @@ import { User } from "lucide-react";
 import { logout } from "@/lib/auth";
 import { useAuth } from "@/components/AuthProvider";
 import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
+import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { KURATOR_DISCORD_INVITE_URL } from "@/lib/kuratorDiscordInvite";
+import { isProPlan } from "@/lib/billing";
 
 type Props = {
   /** Increment to force-close this menu (e.g. sibling notifications opened). */
@@ -107,6 +109,22 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
             <ThemePreferenceSelect id={themeFieldId} className={selectClass} />
           </div>
           <Link
+            href="/settings/billing"
+            role="menuitem"
+            className="block px-3 py-2 text-sm font-medium text-kurator-accent transition-colors hover:bg-kurator-border/40"
+            onClick={() => setOpen(false)}
+          >
+            {isProPlan(user.plan) ? "Billing" : "Upgrade"}
+          </Link>
+          <Link
+            href="/settings/theme"
+            role="menuitem"
+            className="block px-3 py-2 text-sm text-kurator-fg transition-colors hover:bg-kurator-border/40"
+            onClick={() => setOpen(false)}
+          >
+            Custom Theme
+          </Link>
+          <Link
             href="/settings/app"
             role="menuitem"
             className="block px-3 py-2 text-sm text-kurator-fg transition-colors hover:bg-kurator-border/40"
@@ -132,6 +150,13 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
           >
             Join The Discord
           </a>
+          <div className="border-t border-kurator-border px-3 py-2">
+            <LegalPolicyLinks
+              className="text-[11px] leading-snug text-kurator-muted"
+              linkClassName="text-kurator-muted hover:text-kurator-fg hover:underline"
+              openInNewTab={false}
+            />
+          </div>
           <button
             type="button"
             role="menuitem"

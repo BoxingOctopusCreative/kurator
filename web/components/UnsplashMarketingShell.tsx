@@ -15,10 +15,16 @@ type Props = {
   initialBackground?: UnsplashBackgroundPayload | null;
   children: ReactNode;
   /**
+   * `viewport` — full window height (login, landing). `region` — grow with parent (in-app main column).
+   */
+  fill?: "viewport" | "region";
+  /**
    * When set (including `null`), controls the footer credit line instead of the default
    * “Background: Photo…” Unsplash line. Use `null` to hide attribution entirely.
    */
   attribution?: ReactNode | null;
+  /** When false, children manage their own scroll regions (e.g. legal document card). */
+  scrollChildren?: boolean;
 };
 
 /**
@@ -28,7 +34,9 @@ type Props = {
 export function UnsplashMarketingShell({
   initialBackground = null,
   children,
+  fill = "viewport",
   attribution: attributionOverride,
+  scrollChildren = true,
 }: Props) {
   const [bg, setBg] = useState<UnsplashBackgroundPayload | null>(() =>
     initialBackground?.url ? initialBackground : null,
@@ -91,7 +99,9 @@ export function UnsplashMarketingShell({
   return (
     <div
       data-marketing-shell
-      className="relative isolate flex h-dvh w-full max-w-none flex-col overflow-hidden"
+      className={`relative isolate flex w-full max-w-none flex-col overflow-hidden ${
+        fill === "viewport" ? "h-dvh" : "min-h-full flex-1"
+      }`}
     >
       {bg && (
         <>
@@ -125,8 +135,18 @@ export function UnsplashMarketingShell({
       )}
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
-          <div className="flex min-h-full min-w-0 flex-1 flex-col">{children}</div>
+        <div
+          className={`flex min-h-0 flex-1 flex-col ${
+            scrollChildren ? "overflow-y-auto overscroll-y-contain" : "overflow-hidden"
+          }`}
+        >
+          <div
+            className={`flex min-w-0 flex-1 flex-col ${
+              scrollChildren ? "min-h-full" : "min-h-0 overflow-hidden"
+            }`}
+          >
+            {children}
+          </div>
         </div>
 
         {attributionOverride !== undefined ? (

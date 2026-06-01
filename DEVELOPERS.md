@@ -137,7 +137,7 @@ make web-test    # npm test (Vitest) in web/
 
 | Workflow | When it runs | Purpose |
 | ---------- | ---------------- | ---------- |
-| **`ci-release.yml`** | PRs, pushes to `main`, manual | Skip if latest commit is `CI:` or `INFO:`; **unit tests** (Go + Node 22 web); on **`main`** after tests: SemVer **tag + release**, API cross-build artifacts, optional **S3** upload of `web/content/privacy-policy.md` and `web/content/landing-slogans.md`, **GHCR** images for `api` and `web` |
+| **`ci-release.yml`** | PRs, pushes to `main`, manual | Skip if latest commit is `CI:` or `INFO:`; **unit tests** (Go + Node 22 web); on **`main`** after tests: SemVer **tag + release**, API cross-build artifacts, optional **S3** upload of `web/content/privacy-policy.md`, `web/content/terms-of-use.md`, `web/content/sitemap.md`, `web/content/landing-slogans.md`, and `web/content/billing-plans.md`, **GHCR** images for `api` and `web` |
 | **`snyk.yml`** | PR, `main`, weekly, manual | Same skip rule; **fork PRs** skip Snyk; **`snyk test`** in `api/` and `web/`, **`snyk code test`**, **`snyk monitor`** on `main` pushes |
 | **`portainer-redeploy-on-release.yml`** | GitHub **Release published** | Skip by tag commit prefix; **Portainer** stack redeploy via API; optional **Discord** webhook |
 
@@ -164,6 +164,82 @@ See `make -C api help` for API-only targets (including `swagger` notes for OpenA
 
 - Spec file: **`api/docs/swagger.json`** (OpenAPI 2.0). Describes **`SessionCookie`** (`kurator_session`) and **`BearerToken`** (`Authorization: Bearer <session_token>`) as alternative client credentials; auth responses document **`session_token`** for register, login, and login/2fa.
 - Local UI with infra compose: **`http://localhost:8081`** (unless `SWAGGER_UI_PORT` overrides); compose mounts the repo’s `swagger.json`.
+
+---
+
+## Stripe subscriptions (Kurator Pro)
+
+Optional **flat-rate** subscriptions use **Stripe Checkout** (hosted) and the **Customer Portal**. When configured, users upgrade at **`/settings/billing`**; **`GET /me`** includes **`plan`** (`free` | `pro`) and **`subscription_status`**.
+
+### Dashboard setup
+
+1. Create a **Product** and two recurring **Prices** (monthly and annual) in the [Stripe Dashboard](https://dashboard.stripe.com/test/products) or with the Stripe CLI.
+2. Configure the [Customer Portal](https://dashboard.stripe.com/test/settings/billing/portal) (at minimum: let customers update payment methods and cancel).
+3. Create a **webhook endpoint** pointing at **`POST https://<api-host>/webhooks/stripe`** (no auth). Subscribe at least to:
+   - `checkout.session.completed`
+   - `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - `invoice.paid`, `invoice.payment_failed`
+
+### Environment (API)
+
+| Variable | Purpose |
+| -------- | ------- |
+| `STRIPE_SECRET_KEY` | Secret API key (`sk_test_…` / `sk_live_…`) |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret from the webhook endpoint (`whsec_…`) |
+| `STRIPE_PRO_MONTHLY_PRICE_ID` | Price ID for monthly Pro (`price_…`) |
+| `STRIPE_PRO_ANNUAL_PRICE_ID` | Price ID for annual Pro |
+| `PUBLIC_WEB_BASE_URL` | Browser origin for Checkout success/cancel and portal return URLs (e.g. `http://localhost:3000`) |
+
+TOML: **`[stripe]`** in `api/kurator.toml` (see `api/kurator.example.toml`). Production: same vars on the **api** service in root **`docker-compose.yml`**.
+
+### Local webhook testing
+
+With the API on port **8080**:
+
+```bash
+stripe listen --forward-to localhost:8080/webhooks/stripe
+```
+
+Use the CLI’s **`whsec_…`** as `STRIPE_WEBHOOK_SECRET`. Test cards: [Stripe testing](https://docs.stripe.com/testing) (e.g. `4242 4242 4242 4242`).
+
+If checkout succeeds but **`GET /me`** still shows `plan: free`, check API logs for **`POST /webhooks/stripe`**. A **400** with “API version” means webhooks were rejected before provisioning; restart the API after upgrading. Replay the event from the [Stripe Dashboard](https://dashboard.stripe.com/test/events) or run `stripe trigger checkout.session.completed` while `stripe listen` is forwarding.
+
+### API routes
+
+| Method | Path | Auth |
+| ------ | ---- | ---- |
+| `POST` | `/api/v1/billing/create-checkout-session` | Session or Bearer; body `{ "interval": "monthly" \| "annual" }` → `{ "url" }` |
+| `POST` | `/api/v1/billing/portal` | Session or Bearer → `{ "url" }` (requires existing Stripe customer) |
+| `POST` | `/webhooks/stripe` | Stripe signature only |
+
+**Downstream mobile:** mirror **`plan`** / **`subscription_status`** from **`GET /me`**; open Checkout and Portal URLs in a browser or SFSafariViewController; do not embed secret keys in the app.
+
+---
+
+## Custom Theme YAML (Kurator Pro)
+
+Pro users can upload **`customTheme` v1** YAML (see **`api/examples/custom-theme.example.yaml`**) via **`/settings/theme`** on web or the API below. Themes are validated strictly (no YAML anchors; **`meta.author`** and **`meta.published: true`** rejected on upload), logo URLs must be **`https://`** and are proxied through Kurator image storage when S3 is configured, and saves are rate-limited to **10 uploads/day**. Google Font names are checked against the [Web Fonts Developer API](https://developers.google.com/fonts/docs/developer_api); set **`GOOGLE_FONTS_API_KEY`** (TOML **`[metadata].google_fonts_api_key`**) on the API server with the **Web Fonts Developer API** enabled in Google Cloud. Without a key, only a small built-in fallback list validates (Inter, Roboto, Open Sans, etc.).
+
+Published themes are immutable versioned artifacts in **`S3_USER_ASSETS_BUCKET`** (default **`kurator-user-assets`**, keys under **`themes/`**). Public browse: **`GET /api/v1/custom-themes`**. Web UI: **`/settings/theme/marketplace`** (install into library; Pro required to add). Pro users maintain a **theme library** (their saved draft plus marketplace installs) and pick an **active** entry in App Settings → Appearance or via **`PATCH /api/v1/me/custom-theme/active`**; the web app applies active theme CSS vars globally. Authors can **`POST /api/v1/me/custom-theme/unpublish`** to remove all marketplace versions; anyone actively using the theme (including the author) is reset to Kurator defaults, and other Pro users who were using it receive an in-app notification. **`DELETE /api/v1/me/custom-theme/created`** removes the draft after unpublish. Reset/delete fail with **409** while published versions exist. Free-tier users receive **403** `{ "error": "pro_required" }` on Pro-only endpoints; the web UI shows an upsell instead of the editor.
+
+| Method | Path | Auth |
+| ------ | ---- | ---- |
+| `GET` | `/api/v1/me/custom-theme` | Pro + session/Bearer |
+| `POST` | `/api/v1/me/custom-theme/validate` | Pro + session/Bearer |
+| `PUT` | `/api/v1/me/custom-theme` | Pro + session/Bearer |
+| `DELETE` | `/api/v1/me/custom-theme` | Pro + session/Bearer — reset draft (409 if still published) |
+| `POST` | `/api/v1/me/custom-theme/unpublish` | Pro — remove all marketplace versions |
+| `DELETE` | `/api/v1/me/custom-theme/created` | Pro — delete draft (409 if still published) |
+| `POST` | `/api/v1/me/custom-theme/publish` | Pro + session/Bearer |
+| `GET` | `/api/v1/me/custom-theme/google-fonts` | Pro — Google Font family names (editor autocomplete) |
+| `GET` | `/api/v1/me/custom-theme/library` | Pro — own + installed marketplace themes |
+| `POST` | `/api/v1/me/custom-theme/library` | Pro — install `{ "published_theme_id": "<uuid>" }` |
+| `DELETE` | `/api/v1/me/custom-theme/library/{id}` | Pro — remove marketplace install |
+| `GET` | `/api/v1/me/custom-theme/active` | Pro — YAML for the active library entry |
+| `PATCH` | `/api/v1/me/custom-theme/active` | Pro — `{ "library_id": "<uuid>" \| null }` |
+| `GET` | `/api/v1/custom-themes` | Public browse/search |
+| `GET` | `/api/v1/custom-themes/{id}` | Public |
+| `POST` | `/api/v1/custom-themes/{id}/report` | Session or Bearer |
 
 ---
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isLegalDocumentPath,
   parseSidebarCollapsedStored,
   serializeSidebarCollapsed,
 } from "@/lib/sidebarCollapsedPreference";
@@ -17,6 +18,15 @@ describe("sidebarCollapsedPreference", () => {
     });
     it("defaults to expanded for unknown values", () => {
       expect(parseSidebarCollapsedStored("yes")).toBe(false);
+    });
+  });
+
+  describe("isLegalDocumentPath", () => {
+    it("matches privacy, terms, and sitemap routes", () => {
+      expect(isLegalDocumentPath("/privacy")).toBe(true);
+      expect(isLegalDocumentPath("/terms")).toBe(true);
+      expect(isLegalDocumentPath("/sitemap")).toBe(true);
+      expect(isLegalDocumentPath("/collections")).toBe(false);
     });
   });
 
