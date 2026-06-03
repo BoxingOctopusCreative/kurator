@@ -107,6 +107,10 @@ func (s *onboardingUserStub) UserHasAnyShelves(context.Context, int64) (bool, er
 	return s.hasShelves, nil
 }
 
+func (s *onboardingUserStub) SearchPublic(context.Context, string, int, *int64) ([]models.PublicUser, error) {
+	return nil, nil
+}
+
 type onboardingProgressStub struct {
 	hasCollection bool
 	hasWishlist   bool

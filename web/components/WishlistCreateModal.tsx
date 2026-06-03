@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CircleHelp } from "lucide-react";
 import type { PublicUser, Visibility } from "@/lib/api";
 import { createWishlist, DEFAULT_VISIBILITY, fetchMyFriends } from "@/lib/api";
+import { FriendCheckboxRow } from "@/components/FriendCheckboxRow";
 import { KuratorModal } from "@/components/KuratorModal";
 import { useAuth } from "@/components/AuthProvider";
 import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
@@ -213,21 +214,18 @@ export function WishlistCreateModal({
                     <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
                       {friends.map((f) => (
                         <li key={f.id}>
-                          <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
-                            <input
-                              type="checkbox"
-                              checked={inviteFriendIds.has(f.id)}
-                              onChange={() => {
-                                setInviteFriendIds((prev) => {
-                                  const n = new Set(prev);
-                                  if (n.has(f.id)) n.delete(f.id);
-                                  else n.add(f.id);
-                                  return n;
-                                });
-                              }}
-                            />
-                            @{f.username}
-                          </label>
+                          <FriendCheckboxRow
+                            user={f}
+                            checked={inviteFriendIds.has(f.id)}
+                            onCheckedChange={() => {
+                              setInviteFriendIds((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(f.id)) n.delete(f.id);
+                                else n.add(f.id);
+                                return n;
+                              });
+                            }}
+                          />
                         </li>
                       ))}
                     </ul>

@@ -55,6 +55,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useOnboardingOptional } from "@/components/onboarding/OnboardingProvider";
 import { useOnboardingTarget } from "@/components/onboarding/useOnboardingTarget";
 import { CollectionAddItemModal } from "@/components/CollectionAddItemModal";
+import { FriendCheckboxRow } from "@/components/FriendCheckboxRow";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { EditItemModal } from "@/components/EditItemModal";
 import { CoverArtField } from "@/components/CoverArtField";
@@ -752,21 +753,18 @@ export function CollectionDetailClient() {
                         <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
                           {shareFriends.map((f) => (
                             <li key={f.id}>
-                              <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
-                                <input
-                                  type="checkbox"
-                                  checked={shareInviteIds.has(f.id)}
-                                  onChange={() => {
-                                    setShareInviteIds((prev) => {
-                                      const n = new Set(prev);
-                                      if (n.has(f.id)) n.delete(f.id);
-                                      else n.add(f.id);
-                                      return n;
-                                    });
-                                  }}
-                                />
-                                @{f.username}
-                              </label>
+                              <FriendCheckboxRow
+                                user={f}
+                                checked={shareInviteIds.has(f.id)}
+                                onCheckedChange={() => {
+                                  setShareInviteIds((prev) => {
+                                    const n = new Set(prev);
+                                    if (n.has(f.id)) n.delete(f.id);
+                                    else n.add(f.id);
+                                    return n;
+                                  });
+                                }}
+                              />
                             </li>
                           ))}
                         </ul>

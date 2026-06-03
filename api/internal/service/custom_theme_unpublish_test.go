@@ -173,3 +173,6 @@ func (proUserRepoStub) UserHasAnyShelves(context.Context, int64) (bool, error)  
 func (proUserRepoStub) GetUserIDBySubscriptionID(context.Context, string) (int64, error) {
 	return 0, nil
 }
+func (proUserRepoStub) SearchPublic(context.Context, string, int, *int64) ([]models.PublicUser, error) {
+	return nil, nil
+}

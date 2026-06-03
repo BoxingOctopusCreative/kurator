@@ -841,27 +841,6 @@ export async function fetchMyFriends(opts?: { page?: number; limit?: number }): 
   return parseUserListResponse((await res.json()) as Partial<UserListResponse> & { Items?: unknown });
 }
 
-/**
- * Public profiles followed by your mutual followers, excluding people you already follow.
- * Requires session.
- */
-export async function fetchPeopleYouMayKnow(opts?: {
-  page?: number;
-  limit?: number;
-}): Promise<UserListResponse> {
-  const sp = new URLSearchParams();
-  if (opts?.page != null && opts.page > 0) sp.set("page", String(opts.page));
-  if (opts?.limit != null && opts.limit > 0) sp.set("limit", String(opts.limit));
-  const qs = sp.toString();
-  const res = await fetch(apiUrl(`/me/people-you-may-know${qs ? `?${qs}` : ""}`), {
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (res.status === 401) throw new Error("Sign in to view suggestions.");
-  if (!res.ok) throw new Error(`people you may know: ${res.status}`);
-  return parseUserListResponse((await res.json()) as Partial<UserListResponse> & { Items?: unknown });
-}
-
 export type Wishlist = {
   id: string;
   user_id: number;
@@ -894,8 +873,11 @@ export type WishlistEntry = {
   updated_at: string;
 };
 
-export async function fetchWishlists(): Promise<Wishlist[]> {
-  const res = await fetch(apiUrl("/wishlists"), { credentials: "include" });
+export async function fetchWishlists(opts?: { ownerUserId?: number }): Promise<Wishlist[]> {
+  const sp = new URLSearchParams();
+  if (opts?.ownerUserId != null) sp.set("owner_user_id", String(opts.ownerUserId));
+  const qs = sp.toString();
+  const res = await fetch(apiUrl(`/wishlists${qs ? `?${qs}` : ""}`), { credentials: "include" });
   if (res.status === 401) throw new Error("Sign in to view wishlists.");
   if (!res.ok) throw new Error(`wishlists: ${res.status}`);
   const data: unknown = await res.json();
@@ -1882,4 +1864,546 @@ export async function importCoverImageFromUrl(url: string): Promise<string> {
   const data = (await res.json()) as { url?: string };
   if (!data.url) throw new Error("Invalid import response");
   return data.url;
+}
+
+/** Board visibility: public (open community) or private (invite-only). */
+export type BoardVisibility = "public" | "private";
+
+export type Board = {
+  id: string;
+  owner_user_id: number;
+  owner?: ShelfAuthor;
+  name: string;
+  description: string;
+  visibility: BoardVisibility;
+  slug: string;
+  banner_url?: string | null;
+  icon_url?: string | null;
+  thread_count?: number;
+  member_count?: number;
+  viewer_role?: "owner" | "moderator" | "member" | "none";
+  may_manage?: boolean;
+  may_post?: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BoardFlair = {
+  id: string;
+  board_id: string;
+  label: string;
+  sort_order: number;
+  created_at: string;
+};
+
+export type BoardThread = {
+  id: string;
+  board_id: string;
+  user_id: number;
+  author?: ShelfAuthor;
+  title: string;
+  body: string;
+  flair_id?: string | null;
+  flair_label?: string | null;
+  is_locked?: boolean;
+  locked_at?: string | null;
+  may_set_flair?: boolean;
+  may_delete?: boolean;
+  may_edit?: boolean;
+  may_lock?: boolean;
+  may_view_history?: boolean;
+  author_tags?: string[];
+  reply_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BoardThreadEdit = {
+  id: number;
+  thread_id: string;
+  editor_user_id: number;
+  editor?: ShelfAuthor;
+  title: string;
+  body: string;
+  created_at: string;
+};
+
+export type BoardReplyEdit = {
+  id: number;
+  reply_id: string;
+  editor_user_id: number;
+  editor?: ShelfAuthor;
+  body: string;
+  created_at: string;
+};
+
+export type BoardReply = {
+  id: string;
+  thread_id: string;
+  parent_reply_id?: string | null;
+  user_id: number;
+  author?: ShelfAuthor;
+  body: string;
+  may_delete?: boolean;
+  may_edit?: boolean;
+  is_edited?: boolean;
+  author_tags?: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type BoardModerator = {
+  board_id: string;
+  user_id: number;
+  user?: ShelfAuthor;
+  created_at: string;
+};
+
+export type BoardInvite = {
+  id: number;
+  board_id: string;
+  board_name?: string;
+  inviter_id: number;
+  invitee_id: number;
+  status: string;
+  created_at: string;
+};
+
+export type BoardListTab = "discover" | "mine" | "member";
+
+export type BoardFeedSort = "updated" | "newest" | "oldest" | "active";
+
+export type BoardFeedThread = BoardThread & {
+  board_name: string;
+  board_slug: string;
+  board_icon_url?: string | null;
+};
+
+export async function fetchBoardFeed(opts?: {
+  sort?: BoardFeedSort;
+  q?: string;
+  limit?: number;
+}): Promise<BoardFeedThread[]> {
+  const params = new URLSearchParams();
+  if (opts?.sort) params.set("sort", opts.sort);
+  if (opts?.q?.trim()) params.set("q", opts.q.trim());
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  const res = await fetch(apiUrl(`/boards/feed${qs ? `?${qs}` : ""}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 400) throw new Error("Invalid sort option.");
+  if (!res.ok) throw new Error(`board feed: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardFeedThread[]) : [];
+}
+
+export async function fetchBoards(tab: BoardListTab = "discover"): Promise<Board[]> {
+  const res = await fetch(apiUrl(`/boards?tab=${encodeURIComponent(tab)}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`boards: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as Board[]) : [];
+}
+
+/** Load a board by UUID or permalink slug (`GET /boards/:ref` accepts both). */
+export async function fetchBoard(ref: string): Promise<Board> {
+  const enc = encodeURIComponent(ref.trim());
+  const res = await fetch(apiUrl(`/boards/${enc}`), { credentials: "include", cache: "no-store" });
+  if (res.status === 404) throw new Error("Board not found");
+  if (!res.ok) throw new Error(`board: ${res.status}`);
+  return res.json();
+}
+
+/** Load a board by UUID or permalink slug (for `/boards/:slug` routes). */
+export async function fetchBoardByRef(ref: string): Promise<Board> {
+  const t = ref.trim();
+  if (!t) throw new Error("Board not found");
+  return fetchBoard(t);
+}
+
+/** @deprecated Prefer `fetchBoard` / `fetchBoardByRef` (same behavior via `GET /boards/:ref`). */
+export async function fetchBoardBySlug(slug: string): Promise<Board> {
+  return fetchBoard(slug);
+}
+
+export async function suggestBoardSlug(body: {
+  stem: string;
+  exclude_board_id?: string;
+  alternate?: boolean;
+}): Promise<{ slug: string }> {
+  const res = await fetch(apiUrl("/boards/slug-suggestions"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`board slug: ${res.status}`);
+  return res.json();
+}
+
+export async function createBoard(body: {
+  name: string;
+  description?: string;
+  visibility: BoardVisibility;
+  slug?: string;
+  invite_user_ids?: number[];
+}): Promise<Board> {
+  const res = await fetch(apiUrl("/boards"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `create board: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function patchBoard(
+  boardId: string,
+  body: {
+    name?: string;
+    description?: string;
+    visibility?: BoardVisibility;
+    slug?: string;
+    banner_url?: string;
+    icon_url?: string;
+  },
+): Promise<Board> {
+  const res = await fetch(apiUrl(`/boards/${boardId}`), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `patch board: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteBoard(boardId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `delete board: ${res.status}`);
+  }
+}
+
+export async function deleteBoardThread(boardId: string, threadId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `delete thread: ${res.status}`);
+  }
+}
+
+export async function inviteToBoard(boardId: string, inviteUserIds: number[]): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/invites`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ invite_user_ids: inviteUserIds }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `board invite: ${res.status}`);
+  }
+}
+
+export async function fetchBoardModerators(boardId: string): Promise<BoardModerator[]> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/moderators`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`board moderators: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardModerator[]) : [];
+}
+
+export async function addBoardModerators(boardId: string, userIds: number[]): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/moderators`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `add board moderators: ${res.status}`);
+  }
+}
+
+export async function removeBoardModerator(boardId: string, userId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/moderators/${userId}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `remove board moderator: ${res.status}`);
+  }
+}
+
+export async function fetchBoardInvites(): Promise<BoardInvite[]> {
+  const res = await fetch(apiUrl("/me/board-invites"), { credentials: "include", cache: "no-store" });
+  if (!res.ok) throw new Error(`board invites: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardInvite[]) : [];
+}
+
+export async function acceptBoardInvite(inviteId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/me/board-invites/${inviteId}/accept`), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`accept board invite: ${res.status}`);
+}
+
+export async function dismissBoardInvite(inviteId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/me/board-invites/${inviteId}/dismiss`), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`dismiss board invite: ${res.status}`);
+}
+
+export async function fetchBoardFlairs(boardId: string): Promise<BoardFlair[]> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/flairs`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`board flairs: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardFlair[]) : [];
+}
+
+export async function createBoardFlair(boardId: string, label: string): Promise<BoardFlair> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/flairs`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `create board flair: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteBoardFlair(boardId: string, flairId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/flairs/${flairId}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`delete board flair: ${res.status}`);
+}
+
+export async function patchBoardThreadFlair(
+  boardId: string,
+  threadId: string,
+  flairId: string | null,
+): Promise<BoardThread> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}`), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ flair_id: flairId }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `patch thread flair: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function patchBoardThread(
+  boardId: string,
+  threadId: string,
+  body: { title?: string; body?: string },
+): Promise<BoardThread> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}`), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `patch thread: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function patchBoardThreadLock(
+  boardId: string,
+  threadId: string,
+  locked: boolean,
+): Promise<BoardThread> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}`), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ locked }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `patch thread lock: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchBoardThreadEdits(
+  boardId: string,
+  threadId: string,
+  limit = 50,
+): Promise<BoardThreadEdit[]> {
+  const res = await fetch(
+    apiUrl(`/boards/${boardId}/threads/${threadId}/edits?limit=${limit}`),
+    { credentials: "include", cache: "no-store" },
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `thread edits: ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardThreadEdit[]) : [];
+}
+
+export async function fetchBoardReplyEdits(
+  boardId: string,
+  threadId: string,
+  replyId: string,
+  limit = 50,
+): Promise<BoardReplyEdit[]> {
+  const res = await fetch(
+    apiUrl(`/boards/${boardId}/threads/${threadId}/replies/${replyId}/edits?limit=${limit}`),
+    { credentials: "include", cache: "no-store" },
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `reply edits: ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardReplyEdit[]) : [];
+}
+
+export async function patchBoardReply(
+  boardId: string,
+  threadId: string,
+  replyId: string,
+  body: string,
+): Promise<BoardReply> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}/replies/${replyId}`), {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `patch reply: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchBoardThreads(boardId: string): Promise<BoardThread[]> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`board threads: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardThread[]) : [];
+}
+
+export async function fetchBoardThread(boardId: string, threadId: string): Promise<BoardThread> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}`), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new Error("Thread not found");
+  if (!res.ok) throw new Error(`board thread: ${res.status}`);
+  return res.json();
+}
+
+export async function createBoardThread(
+  boardId: string,
+  body: { title: string; body: string },
+): Promise<BoardThread> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `create thread: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchBoardReplies(
+  boardId: string,
+  threadId: string,
+  limit = 1000,
+): Promise<BoardReply[]> {
+  const res = await fetch(
+    apiUrl(`/boards/${boardId}/threads/${threadId}/replies?limit=${limit}`),
+    {
+      credentials: "include",
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) throw new Error(`board replies: ${res.status}`);
+  const data: unknown = await res.json();
+  return Array.isArray(data) ? (data as BoardReply[]) : [];
+}
+
+export async function createBoardReply(
+  boardId: string,
+  threadId: string,
+  body: { body: string; parent_reply_id?: string },
+): Promise<BoardReply> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}/replies`), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `create reply: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteBoardReply(
+  boardId: string,
+  threadId: string,
+  replyId: string,
+): Promise<void> {
+  const res = await fetch(apiUrl(`/boards/${boardId}/threads/${threadId}/replies/${replyId}`), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `delete reply: ${res.status}`);
+  }
 }

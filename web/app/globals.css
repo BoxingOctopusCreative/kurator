@@ -18,6 +18,8 @@
   --color-kurator-muted: var(--kurator-muted);
   --color-kurator-fg: var(--kurator-fg);
   --color-kurator-onAccent: var(--kurator-on-accent);
+  /** Sticky app chrome top bar and its header dropdowns (fixed, not theme-scheme). */
+  --color-kurator-topbar: #01060f;
 }
 
 /*

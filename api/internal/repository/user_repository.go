@@ -38,6 +38,7 @@ type UserRepository interface {
 	GetUserIDBySubscriptionID(ctx context.Context, subscriptionID string) (int64, error)
 	UpdateOnboarding(ctx context.Context, id int64, step int, completed bool) error
 	UserHasAnyShelves(ctx context.Context, userID int64) (bool, error)
+	SearchPublic(ctx context.Context, q string, limit int, excludeID *int64) ([]models.PublicUser, error)
 }
 
 type PostgresUserRepository struct {

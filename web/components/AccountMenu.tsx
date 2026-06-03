@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { User } from "lucide-react";
+import { safeImageSrcUrl } from "@/lib/safeUrl";
 import { logout } from "@/lib/auth";
 import { useAuth } from "@/components/AuthProvider";
 import { ThemePreferenceSelect } from "@/components/ThemePreferenceSelect";
-import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
 import { KURATOR_DISCORD_INVITE_URL } from "@/lib/kuratorDiscordInvite";
 import { isProPlan } from "@/lib/billing";
 
@@ -58,6 +58,8 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
       ? `/people/${encodeURIComponent(user.username.trim())}`
       : "/profile";
 
+  const bannerSrc = safeImageSrcUrl(user.banner_url);
+
   return (
     <div className="relative shrink-0" ref={rootRef}>
       <button
@@ -67,7 +69,7 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
           setOpen(next);
           if (next) onMenuOpen();
         }}
-        className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-kurator-surface/95 shadow-md backdrop-blur-md transition-opacity hover:opacity-90"
+        className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-kurator-border bg-kurator-surface/95 shadow-md backdrop-blur-md transition-opacity hover:opacity-90"
         aria-expanded={open}
         aria-haspopup="true"
         aria-label="Account Menu"
@@ -85,19 +87,54 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
       </button>
       {open ? (
         <div
-          className="absolute right-0 z-50 mt-2 w-[min(16rem,calc(100vw-2rem))] rounded-xl border border-kurator-border bg-kurator-surface py-2 shadow-dropdown"
+          className="absolute right-0 z-50 mt-2 w-[min(16rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-kurator-border bg-kurator-topbar shadow-dropdown"
           role="menu"
         >
           <Link
             href={profileHref}
             role="menuitem"
-            className="block border-b border-kurator-border px-3 pb-2 outline-hidden transition-colors hover:bg-kurator-border/35 focus-visible:ring-2 focus-visible:ring-kurator-accent"
+            className="relative block overflow-hidden border-b border-kurator-border outline-hidden transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-kurator-accent"
             onClick={() => setOpen(false)}
           >
-            <p className="truncate text-sm font-medium text-kurator-fg">{user.display_name || user.email}</p>
-            <p className="truncate text-xs text-kurator-muted">
-              {user.username?.trim() ? `@${user.username.trim()}` : "Open profile settings"}
-            </p>
+            {bannerSrc ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- profile banner from S3 or external */}
+                <img
+                  src={bannerSrc}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-center brightness-[0.75] contrast-[0.5] saturate-[0.75]"
+                  aria-hidden
+                />
+                <div className="absolute inset-0 bg-kurator-bg/45" aria-hidden />
+                <div className="absolute inset-0 bg-black/10" aria-hidden />
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-kurator-border/25" aria-hidden />
+            )}
+            <div className="relative flex items-end gap-2 px-3 pb-3 pt-12">
+              <span className="flex h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-kurator-bg/80 bg-kurator-bg shadow-md ring-1 ring-black/20">
+                {user.avatar_url && safeImageSrcUrl(user.avatar_url) ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- profile URL from S3 or external
+                  <img
+                    src={safeImageSrcUrl(user.avatar_url)!}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-kurator-muted">
+                    <User className="h-4 w-4" aria-hidden />
+                  </span>
+                )}
+              </span>
+              <span className="min-w-0 flex-1 pb-0.5">
+                <p className="truncate text-sm font-medium text-kurator-fg drop-shadow-sm">
+                  {user.display_name || user.email}
+                </p>
+                <p className="truncate text-xs text-kurator-muted drop-shadow-sm">
+                  {user.username?.trim() ? `@${user.username.trim()}` : "Open profile settings"}
+                </p>
+              </span>
+            </div>
           </Link>
           <div className="border-b border-kurator-border px-3 py-2">
             <label
@@ -150,13 +187,6 @@ export function AccountMenu({ closeSignal, onMenuOpen }: Props) {
           >
             Join The Discord
           </a>
-          <div className="border-t border-kurator-border px-3 py-2">
-            <LegalPolicyLinks
-              className="text-[11px] leading-snug text-kurator-muted"
-              linkClassName="text-kurator-muted hover:text-kurator-fg hover:underline"
-              openInNewTab={false}
-            />
-          </div>
           <button
             type="button"
             role="menuitem"

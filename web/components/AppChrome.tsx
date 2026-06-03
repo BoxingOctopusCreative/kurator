@@ -8,24 +8,24 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft,
   ChevronRight,
   Heart,
-  LayoutGrid,
+  Home,
   Layers,
-  Library,
-  PlusCircle,
+  MessageSquare,
   ThumbsUp,
-  Users,
 } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
+import { GlobalSearchBar } from "@/components/GlobalSearchBar";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { TopBarCreateMenu } from "@/components/TopBarCreateMenu";
 import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { Copyright } from "@/components/Copyright";
 import { LegalPolicyLinks } from "@/components/LegalPolicyLinks";
@@ -37,32 +37,22 @@ import {
   SIDEBAR_COLLAPSED_STORAGE_KEY,
 } from "@/lib/sidebarCollapsedPreference";
 
-const navDashboard = { href: "/", label: "Dashboard", icon: LayoutGrid } as const;
-const navPeople = { href: "/people", label: "People", icon: Users } as const;
+const navHome = { href: "/", label: "Home", icon: Home } as const;
+const socialSubItems = [
+  { href: "/lists", label: "Hitlists", icon: ThumbsUp },
+  { href: "/boards", label: "Boards", icon: MessageSquare },
+] as const;
 const shelfSubItems = [
   { href: "/collections", label: "Collections", icon: Layers },
-  { href: "/lists", label: "Hitlists", icon: ThumbsUp },
   { href: "/wishlists", label: "Wishlists", icon: Heart },
 ] as const;
-const navAddItem = { href: "/items/add", label: "Add Item", icon: PlusCircle } as const;
 
-const SHELF_PREFIXES = ["/collections", "/lists", "/wishlists"] as const;
-
-function isShelfPath(pathname: string): boolean {
-  return SHELF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
+/** Measured from the sticky top bar; used for sidebar `top` / `height` on md+. */
+const APP_CHROME_TOPBAR_HEIGHT_VAR = "--app-chrome-topbar-height";
 
 function isNavActive(href: string, pathname: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function topRightSafeInsetStyle(): CSSProperties {
-  return {
-    top: "max(0.75rem, env(safe-area-inset-top, 0px))",
-    /** Align with `<main className="… md:px-8">` (md+ only; this cluster is `md:flex`). */
-    right: "max(2rem, env(safe-area-inset-right, 0px))",
-  };
 }
 
 function useSidebarCollapsed() {
@@ -262,11 +252,20 @@ export function AppChrome({ children }: { children: ReactNode }) {
   }, [collapseTransient]);
   const [closeNotif, setCloseNotif] = useState(0);
   const [closeAccount, setCloseAccount] = useState(0);
-  const [shelvesOpen, setShelvesOpen] = useState(() => isShelfPath(pathname));
+  const [closeCreate, setCloseCreate] = useState(0);
   const [compactTipPortalReady, setCompactTipPortalReady] = useState(false);
   const [compactTipLabel, setCompactTipLabel] = useState<string | null>(null);
   const [compactTipPos, setCompactTipPos] = useState<{ left: number; top: number } | null>(null);
   const compactTipAnchorRef = useRef<HTMLElement | null>(null);
+  const chromeRootRef = useRef<HTMLDivElement>(null);
+  const topBarRef = useRef<HTMLElement>(null);
+
+  const syncTopBarHeight = useCallback(() => {
+    const bar = topBarRef.current;
+    const root = chromeRootRef.current;
+    if (!bar || !root) return;
+    root.style.setProperty(APP_CHROME_TOPBAR_HEIGHT_VAR, `${bar.offsetHeight}px`);
+  }, []);
 
   const hideCompactTip = useCallback(() => {
     compactTipAnchorRef.current = null;
@@ -284,6 +283,19 @@ export function AppChrome({ children }: { children: ReactNode }) {
   useEffect(() => {
     setCompactTipPortalReady(true);
   }, []);
+
+  useLayoutEffect(() => {
+    syncTopBarHeight();
+    const bar = topBarRef.current;
+    if (!bar) return;
+    const ro = new ResizeObserver(() => syncTopBarHeight());
+    ro.observe(bar);
+    window.addEventListener("resize", syncTopBarHeight);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", syncTopBarHeight);
+    };
+  }, [syncTopBarHeight]);
 
   useLayoutEffect(() => {
     if (!compactTipLabel) return;
@@ -307,20 +319,13 @@ export function AppChrome({ children }: { children: ReactNode }) {
   }, [sidebarCollapsed, hideCompactTip]);
 
   useEffect(() => {
-    if (isShelfPath(pathname)) setShelvesOpen(true);
-  }, [pathname]);
-
-  useEffect(() => {
     if (isLegalDocumentPath(pathname)) return;
     if (!readSidebarCollapsedPreference()) {
       setCollapsed(false);
     }
   }, [pathname, setCollapsed]);
 
-  const mobileNav = useMemo(
-    () => [navDashboard, navPeople, ...shelfSubItems, navAddItem],
-    []
-  );
+  const mobileNav = useMemo(() => [...socialSubItems, ...shelfSubItems], []);
 
   const privacyActive = pathname === "/privacy" || pathname.startsWith("/privacy/");
   const termsActive = pathname === "/terms" || pathname.startsWith("/terms/");
@@ -330,31 +335,64 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const [sidebarRailFocus, setSidebarRailFocus] = useState(false);
   const sidebarRailHot = sidebarRailHover || sidebarRailFocus;
 
+  const appTopBar = (
+    <header
+      ref={topBarRef}
+      className="relative sticky top-0 z-50 flex w-full shrink-0 items-center justify-between border-b border-kurator-border bg-kurator-topbar px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] shadow-md md:px-6"
+    >
+      <Link href="/" className="relative z-10 shrink-0">
+        <SidebarBrandLogo variant="wide-on-dark" />
+      </Link>
+      <div className="pointer-events-none absolute inset-x-4 top-1/2 z-20 flex -translate-y-1/2 justify-center md:inset-x-6">
+        <GlobalSearchBar className="pointer-events-auto w-full max-w-md" />
+      </div>
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
+        <TopBarCreateMenu
+          closeSignal={closeCreate}
+          onMenuOpen={() => {
+            setCloseNotif((n) => n + 1);
+            setCloseAccount((n) => n + 1);
+          }}
+        />
+        <NotificationDropdown
+          closeSignal={closeNotif}
+          onMenuOpen={() => {
+            setCloseAccount((n) => n + 1);
+            setCloseCreate((n) => n + 1);
+          }}
+        />
+        <AccountMenu
+          closeSignal={closeAccount}
+          onMenuOpen={() => {
+            setCloseNotif((n) => n + 1);
+            setCloseCreate((n) => n + 1);
+          }}
+        />
+      </div>
+    </header>
+  );
+
   return (
-    <div className="flex min-h-dvh flex-col md:flex-row">
-      <div
-        className={`relative hidden shrink-0 transition-[width] duration-200 ease-out md:block md:h-dvh md:max-h-dvh md:self-start md:sticky md:top-0 ${
-          sidebarCollapsed ? "md:w-19" : "md:w-56"
-        }`}
-      >
+    <div
+      ref={chromeRootRef}
+      className="flex min-h-dvh flex-col"
+      style={{ [APP_CHROME_TOPBAR_HEIGHT_VAR]: "3.75rem" }}
+    >
+      {appTopBar}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <div
+          className={`relative hidden shrink-0 transition-[width] duration-200 ease-out md:sticky md:top-[var(--app-chrome-topbar-height,3.75rem)] md:block md:h-[calc(100dvh-var(--app-chrome-topbar-height,3.75rem))] md:max-h-[calc(100dvh-var(--app-chrome-topbar-height,3.75rem))] md:self-start ${
+            sidebarCollapsed ? "md:w-19" : "md:w-56"
+          }`}
+        >
         <aside
-          className={`flex h-full overflow-x-hidden border-r border-solid bg-kurator-surface transition-[border-right-width,border-right-color] duration-150 ease-out md:flex md:flex-col md:overflow-hidden md:py-6 ${
+          className={`flex h-full min-h-0 w-full overflow-x-hidden border-r border-solid bg-kurator-surface transition-[border-right-width,border-right-color] duration-150 ease-out md:flex md:flex-col md:overflow-hidden md:pt-3 md:pb-6 ${
             sidebarRailHot
               ? "border-r-4 border-kurator-accent/35"
               : "border-r border-kurator-border"
           }`}
         >
-        <div className={`mb-4 mt-2 pb-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
-          <div className="border-b border-kurator-border pb-3">
-            <Link
-              href="/"
-              className={`flex ${sidebarCollapsed ? "justify-center px-0.5" : "justify-center px-2"}`}
-            >
-              <SidebarBrandLogo variant={sidebarCollapsed ? "mark" : "wide"} />
-            </Link>
-          </div>
-        </div>
-        <div className={`flex min-h-0 flex-1 flex-col ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
+        <div className={`flex min-h-0 flex-1 flex-col pt-1 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
           <nav
             id="app-sidebar-primary"
             className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto"
@@ -373,7 +411,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
               const renderLink = (item: {
                 href: string;
                 label: string;
-                icon: typeof LayoutGrid;
+                icon: LucideIcon;
               }) => {
                 const active = isNavActive(item.href, pathname);
                 const Icon = item.icon;
@@ -412,58 +450,35 @@ export function AppChrome({ children }: { children: ReactNode }) {
                 );
               };
 
+              const navSectionHeadingClass =
+                "px-3 pb-1 text-xs font-bold uppercase tracking-wide text-kurator-muted/55";
+
+              const renderNavSection = (
+                id: string,
+                label: string,
+                items: readonly { href: string; label: string; icon: LucideIcon }[],
+                showHeading = true
+              ) => (
+                <div
+                  role="group"
+                  aria-label={showHeading ? undefined : label}
+                  aria-labelledby={showHeading ? `app-sidebar-${id}-heading` : undefined}
+                  className="flex flex-col gap-0.5"
+                >
+                  {showHeading ? (
+                    <p id={`app-sidebar-${id}-heading`} className={`${navSectionHeadingClass} pt-1`}>
+                      {label}
+                    </p>
+                  ) : null}
+                  {items.map((item) => renderLink(item))}
+                </div>
+              );
+
               return (
                 <>
-                  {renderLink(navDashboard)}
-                  {renderLink(navPeople)}
-                  {sidebarCollapsed ? (
-                    shelfSubItems.map((item) => renderLink(item))
-                  ) : (
-                    <div className="flex flex-col gap-0.5">
-                      <button
-                        type="button"
-                        id="app-sidebar-shelves-trigger"
-                        aria-expanded={shelvesOpen}
-                        aria-controls="app-sidebar-shelves-panel"
-                        onClick={() => setShelvesOpen((o) => !o)}
-                        className={linkClass(isShelfPath(pathname), false)}
-                      >
-                        <Library className="h-4 w-4 shrink-0" aria-hidden />
-                        <span className="min-w-0 flex-1 text-left">Shelves</span>
-                        <ChevronRight
-                          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                            shelvesOpen ? "rotate-90" : ""
-                          }`}
-                          aria-hidden
-                        />
-                      </button>
-                      {shelvesOpen ? (
-                        <div
-                          id="app-sidebar-shelves-panel"
-                          role="region"
-                          aria-labelledby="app-sidebar-shelves-trigger"
-                          className="ml-3 flex flex-col gap-0.5 border-l border-kurator-border/80 pl-2"
-                        >
-                          {shelfSubItems.map((item) => {
-                            const active = isNavActive(item.href, pathname);
-                            const Icon = item.icon;
-                            return (
-                              <Link
-                                key={item.href}
-                                href={item.href}
-                                aria-current={active ? "page" : undefined}
-                                className={linkClass(active, false)}
-                              >
-                                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                                <span>{item.label}</span>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                  {renderLink(navAddItem)}
+                  {renderLink(navHome)}
+                  {renderNavSection("social", "Social", socialSubItems, !sidebarCollapsed)}
+                  {renderNavSection("shelves", "Shelves", shelfSubItems, !sidebarCollapsed)}
                 </>
               );
             })()}
@@ -534,21 +549,10 @@ export function AppChrome({ children }: { children: ReactNode }) {
             )}
           </button>
         </div>
-      </div>
-      <div className="@container flex min-w-0 flex-1 flex-col bg-kurator-main pb-20 md:pb-0">
-        <header className="sticky top-0 z-50 flex md:hidden items-center justify-between gap-3 border-b border-kurator-border bg-kurator-surface/95 pb-3 pl-4 pr-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-md">
-          <Link href="/" className="min-w-0 shrink text-base font-semibold text-kurator-fg">
-            <SidebarBrandLogo variant="wide-mobile" />
-          </Link>
-          <div className="flex shrink-0 items-center gap-2">
-            <NotificationDropdown
-              closeSignal={closeNotif}
-              onMenuOpen={() => setCloseAccount((n) => n + 1)}
-            />
-            <AccountMenu closeSignal={closeAccount} onMenuOpen={() => setCloseNotif((n) => n + 1)} />
-          </div>
-        </header>
-        <main className="flex-1 px-4 py-5 md:px-8 md:py-8">{children}</main>
+        </div>
+        <div className="@container flex min-h-0 min-w-0 flex-1 flex-col bg-kurator-main pb-20 md:pb-0">
+          <main className="flex-1 px-4 py-5 md:px-8 md:py-8">{children}</main>
+        </div>
       </div>
 
       <nav
@@ -571,18 +575,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
-      <div
-        className="pointer-events-none fixed z-100 hidden justify-end md:flex"
-        style={topRightSafeInsetStyle()}
-      >
-        <div className="pointer-events-auto flex items-start gap-2">
-          <NotificationDropdown
-            closeSignal={closeNotif}
-            onMenuOpen={() => setCloseAccount((n) => n + 1)}
-          />
-          <AccountMenu closeSignal={closeAccount} onMenuOpen={() => setCloseNotif((n) => n + 1)} />
-        </div>
-      </div>
     </div>
   );
 }
