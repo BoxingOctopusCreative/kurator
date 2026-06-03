@@ -459,11 +459,8 @@ export function HomePageClient({ initialBackground = null, landingSlogans }: Pro
         onPageNext={() => setFollowPage((p) => p + 1)}
         emptyHint={
           <>
-            No recent shelves from people you follow, or you are not following anyone yet.{" "}
-            <Link href="/people" className="text-kurator-accent hover:underline">
-              Find People
-            </Link>{" "}
-            to see their shelves here.
+            No recent shelves from people you follow, or you are not following anyone yet. Use search to
+            find people and see their shelves here.
           </>
         }
       />

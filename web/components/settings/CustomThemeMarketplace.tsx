@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
+import { shelfAuthorFromProfileUrl } from "@/lib/shelfAuthor";
 import { useAuth } from "@/components/AuthProvider";
 import { isProPlan } from "@/lib/billing";
 import {
@@ -212,8 +214,30 @@ function MarketplaceTab({
                   {item.description ? (
                     <p className="mt-0.5 text-sm text-kurator-muted">{item.description}</p>
                   ) : null}
-                  <p className="mt-1 text-xs text-kurator-muted">
-                    by {item.author_display_name} · v{item.version}
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-kurator-muted">
+                    {(() => {
+                      const author =
+                        !item.author_deleted
+                          ? shelfAuthorFromProfileUrl(
+                              item.author_profile_url,
+                              item.author_display_name,
+                            )
+                          : null;
+                      if (author) {
+                        return (
+                          <>
+                            <span>by</span>
+                            <ShelfAuthorLink author={author} variant="avatarAndName" />
+                            <span>· v{item.version}</span>
+                          </>
+                        );
+                      }
+                      return (
+                        <span>
+                          by {item.author_display_name} · v{item.version}
+                        </span>
+                      );
+                    })()}
                   </p>
                 </div>
                 <button

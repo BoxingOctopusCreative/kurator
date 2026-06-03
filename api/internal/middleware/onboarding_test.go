@@ -74,6 +74,9 @@ func (r *onboardingMiddlewareUserRepo) UpdateOnboarding(context.Context, int64, 
 func (r *onboardingMiddlewareUserRepo) UserHasAnyShelves(context.Context, int64) (bool, error) {
 	return r.hasShelves, nil
 }
+func (r *onboardingMiddlewareUserRepo) SearchPublic(context.Context, string, int, *int64) ([]models.PublicUser, error) {
+	return nil, nil
+}
 
 func TestRequireOnboardingComplete_blocksIncomplete(t *testing.T) {
 	repo := &onboardingMiddlewareUserRepo{

@@ -5,16 +5,20 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import {
+  acceptBoardInvite,
   approveShelfAccessRequest,
+  dismissBoardInvite,
   dismissShelfAccessRequest,
   fetchNotificationUnreadCount,
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-  publicLegalNameLine,
   type NotificationFeedItem,
 } from "@/lib/api";
+import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { useAuth } from "@/components/AuthProvider";
+import { toShelfAuthor } from "@/lib/shelfAuthor";
+import { boardThreadPath } from "@/lib/boardPaths";
 import {
   acceptShelfOwnershipTakeover,
   voteShelfOwnershipElection,
@@ -91,13 +95,6 @@ function subscribeSharedUnread(listener: (n: number) => void): () => void {
       stopSharedUnreadPolling();
     }
   };
-}
-
-function actorLabel(actor: NotificationFeedItem["actor"]): string {
-  const legal = publicLegalNameLine(actor);
-  if (legal) return legal;
-  if (actor.display_name?.trim()) return actor.display_name.trim();
-  return `@${actor.username}`;
 }
 
 function payloadStr(p: Record<string, unknown>, key: string): string {
@@ -181,7 +178,15 @@ function notificationHref(n: NotificationFeedItem): string | null {
       return u ? `/people/${encodeURIComponent(u)}` : null;
     }
     case "shelf_access_request":
+    case "board_invite":
       return null;
+    case "board_thread_reply":
+    case "board_reply_reply": {
+      const slug = payloadStr(p, "board_slug");
+      const threadId = payloadStr(p, "thread_id");
+      if (!slug || !threadId) return null;
+      return boardThreadPath(slug, threadId);
+    }
     case "shelf_ownership_takeover":
     case "shelf_ownership_election":
       return shelfHrefFromPayload(p);
@@ -192,19 +197,18 @@ function notificationHref(n: NotificationFeedItem): string | null {
   }
 }
 
-function notificationSummary(n: NotificationFeedItem): string {
-  const who = actorLabel(n.actor);
+function notificationActionText(n: NotificationFeedItem): string {
   const p = n.payload;
   const name = payloadStr(p, "name");
   const itemTitle = payloadStr(p, "item_title");
   const coll = payloadStr(p, "collection_name");
   switch (n.kind) {
     case "collection_created":
-      return `${who} created a collection${name ? ` “${name}”` : ""}.`;
+      return ` created a collection${name ? ` “${name}”` : ""}.`;
     case "list_created":
-      return `${who} created a list${name ? ` “${name}”` : ""}.`;
+      return ` created a list${name ? ` “${name}”` : ""}.`;
     case "wishlist_created":
-      return `${who} created a wishlist${name ? ` “${name}”` : ""}.`;
+      return ` created a wishlist${name ? ` “${name}”` : ""}.`;
     case "item_added": {
       const r = p.rating;
       const stars = typeof r === "number" ? r : null;
@@ -212,24 +216,24 @@ function notificationSummary(n: NotificationFeedItem): string {
         stars != null && stars >= 1 && stars <= 5
           ? ` (${stars}★) on “${coll || "a collection"}”.`
           : ` on “${coll || "a collection"}”.`;
-      return `${who} added “${itemTitle || "an item"}”${tail}`;
+      return ` added “${itemTitle || "an item"}”${tail}`;
     }
     case "item_rated": {
       const stars = typeof p.stars === "number" ? p.stars : null;
-      return `${who} rated “${itemTitle || "an item"}”${stars != null ? ` ${stars}★` : ""}${
+      return ` rated “${itemTitle || "an item"}”${stars != null ? ` ${stars}★` : ""}${
         coll ? ` on “${coll}”.` : "."
       }`;
     }
     case "new_follower":
-      return `${who} started following you.`;
+      return ` started following you.`;
     case "shelf_access_request": {
       const flow = payloadStr(p, "flow");
       const shelf = payloadStr(p, "shelf_name");
       const label = shelf ? `“${shelf}”` : "a shelf";
       if (flow === "invite") {
-        return `${who} invited you to collaborate on ${label}.`;
+        return ` invited you to collaborate on ${label}.`;
       }
-      return `${who} asked to join ${label}.`;
+      return ` asked to join ${label}.`;
     }
     case "shelf_ownership_takeover": {
       const shelf = payloadStr(p, "shelf_name");
@@ -244,11 +248,50 @@ function notificationSummary(n: NotificationFeedItem): string {
     case "custom_theme_unpublished": {
       const theme = payloadStr(p, "theme_name");
       const label = theme ? `“${theme}”` : "A custom theme you were using";
-      return `${who} unpublished ${label}. Your app theme was reset to Kurator defaults.`;
+      return ` unpublished ${label}. Your app theme was reset to Kurator defaults.`;
+    }
+    case "board_invite": {
+      const board = payloadStr(p, "board_name");
+      const label = board ? `“${board}”` : "a private board";
+      return ` invited you to ${label}.`;
+    }
+    case "board_thread_reply": {
+      const title = payloadStr(p, "thread_title");
+      const board = payloadStr(p, "board_name");
+      const threadLabel = title ? `“${title}”` : "a thread";
+      const boardLabel = board ? ` on ${board}` : "";
+      return ` replied in ${threadLabel}${boardLabel}.`;
+    }
+    case "board_reply_reply": {
+      const title = payloadStr(p, "thread_title");
+      const threadLabel = title ? `“${title}”` : "a thread";
+      return ` replied to your comment in ${threadLabel}.`;
     }
     default:
-      return `${who} did something in Kurator.`;
+      return ` did something in Kurator.`;
   }
+}
+
+function notificationShowsActor(n: NotificationFeedItem): boolean {
+  return n.kind !== "shelf_ownership_takeover" && n.kind !== "shelf_ownership_election";
+}
+
+function NotificationFeedBody({ n }: { n: NotificationFeedItem }) {
+  const action = notificationActionText(n);
+  const textClass = n.read ? "text-kurator-muted" : "text-kurator-fg";
+  if (!notificationShowsActor(n)) {
+    return <span className={`text-xs leading-snug ${textClass}`}>{action}</span>;
+  }
+  return (
+    <span className={`text-xs leading-snug ${textClass}`}>
+      <ShelfAuthorLink
+        author={toShelfAuthor(n.actor)}
+        variant="nameOnly"
+        onClick={(e) => e.stopPropagation()}
+      />
+      {action}
+    </span>
+  );
 }
 
 type NotificationDropdownProps = {
@@ -534,6 +577,32 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
     }
   }
 
+  async function onBoardInviteAccept(notificationId: number, inviteId: number) {
+    setErr(null);
+    try {
+      await acceptBoardInvite(inviteId);
+      if (items.find((x) => x.id === notificationId && !x.read)) {
+        await markNotificationRead(notificationId);
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not accept board invite.");
+    }
+  }
+
+  async function onBoardInviteDismiss(notificationId: number, inviteId: number) {
+    setErr(null);
+    try {
+      await dismissBoardInvite(inviteId);
+      if (items.find((x) => x.id === notificationId && !x.read)) {
+        await markNotificationRead(notificationId);
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not decline board invite.");
+    }
+  }
+
   async function onSuccessionAccept(notificationId: number, successionId: number) {
     setErr(null);
     try {
@@ -568,7 +637,7 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
     open && placement ? (
       <div
         ref={panelRef}
-        className="fixed z-200 flex flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-surface py-2 shadow-dropdown"
+        className="fixed z-200 flex flex-col overflow-hidden rounded-xl border border-kurator-border bg-kurator-topbar py-2 shadow-dropdown"
         style={{
           top: placement.top,
           left: placement.left,
@@ -603,27 +672,17 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
             <ul className="divide-y divide-kurator-border/60">
               {items.map((n) => {
                 const href = notificationHref(n);
-                const summary = notificationSummary(n);
                 const inner = (
                   <span className="flex gap-2 text-left">
-                    {n.actor.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={n.actor.avatar_url}
-                        alt=""
-                        className="mt-0.5 h-8 w-8 shrink-0 rounded-full object-cover"
+                    {notificationShowsActor(n) ? (
+                      <ShelfAuthorLink
+                        author={toShelfAuthor(n.actor)}
+                        variant="avatarOnly"
+                        onClick={(e) => e.stopPropagation()}
                       />
-                    ) : (
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-kurator-border text-[10px] font-medium text-kurator-muted">
-                        {(actorLabel(n.actor).slice(0, 1) || "?").toUpperCase()}
-                      </span>
-                    )}
+                    ) : null}
                     <span className="min-w-0 flex-1">
-                      <span
-                        className={`text-xs leading-snug ${n.read ? "text-kurator-muted" : "text-kurator-fg"}`}
-                      >
-                        {summary}
-                      </span>
+                      <NotificationFeedBody n={n} />
                       <span className="mt-0.5 block text-[10px] text-kurator-muted">
                         {new Date(n.created_at).toLocaleString()}
                       </span>
@@ -652,6 +711,35 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
                               onClick={() => void onShelfDismiss(n.id, reqId)}
                             >
                               Ignore
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                }
+
+                if (n.kind === "board_invite") {
+                  const inviteId = payloadNum(n.payload, "invite_id");
+                  return (
+                    <li key={n.id}>
+                      <div className="px-3 py-2.5" role="group" aria-label="Board invitation">
+                        {inner}
+                        {inviteId != null ? (
+                          <div className="mt-2 flex flex-wrap gap-2 pl-10">
+                            <button
+                              type="button"
+                              className="rounded-lg bg-kurator-accent px-2.5 py-1 text-xs font-medium text-kurator-onAccent hover:opacity-90"
+                              onClick={() => void onBoardInviteAccept(n.id, inviteId)}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-kurator-border px-2.5 py-1 text-xs text-kurator-muted hover:bg-kurator-border/30"
+                              onClick={() => void onBoardInviteDismiss(n.id, inviteId)}
+                            >
+                              Decline
                             </button>
                           </div>
                         ) : null}
@@ -717,12 +805,12 @@ export function NotificationDropdown({ closeSignal, onMenuOpen }: NotificationDr
           setOpen(next);
           if (next) onMenuOpen();
         }}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-kurator-surface/95 text-kurator-muted shadow-md backdrop-blur-md transition-colors hover:bg-kurator-border/50 hover:text-kurator-fg"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-transparent text-kurator-muted transition-colors hover:border-kurator-border hover:bg-kurator-border/50 hover:text-kurator-fg"
         aria-expanded={open}
         aria-haspopup="true"
         aria-label="Notifications"
       >
-        <Bell className="h-4 w-4" aria-hidden />
+        <Bell className="h-6 w-6" aria-hidden />
         {unread > 0 ? (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-kurator-accent px-1 text-[10px] font-semibold text-white">
             {unread > 99 ? "99+" : unread}

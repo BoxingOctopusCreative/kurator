@@ -141,6 +141,10 @@ func (s *stubUserRepo) UserHasAnyShelves(ctx context.Context, userID int64) (boo
 	return false, nil
 }
 
+func (s *stubUserRepo) SearchPublic(ctx context.Context, q string, limit int, excludeID *int64) ([]models.PublicUser, error) {
+	return nil, nil
+}
+
 type stubSessionRepo struct {
 	lastUserID int64
 	lastHash   string

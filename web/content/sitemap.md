@@ -19,7 +19,6 @@ A quick index of Kurator's main pages. Some areas require a signed-in account.
 - [Collections](/collections)
 - [Hitlists](/lists)
 - [Wishlists](/wishlists)
-- [People](/people)
 - [Add item](/items/add)
 
 ---

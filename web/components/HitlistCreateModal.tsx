@@ -9,6 +9,7 @@ import {
   type PublicUser,
   type Visibility,
 } from "@/lib/api";
+import { FriendCheckboxRow } from "@/components/FriendCheckboxRow";
 import { KuratorModal } from "@/components/KuratorModal";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 import { assertCollectionOrWishlistName, assertLooseMultilineText, LIMITS } from "@/lib/validation";
@@ -287,21 +288,18 @@ export function HitlistCreateModal({ open, onOpenChange, onCreated }: Props) {
                     <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
                       {friends.map((f) => (
                         <li key={f.id}>
-                          <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
-                            <input
-                              type="checkbox"
-                              checked={inviteFriendIds.has(f.id)}
-                              onChange={() => {
-                                setInviteFriendIds((prev) => {
-                                  const n = new Set(prev);
-                                  if (n.has(f.id)) n.delete(f.id);
-                                  else n.add(f.id);
-                                  return n;
-                                });
-                              }}
-                            />
-                            @{f.username}
-                          </label>
+                          <FriendCheckboxRow
+                            user={f}
+                            checked={inviteFriendIds.has(f.id)}
+                            onCheckedChange={() => {
+                              setInviteFriendIds((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(f.id)) n.delete(f.id);
+                                else n.add(f.id);
+                                return n;
+                              });
+                            }}
+                          />
                         </li>
                       ))}
                     </ul>

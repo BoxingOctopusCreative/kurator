@@ -79,6 +79,7 @@ import { CoverArtField } from "@/components/CoverArtField";
 import { DeleteEntryBucketDialog } from "@/components/DeleteEntryBucketDialog";
 import { WishlistAddEntryModal } from "@/components/WishlistAddEntryModal";
 import { WishlistSettingsModal } from "@/components/WishlistSettingsModal";
+import { FriendCheckboxRow } from "@/components/FriendCheckboxRow";
 import { ShelfAuthorLink } from "@/components/ShelfAuthorLink";
 import { VisibilitySelect } from "@/components/VisibilitySelect";
 
@@ -1309,21 +1310,18 @@ export function WishlistDetailClient() {
                         <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-md border border-kurator-border/80 p-2">
                           {shareFriends.map((f) => (
                             <li key={f.id}>
-                              <label className="flex cursor-pointer items-center gap-2 text-xs text-kurator-fg">
-                                <input
-                                  type="checkbox"
-                                  checked={shareInviteIds.has(f.id)}
-                                  onChange={() => {
-                                    setShareInviteIds((prev) => {
-                                      const n = new Set(prev);
-                                      if (n.has(f.id)) n.delete(f.id);
-                                      else n.add(f.id);
-                                      return n;
-                                    });
-                                  }}
-                                />
-                                @{f.username}
-                              </label>
+                              <FriendCheckboxRow
+                                user={f}
+                                checked={shareInviteIds.has(f.id)}
+                                onCheckedChange={() => {
+                                  setShareInviteIds((prev) => {
+                                    const n = new Set(prev);
+                                    if (n.has(f.id)) n.delete(f.id);
+                                    else n.add(f.id);
+                                    return n;
+                                  });
+                                }}
+                              />
                             </li>
                           ))}
                         </ul>

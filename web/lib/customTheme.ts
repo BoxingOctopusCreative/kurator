@@ -393,6 +393,8 @@ export type PublishedCustomThemeSummary = {
   name: string;
   description: string;
   author_display_name: string;
+  author_profile_url?: string | null;
+  author_deleted?: boolean;
   author_user_id?: number;
   version: number;
 };

@@ -48,6 +48,10 @@
       "description": "Wishlists and entries."
     },
     {
+      "name": "boards",
+      "description": "Discussion boards: threads and replies (no voting). Public or invite-only private."
+    },
+    {
       "name": "items",
       "description": "Catalog items."
     },
@@ -58,6 +62,10 @@
     {
       "name": "search",
       "description": "Meilisearch-backed item search."
+    },
+    {
+      "name": "explore",
+      "description": "Cross-entity explore search (shelves, boards, profiles, comments)."
     },
     {
       "name": "hitlists-v2",
@@ -2458,6 +2466,52 @@
             "description": "Bad Gateway"
           }
         }
+      }
+    },
+    "/api/v1/explore/search": {
+      "get": {
+        "tags": [
+          "explore"
+        ],
+        "summary": "Explore search",
+        "description": "Search collections, hitlists, wishlists, boards, threads, replies, hitlist comments, and public profiles visible to the caller (optional session expands shelf and board access).",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "Min 2 characters"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer",
+            "description": "Max hits per category (default 5, max 12)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/ExploreSearchResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ]
       }
     },
     "/api/v1/metadata/lookup": {
@@ -5027,9 +5081,448 @@
           }
         }
       }
+    },
+    "/api/v1/boards/feed": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "Public board thread feed",
+        "description": "Threads from public boards for the boards home Discover tab. Optional auth (viewer permissions on thread rows when signed in).",
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "type": "string",
+            "enum": ["updated", "newest", "oldest", "active"],
+            "default": "updated",
+            "description": "updated = most recently updated (default); active = most replies"
+          },
+          { "name": "q", "in": "query", "type": "string", "description": "Search thread title/body, board name, author" },
+          { "name": "limit", "in": "query", "type": "integer" }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": { "type": "array", "items": { "$ref": "#/definitions/BoardFeedThread" } }
+          },
+          "400": { "description": "Invalid sort" }
+        }
+      }
+    },
+    "/api/v1/boards": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "List boards",
+        "description": "tab=discover (public boards; optional auth) | mine | member (auth required). Discover home feed uses GET /boards/feed instead.",
+        "parameters": [
+          { "name": "tab", "in": "query", "type": "string", "enum": ["discover", "mine", "member"] },
+          { "name": "limit", "in": "query", "type": "integer" }
+        ],
+        "responses": {
+          "200": { "description": "OK", "schema": { "type": "array", "items": { "$ref": "#/definitions/Board" } } }
+        }
+      },
+      "post": {
+        "tags": ["boards"],
+        "summary": "Create board",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["name", "visibility"],
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "visibility": { "type": "string", "enum": ["public", "private"] },
+                "slug": { "type": "string" },
+                "invite_user_ids": { "type": "array", "items": { "type": "integer", "format": "int64" } }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": { "description": "Created", "schema": { "$ref": "#/definitions/Board" } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "Get board by id",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" }],
+        "responses": {
+          "200": { "description": "OK", "schema": { "$ref": "#/definitions/Board" } },
+          "404": { "description": "Not found" }
+        }
+      },
+      "patch": {
+        "tags": ["boards"],
+        "summary": "Update board (owner)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "visibility": { "type": "string", "enum": ["public", "private"] },
+                "slug": { "type": "string" },
+                "banner_url": { "type": "string", "description": "Hero banner URL; empty string clears" },
+                "icon_url": { "type": "string", "description": "Square icon URL; empty string clears" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK", "schema": { "$ref": "#/definitions/Board" } },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "tags": ["boards"],
+        "summary": "Delete board (owner)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" }],
+        "responses": {
+          "204": { "description": "Deleted" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/moderators": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "List board moderators",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" }],
+        "responses": {
+          "200": { "description": "OK", "schema": { "type": "array", "items": { "$ref": "#/definitions/BoardModerator" } } },
+          "404": { "description": "Not found" }
+        }
+      },
+      "post": {
+        "tags": ["boards"],
+        "summary": "Add board moderators (owner)",
+        "description": "Appoints mutual friends as moderators who may delete any thread or reply.",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["user_ids"],
+              "properties": {
+                "user_ids": { "type": "array", "items": { "type": "integer", "format": "int64" } }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Added" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/moderators/{userId}": {
+      "delete": {
+        "tags": ["boards"],
+        "summary": "Remove a board moderator (owner)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "userId", "in": "path", "required": true, "type": "integer", "format": "int64" }
+        ],
+        "responses": {
+          "204": { "description": "Removed" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/threads": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "List threads in a board",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" }],
+        "responses": {
+          "200": { "description": "OK", "schema": { "type": "array", "items": { "$ref": "#/definitions/BoardThread" } } }
+        }
+      },
+      "post": {
+        "tags": ["boards"],
+        "summary": "Create thread",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["title", "body"],
+              "properties": {
+                "title": { "type": "string" },
+                "body": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": { "description": "Created", "schema": { "$ref": "#/definitions/BoardThread" } }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/threads/{threadId}": {
+      "patch": {
+        "tags": ["boards"],
+        "summary": "Update thread (author: title/body; author or owner: flair; owner/mod: locked)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "threadId", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "title": { "type": "string", "description": "Thread author only" },
+                "body": { "type": "string", "description": "Thread author only" },
+                "flair_id": { "type": "string", "format": "uuid", "description": "Thread author or board owner" },
+                "locked": { "type": "boolean", "description": "Board owner or moderator only; prevents new replies when true" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK", "schema": { "$ref": "#/definitions/BoardThread" } },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/threads/{threadId}/edits": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "List thread edit history (board owner or moderator)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "threadId", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "limit", "in": "query", "type": "integer", "default": 50 }
+        ],
+        "responses": {
+          "200": { "description": "OK", "schema": { "type": "array", "items": { "$ref": "#/definitions/BoardThreadEdit" } } },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/threads/{threadId}/replies/{replyId}": {
+      "patch": {
+        "tags": ["boards"],
+        "summary": "Update reply body (reply author only)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "threadId", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "replyId", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["body"],
+              "properties": {
+                "body": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK", "schema": { "$ref": "#/definitions/BoardReply" } },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/boards/{id}/threads/{threadId}/replies/{replyId}/edits": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "List reply edit history (board owner or moderator)",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "threadId", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "replyId", "in": "path", "required": true, "type": "string", "format": "uuid" },
+          { "name": "limit", "in": "query", "type": "integer", "default": 50 }
+        ],
+        "responses": {
+          "200": { "description": "OK", "schema": { "type": "array", "items": { "$ref": "#/definitions/BoardReplyEdit" } } },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/v1/me/board-invites": {
+      "get": {
+        "tags": ["boards"],
+        "summary": "List pending board invitations for the signed-in user",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "responses": {
+          "200": { "description": "OK", "schema": { "type": "array", "items": { "$ref": "#/definitions/BoardInvite" } } }
+        }
+      }
     }
   },
   "definitions": {
+    "Board": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "owner_user_id": { "type": "integer", "format": "int64" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["public", "private"] },
+        "slug": { "type": "string" },
+        "banner_url": { "type": "string" },
+        "icon_url": { "type": "string" },
+        "thread_count": { "type": "integer", "format": "int64" },
+        "member_count": { "type": "integer", "format": "int64" },
+        "may_manage": { "type": "boolean" },
+        "may_post": { "type": "boolean" },
+        "viewer_role": { "type": "string", "enum": ["owner", "moderator", "member", "none"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "BoardFeedThread": {
+      "type": "object",
+      "description": "Thread on the public boards home feed (BoardThread plus board context).",
+      "allOf": [
+        { "$ref": "#/definitions/BoardThread" },
+        {
+          "type": "object",
+          "properties": {
+            "board_name": { "type": "string" },
+            "board_slug": { "type": "string" },
+            "board_icon_url": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "BoardThread": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "board_id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "may_delete": { "type": "boolean", "description": "True when the viewer may delete (thread author, board owner, or moderator)" },
+        "may_edit": { "type": "boolean", "description": "True when the viewer is the thread author" },
+        "is_locked": { "type": "boolean", "description": "When true, no new replies may be posted" },
+        "locked_at": { "type": "string", "format": "date-time" },
+        "may_lock": { "type": "boolean", "description": "True when the viewer is board owner or moderator" },
+        "may_view_history": { "type": "boolean", "description": "True when the viewer is board owner or moderator" },
+        "author_tags": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["OWNER", "MOD", "OP"] },
+          "description": "Role badges for the thread author in this thread"
+        },
+        "reply_count": { "type": "integer", "format": "int64" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "BoardThreadEdit": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "format": "int64" },
+        "thread_id": { "type": "string", "format": "uuid" },
+        "editor_user_id": { "type": "integer", "format": "int64" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "BoardReplyEdit": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "format": "int64" },
+        "reply_id": { "type": "string", "format": "uuid" },
+        "editor_user_id": { "type": "integer", "format": "int64" },
+        "body": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "BoardReply": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "thread_id": { "type": "string", "format": "uuid" },
+        "parent_reply_id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "integer", "format": "int64" },
+        "author": {
+          "type": "object",
+          "properties": {
+            "username": { "type": "string" },
+            "display_name": { "type": "string" },
+            "avatar_url": { "type": "string" }
+          }
+        },
+        "body": { "type": "string" },
+        "may_delete": { "type": "boolean", "description": "True when the viewer may delete (reply author, board owner, or moderator)" },
+        "may_edit": { "type": "boolean", "description": "True when the viewer is the reply author" },
+        "is_edited": {
+          "type": "boolean",
+          "description": "True when the reply has edit history; only set for board owner or moderator viewers"
+        },
+        "author_tags": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["OWNER", "MOD", "OP"] },
+          "description": "Role badges for the reply author in this thread"
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "BoardInvite": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "format": "int64" },
+        "board_id": { "type": "string", "format": "uuid" },
+        "board_name": { "type": "string" },
+        "status": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "BoardModerator": {
+      "type": "object",
+      "properties": {
+        "board_id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "integer", "format": "int64" },
+        "user": {
+          "type": "object",
+          "properties": {
+            "username": { "type": "string" },
+            "display_name": { "type": "string" },
+            "avatar_url": { "type": "string" }
+          }
+        },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
     "User": {
       "type": "object",
       "properties": {
@@ -5771,6 +6264,51 @@
           "type": "array",
           "items": {
             "type": "object"
+          }
+        }
+      }
+    },
+    "ExploreSearchHit": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "collection",
+            "hitlist",
+            "wishlist",
+            "board",
+            "thread",
+            "reply",
+            "hitlist_comment",
+            "user"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "Web app path for this result"
+        }
+      }
+    },
+    "ExploreSearchResponse": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExploreSearchHit"
           }
         }
       }

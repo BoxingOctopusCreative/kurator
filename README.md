@@ -32,6 +32,12 @@ You're a hopeless nerd. You collect dusty old tomes. You have OPINIONS, we get i
 ![Kurator Hitlist View](https://assets.kuratorapp.cc/brand/screenshots/hitlist.png)
 ![Kurator Hitlist Comments](https://assets.kuratorapp.cc/brand/screenshots/hitlistcomments.png)
 
+## Boards: Forums Without the Upvotes
+
+**Boards** are Reddit-style discussion spaces: threads and nested replies, markdown authoring, and **no voting**. Create **public** boards anyone signed in can join, or **private** invite-only boards for your inner circle (mutual friends). Board owners can appoint **moderators** (mutual friends) who can delete any thread or reply, **lock** threads to stop new replies, and review **edit history** when thread or reply authors change content.
+
+The signed-in app header includes a **global search** bar that finds collections, hitlists, wishlists, boards, threads, board replies, hitlist comments, and public profiles you can access (`GET /api/v1/explore/search`).
+
 ## Other Fun Features
 
 ### Item Autofill

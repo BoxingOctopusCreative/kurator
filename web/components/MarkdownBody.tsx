@@ -4,14 +4,31 @@ import Link from "next/link";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 
+import { safeImageSrcUrl } from "@/lib/safeUrl";
+
 const proseClassName =
   "prose prose-sm max-w-none leading-relaxed " +
   "prose-headings:font-semibold prose-headings:text-kurator-fg " +
   "prose-p:text-kurator-muted prose-li:text-kurator-muted prose-li:marker:text-kurator-muted " +
   "prose-strong:text-kurator-fg prose-a:text-kurator-accent prose-a:font-normal prose-a:no-underline hover:prose-a:underline " +
-  "prose-code:text-kurator-fg prose-pre:bg-kurator-bg prose-pre:border prose-pre:border-kurator-border";
+  "prose-code:text-kurator-fg prose-pre:bg-kurator-bg prose-pre:border prose-pre:border-kurator-border " +
+  "prose-img:my-2 prose-img:max-h-96 prose-img:rounded-lg";
 
 const markdownComponents: Components = {
+  img({ src, alt, node: _node, className, ...props }) {
+    const safe = safeImageSrcUrl(typeof src === "string" ? src : undefined);
+    if (!safe) return null;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- sanitized remote or same-origin markdown image
+      <img
+        {...props}
+        src={safe}
+        alt={alt ?? ""}
+        className={`${className ?? ""} my-2 max-h-96 rounded-lg`.trim()}
+        loading="lazy"
+      />
+    );
+  },
   a({ href, children, node: _node, className, title, ...props }) {
     if (!href) {
       return (

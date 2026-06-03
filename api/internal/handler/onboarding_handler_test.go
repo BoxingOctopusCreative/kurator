@@ -69,6 +69,9 @@ func (r *onboardingHandlerUserRepo) GetUserIDBySubscriptionID(context.Context, s
 }
 func (r *onboardingHandlerUserRepo) UpdateOnboarding(context.Context, int64, int, bool) error { return nil }
 func (r *onboardingHandlerUserRepo) UserHasAnyShelves(context.Context, int64) (bool, error)   { return false, nil }
+func (r *onboardingHandlerUserRepo) SearchPublic(context.Context, string, int, *int64) ([]models.PublicUser, error) {
+	return nil, nil
+}
 
 type onboardingHandlerProgressStub struct{}
 

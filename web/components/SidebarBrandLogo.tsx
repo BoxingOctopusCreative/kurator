@@ -9,10 +9,12 @@ const SIDEBAR_MARK_DARK =
   "https://assets.kuratorapp.cc/brand/SVG/kurator_favicon-white.svg";
 const SIDEBAR_WIDE_LOGO =
   "https://assets.kuratorapp.cc/Logo-Black-Wide-Transparent.png";
+const SIDEBAR_WIDE_LOGO_ON_DARK =
+  "https://assets.kuratorapp.cc/brand/PNG/kurator_wide-white.png";
 
 type Props = {
-  /** Collapsed sidebar favicon, expanded desktop wide logo, or mobile header wide logo. */
-  variant: "mark" | "wide" | "wide-mobile";
+  /** Collapsed sidebar favicon, expanded desktop wide logo, mobile header, or inverted wide on dark bars. */
+  variant: "mark" | "wide" | "wide-mobile" | "wide-on-dark";
 };
 
 export function SidebarBrandLogo({ variant }: Props) {
@@ -32,6 +34,16 @@ export function SidebarBrandLogo({ variant }: Props) {
           src={customLogo}
           alt="Kurator"
           className="h-auto max-h-10 w-32 max-w-full object-contain object-left"
+        />
+      );
+    }
+    if (variant === "wide-on-dark") {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={customLogo}
+          alt="Kurator"
+          className="h-auto max-h-10 w-32 max-w-full object-contain object-left invert"
         />
       );
     }
@@ -68,13 +80,29 @@ export function SidebarBrandLogo({ variant }: Props) {
     );
   }
 
+  if (variant === "wide-on-dark") {
+    return (
+      <Image
+        src={SIDEBAR_WIDE_LOGO_ON_DARK}
+        alt="Kurator"
+        width={256}
+        height={128}
+        className="h-auto max-h-10 w-32 object-left"
+        loading="eager"
+      />
+    );
+  }
+
+  const wideClass =
+    variant === "wide-mobile" ? "w-32 invert dark:invert-0" : "w-48 invert dark:invert-0";
+
   return (
     <Image
       src={SIDEBAR_WIDE_LOGO}
       alt="Kurator"
       width={256}
       height={128}
-      className={`h-auto object-left ${variant === "wide-mobile" ? "w-32 invert dark:invert-0" : "w-48 invert dark:invert-0"}`}
+      className={`h-auto object-left ${wideClass}`}
       loading="eager"
     />
   );
