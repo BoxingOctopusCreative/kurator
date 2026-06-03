@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import Link from "next/link";
@@ -376,7 +377,9 @@ export function AppChrome({ children }: { children: ReactNode }) {
     <div
       ref={chromeRootRef}
       className="flex min-h-dvh flex-col"
-      style={{ [APP_CHROME_TOPBAR_HEIGHT_VAR]: "3.75rem" }}
+      style={
+        { [APP_CHROME_TOPBAR_HEIGHT_VAR]: "3.75rem" } as CSSProperties
+      }
     >
       {appTopBar}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
