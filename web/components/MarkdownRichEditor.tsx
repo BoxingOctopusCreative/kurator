@@ -1,11 +1,6 @@
 "use client";
 
-import ImageExtension from "@tiptap/extension-image";
-import LinkExtension from "@tiptap/extension-link";
-import Placeholder from "@tiptap/extension-placeholder";
-import { Markdown } from "@tiptap/markdown";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
   Heading2,
@@ -21,10 +16,13 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { uploadCoverImage } from "@/lib/api";
-import { KuratorEmoji } from "@/lib/tiptapKuratorEmoji";
+import {
+  buildMarkdownRichEditorExtensions,
+  type MarkdownRichEditorVariant,
+} from "@/lib/markdownRichEditorExtensions";
 import { safeImageSrcUrl } from "@/lib/safeUrl";
 
-export type MarkdownRichEditorVariant = "compact" | "full";
+export type { MarkdownRichEditorVariant };
 
 export type MarkdownRichEditorProps = {
   value: string;
@@ -238,40 +236,15 @@ export function MarkdownRichEditor({
     onCancelChordRef.current = onCancelChord;
   }, [onCancelChord]);
 
-  const extensions = useMemo(() => {
-    const base = [
-      Markdown.configure({
-        markedOptions: { gfm: true, breaks: true },
+  const extensions = useMemo(
+    () =>
+      buildMarkdownRichEditorExtensions({
+        variant,
+        placeholder,
+        allowImages,
       }),
-      StarterKit.configure({
-        heading: variant === "full" ? { levels: [2, 3] } : false,
-        bulletList: { HTMLAttributes: { class: "list-disc pl-4" } },
-        orderedList: { HTMLAttributes: { class: "list-decimal pl-4" } },
-      }),
-      LinkExtension.configure({
-        openOnClick: false,
-        autolink: true,
-        linkOnPaste: true,
-        HTMLAttributes: {
-          class: "text-kurator-accent underline underline-offset-2",
-        },
-      }),
-      KuratorEmoji,
-      Placeholder.configure({ placeholder }),
-    ];
-    if (allowImages) {
-      base.push(
-        ImageExtension.configure({
-          inline: true,
-          allowBase64: false,
-          HTMLAttributes: {
-            class: "my-2 max-h-64 rounded-lg",
-          },
-        }),
-      );
-    }
-    return base;
-  }, [variant, placeholder, allowImages]);
+    [variant, placeholder, allowImages],
+  );
 
   const onPickImage = useCallback(() => {
     imageInputRef.current?.click();
