@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   exploreSearchKindLabel,
   fetchExploreSearch,
@@ -47,7 +47,19 @@ function truncate(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
-export function GlobalSearchBar({ className = "" }: { className?: string }) {
+type Props = {
+  className?: string;
+  /** Increment to focus the input (e.g. mobile search expanded). */
+  focusSignal?: number;
+  /** When true, input is inert until expanded (ignored at md+). */
+  mobileCollapsed?: boolean;
+};
+
+export function GlobalSearchBar({
+  className = "",
+  focusSignal = 0,
+  mobileCollapsed = false,
+}: Props) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,11 +69,27 @@ export function GlobalSearchBar({ className = "" }: { className?: string }) {
   const [hits, setHits] = useState<ExploreSearchHit[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [desktopLayout, setDesktopLayout] = useState(false);
+
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setDesktopLayout(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const inputActive = desktopLayout || !mobileCollapsed;
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [q]);
+
+  useEffect(() => {
+    if (focusSignal <= 0) return;
+    inputRef.current?.focus();
+  }, [focusSignal]);
 
   const runSearch = useCallback(async () => {
     if (debounced.length < MIN_LEN) {
@@ -126,6 +154,8 @@ export function GlobalSearchBar({ className = "" }: { className?: string }) {
           aria-expanded={showPanel}
           aria-controls={showPanel ? listboxId : undefined}
           aria-autocomplete="list"
+          aria-hidden={inputActive ? undefined : true}
+          tabIndex={inputActive ? 0 : -1}
           role="combobox"
           className="w-full rounded-lg border border-kurator-border/80 bg-kurator-surface/10 py-2 pl-9 pr-3 text-sm text-kurator-fg placeholder:text-kurator-muted/70 focus:border-kurator-border focus:bg-kurator-surface/15 focus:outline-none focus:ring-2 focus:ring-kurator-accent/40"
         />

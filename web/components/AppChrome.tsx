@@ -21,6 +21,7 @@ import {
   Home,
   Layers,
   MessageSquare,
+  Search,
   ThumbsUp,
 } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -254,6 +255,8 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const [closeNotif, setCloseNotif] = useState(0);
   const [closeAccount, setCloseAccount] = useState(0);
   const [closeCreate, setCloseCreate] = useState(0);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSearchFocus, setMobileSearchFocus] = useState(0);
   const [compactTipPortalReady, setCompactTipPortalReady] = useState(false);
   const [compactTipLabel, setCompactTipLabel] = useState<string | null>(null);
   const [compactTipPos, setCompactTipPos] = useState<{ left: number; top: number } | null>(null);
@@ -326,6 +329,34 @@ export function AppChrome({ children }: { children: ReactNode }) {
     }
   }, [pathname, setCollapsed]);
 
+  useEffect(() => {
+    setMobileSearchOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileSearchOpen) return;
+    function onKey(ev: KeyboardEvent) {
+      if (ev.key === "Escape") setMobileSearchOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileSearchOpen]);
+
+  const closeMobileSearch = useCallback(() => {
+    setMobileSearchOpen(false);
+  }, []);
+
+  const toggleMobileSearch = useCallback(() => {
+    setMobileSearchOpen((open) => {
+      if (open) return false;
+      setCloseCreate((n) => n + 1);
+      setCloseNotif((n) => n + 1);
+      setCloseAccount((n) => n + 1);
+      setMobileSearchFocus((n) => n + 1);
+      return true;
+    });
+  }, []);
+
   const mobileNav = useMemo(() => [...socialSubItems, ...shelfSubItems], []);
 
   const privacyActive = pathname === "/privacy" || pathname.startsWith("/privacy/");
@@ -339,36 +370,68 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const appTopBar = (
     <header
       ref={topBarRef}
-      className="relative sticky top-0 z-50 flex w-full shrink-0 items-center justify-between border-b border-kurator-border bg-kurator-topbar px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] shadow-md md:px-6"
+      className={`relative sticky top-0 z-50 flex w-full shrink-0 flex-col border-b border-kurator-border bg-kurator-topbar px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] shadow-md md:flex-row md:items-center md:justify-between md:gap-0 md:px-6 ${
+        mobileSearchOpen ? "gap-2" : "gap-0"
+      }`}
     >
-      <Link href="/" className="relative z-10 shrink-0">
-        <SidebarBrandLogo variant="wide-on-dark" />
-      </Link>
-      <div className="pointer-events-none absolute inset-x-4 top-1/2 z-20 flex -translate-y-1/2 justify-center md:inset-x-6">
-        <GlobalSearchBar className="pointer-events-auto w-full max-w-md" />
+      <div className="flex w-full items-center justify-between md:contents">
+        <Link href="/" className="relative z-10 shrink-0">
+          <SidebarBrandLogo variant="wide-on-dark" />
+        </Link>
+        <div className="relative z-10 flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleMobileSearch}
+            className={`relative flex h-10 w-10 items-center justify-center rounded-xl border bg-transparent transition-colors md:hidden ${
+              mobileSearchOpen
+                ? "border-kurator-border bg-kurator-border/50 text-kurator-fg"
+                : "border-transparent text-kurator-muted hover:border-kurator-border hover:bg-kurator-border/50 hover:text-kurator-fg"
+            }`}
+            aria-expanded={mobileSearchOpen}
+            aria-controls="mobile-global-search"
+            aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+          >
+            <Search className="h-6 w-6" aria-hidden />
+          </button>
+          <TopBarCreateMenu
+            closeSignal={closeCreate}
+            onMenuOpen={() => {
+              closeMobileSearch();
+              setCloseNotif((n) => n + 1);
+              setCloseAccount((n) => n + 1);
+            }}
+          />
+          <NotificationDropdown
+            closeSignal={closeNotif}
+            onMenuOpen={() => {
+              closeMobileSearch();
+              setCloseAccount((n) => n + 1);
+              setCloseCreate((n) => n + 1);
+            }}
+          />
+          <AccountMenu
+            closeSignal={closeAccount}
+            onMenuOpen={() => {
+              closeMobileSearch();
+              setCloseNotif((n) => n + 1);
+              setCloseCreate((n) => n + 1);
+            }}
+          />
+        </div>
       </div>
-      <div className="relative z-10 flex shrink-0 items-center gap-2">
-        <TopBarCreateMenu
-          closeSignal={closeCreate}
-          onMenuOpen={() => {
-            setCloseNotif((n) => n + 1);
-            setCloseAccount((n) => n + 1);
-          }}
-        />
-        <NotificationDropdown
-          closeSignal={closeNotif}
-          onMenuOpen={() => {
-            setCloseAccount((n) => n + 1);
-            setCloseCreate((n) => n + 1);
-          }}
-        />
-        <AccountMenu
-          closeSignal={closeAccount}
-          onMenuOpen={() => {
-            setCloseNotif((n) => n + 1);
-            setCloseCreate((n) => n + 1);
-          }}
-        />
+      <div
+        id="mobile-global-search"
+        className={`relative z-20 grid w-full transition-[grid-template-rows] duration-200 ease-out md:pointer-events-none md:absolute md:inset-x-6 md:top-1/2 md:flex md:-translate-y-1/2 md:justify-center md:overflow-visible ${
+          mobileSearchOpen ? "grid-rows-[1fr]" : "pointer-events-none grid-rows-[0fr]"
+        } md:pointer-events-none md:grid-rows-[1fr]`}
+      >
+        <div className="min-h-0 overflow-hidden md:flex md:w-full md:justify-center md:overflow-visible">
+          <GlobalSearchBar
+            className="w-full md:pointer-events-auto md:max-w-md"
+            focusSignal={mobileSearchFocus}
+            mobileCollapsed={!mobileSearchOpen}
+          />
+        </div>
       </div>
     </header>
   );
